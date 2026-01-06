@@ -1,0 +1,23 @@
+/// API endpoint constants
+class ApiConstants {
+  ApiConstants._(); // Private constructor to prevent instantiation
+
+  // Base URL Configuration
+
+  // Current Configuration: Android Emulator
+  static const String baseUrl = 'https://crackteck.co.in/api/v1';
+
+  // Authentication Endpoints
+  static const String login = '$baseUrl/send-otp';
+  static const String verifyOtp = '$baseUrl/verify-otp';
+  static const String refreshToken = '$baseUrl/refresh-token';
+  static const String signup = '$baseUrl/signup';
+  static const String logout = '$baseUrl/logout';
+
+
+  // Request Timeout
+  static const Duration requestTimeout = Duration(seconds: 30);
+
+  // Country Code
+  static const String defaultCountryCode = '+91';
+}
