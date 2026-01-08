@@ -1,3 +1,5 @@
+import 'package:customer_cracktreck/screens/product_list.dart';
+import 'package:customer_cracktreck/screens/profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'hometab.dart';
 import '../widgets/custom_bottom_nav.dart';
@@ -15,9 +17,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // The screens for each tab
   final List<Widget> _pages = [
     const HomeScreen(), // Home Tab
-    const Center(child: Text('Chat Screen')),
-    const Center(child: Text('Product Screen')),
-    const Center(child: Text('Profile Screen')),
+    const Center(child: Text('Coming soon')),
+    const ProductScreen(), // Product Tab
+    const ProfileScreen(), // Profile Tab
   ];
 
   void _onItemTapped(int index) {

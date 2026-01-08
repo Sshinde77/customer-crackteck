@@ -1,5 +1,8 @@
 
-import 'package:customer_cracktreck/screens/hometab.dart';
+import 'package:customer_cracktreck/screens/notification.dart';
+import 'package:customer_cracktreck/screens/quick_service_details.dart';
+import 'package:customer_cracktreck/screens/service_enquiry.dart';
+import 'package:customer_cracktreck/signup_screen.dart';
 import 'package:flutter/material.dart';
 
 import '../constants/app_strings.dart';
@@ -17,12 +20,15 @@ class RouteGenerator {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case AppRoutes.login:
-        final args = settings.arguments as LoginArguments?;
-        
         return MaterialPageRoute(
-          builder: (_) =>  DashboardScreen(),
+          builder: (_) => const DashboardScreen(),
           settings: settings,
         );
+      //      case AppRoutes.login:
+      //             return MaterialPageRoute(
+      //               builder: (_) => const LoginScreen(roleId: AppStrings.roleId,),
+      //               settings: settings,
+      //             );
 
       case AppRoutes.otpVerification:
         final args = settings.arguments as OtpArguments?;
@@ -37,6 +43,30 @@ class RouteGenerator {
       case AppRoutes.hometab:
         return MaterialPageRoute(
           builder: (_) => DashboardScreen(),
+          settings: settings,
+        );
+
+      case AppRoutes.signUp:
+        return MaterialPageRoute(
+          builder: (_) => const SignUpScreen(),
+          settings: settings,
+        );
+      case AppRoutes.notification:
+        return MaterialPageRoute(
+          builder: (_) => const NotificationScreen(),
+          settings: settings,
+        );
+
+      case AppRoutes.quickServiceDetails:
+        final args = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(
+          builder: (_) => QuickServiceDetailsScreen(serviceData: args ?? {}),
+          settings: settings,
+        );
+
+      case AppRoutes.serviceEnquiry:
+        return MaterialPageRoute(
+          builder: (_) => const QuickServicesScreen(),
           settings: settings,
         );
 

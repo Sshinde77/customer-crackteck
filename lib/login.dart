@@ -89,15 +89,17 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   /// Navigate to sign up screen
-  // void _navigateToSignUp() {
-  //   Navigator.pushNamed(
-  //     context,
-  //     AppRoutes.signUp,
-  //     arguments: {
-  //       'roleId': widget.roleId,
-  //     },
-  //   );
-  // }
+  void _navigateToSignUp() {
+    Navigator.pushNamed(
+      context,
+      AppRoutes.signUp,
+    );
+  }
+
+  String getLoginSubtitle() {
+    // Add logic to return appropriate subtitle based on roleId if needed
+    return "Please enter your mobile number to login";
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -106,10 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -180,7 +179,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: TextStyle(color: AppColors.lightGrey, fontSize: 14),
                   ),
                   GestureDetector(
-                    // onTap: _navigateToSignUp,
+                    onTap: _navigateToSignUp,
                     child: const Text(
                       AppStrings.signUp,
 

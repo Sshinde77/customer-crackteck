@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
+import '../routes/app_routes.dart';
+import 'product_list.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,15 +20,9 @@ class _HomeScreenState extends State<HomeScreen> {
   int _bannerIndex = 0;
   Timer? _timer;
 
-  final List<Map<String, dynamic>> _banners = [
-    {
-      'title': 'Up to 20% Off on\nCleaning Services',
-      'color': const Color(0xFFC0E8FF),
-    },
-    {
-      'title': 'Get Expert Repair\nin 30 Minutes',
-      'color': const Color(0xFFFFE0B2),
-    },
+  final List<String> _bannerImages = [
+    'assests/banner_1.jpg',
+    'assests/banner_2.png',
   ];
 
   @override
@@ -38,7 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _startAutoSlide() {
     _timer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (_bannerController.hasClients) {
-        _bannerIndex = (_bannerIndex + 1) % _banners.length;
+        _bannerIndex = (_bannerIndex + 1) % _bannerImages.length;
         _bannerController.animateToPage(
           _bannerIndex,
           duration: const Duration(milliseconds: 600),
@@ -59,177 +55,183 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          // 🔹 Green Header
-          _header(),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            // 🔹 Green Header
+            _header(),
 
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 16),
-                  _searchBar(),
-
-                  /// 🔹 QUICK SERVICE
-                  _sectionTitle('Quick Service'),
-                  SizedBox(
-                    height: 250,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      children: const [
-                        _QuickServiceCard(
-                          title: 'Windows PC Restart Issues',
-                          image: Icons.desktop_windows_outlined,
-                        ),
-                        _QuickServiceCard(
-                          title: 'Mac PC Restart Issues',
-                          image: Icons.laptop_mac_outlined,
-                        ),
-                        _QuickServiceCard(
-                          title: 'Windows Update Issues',
-                          image: Icons.system_update_alt_outlined,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  /// 🔹 QUICK ADD
-                  const SizedBox(height: 16),
-                  _sectionTitle('Quick Add'),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: 0.85,
-                      ),
-                      itemCount: _showAllQuickAdd ? _allQuickAdd.length : 3,
-                      itemBuilder: (context, index) {
-                        final item = _showAllQuickAdd ? _allQuickAdd[index] : _shortQuickAdd[index];
-                        return _quickAddItem(item);
-                      },
-                    ),
-                  ),
-
-                  /// 🔽 Expand / Collapse Arrow
-                  Center(
-                    child: IconButton(
-                      icon: Icon(
-                        _showAllQuickAdd
-                            ? Icons.keyboard_arrow_up
-                            : Icons.keyboard_arrow_down,
-                        size: 36,
-                        color: Colors.black,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _showAllQuickAdd = !_showAllQuickAdd;
-                        });
-                      },
-                    ),
-                  ),
-
-                  /// 🔹 PROMOTIONAL AUTO SLIDER
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: SizedBox(
-                      height: 160,
-                      child: PageView.builder(
-                        controller: _bannerController,
-                        itemCount: _banners.length,
-                        onPageChanged: (index) => setState(() => _bannerIndex = index),
-                        itemBuilder: (_, index) {
-                          final banner = _banners[index];
-                          return _promoBanner(banner);
-                        },
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  /// 🔹 ENQUIRY SECTION
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Container(
-                      width: double.infinity,
-                      height: 140,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        color: const Color(0xFFFFE5D0),
-                      ),
-                      child: Stack(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.headset_mic_outlined, color: Colors.orange, size: 36),
-                                const SizedBox(height: 4),
-                                const Text(
-                                  'Enquiry',
-                                  style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                                Text(
-                                  'Assistance 24 hour',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.black.withOpacity(0.7),
-                                  ),
-                                ),
-                              ],
-                            ),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                
+                    /// 🔹 QUICK SERVICE
+                    _sectionTitle('Quick Service'),
+                    SizedBox(
+                      height: 250,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        children: const [
+                          _QuickServiceCard(
+                            title: 'Windows PC Restart Issues',
+                            image: 'assests/computer.png',
                           ),
-                          Positioned(
-                            right: 0,
-                            top: 0,
-                            bottom: 0,
-                            child: ClipRRect(
-                              borderRadius: const BorderRadius.only(
-                                topRight: Radius.circular(20),
-                                bottomRight: Radius.circular(20),
-                              ),
-                              child: Opacity(
-                                opacity: 0.9,
-                                child: Container(
-                                  width: 150,
-                                  alignment: Alignment.centerRight,
-                                  child: Icon(Icons.support_agent, size: 100, color: Colors.orange.withOpacity(0.2)),
-                                ),
-                              ),
-                            ),
+                          _QuickServiceCard(
+                            title: 'Mac PC Restart Issues',
+                            image: 'assests/laptop.png',
+                          ),
+                          _QuickServiceCard(
+                            title: 'Windows Update Issues',
+                            image: 'assests/computer.png',
                           ),
                         ],
                       ),
                     ),
-                  ),
 
-                  const SizedBox(height: 30),
-                ],
+                    /// 🔹 QUICK ADD
+                    const SizedBox(height: 16),
+                    _sectionTitle('Quick Add'),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: 0.85,
+                        ),
+                        itemCount: _showAllQuickAdd ? _allQuickAdd.length : 3,
+                        itemBuilder: (context, index) {
+                          final item = _showAllQuickAdd ? _allQuickAdd[index] : _shortQuickAdd[index];
+                          return _quickAddItem(context, item);
+                        },
+                      ),
+                    ),
+
+                    /// 🔽 Expand / Collapse Arrow
+                    Center(
+                      child: IconButton(
+                        icon: Icon(
+                          _showAllQuickAdd
+                              ? Icons.keyboard_arrow_up
+                              : Icons.keyboard_arrow_down,
+                          size: 36,
+                          color: Colors.black,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _showAllQuickAdd = !_showAllQuickAdd;
+                          });
+                        },
+                      ),
+                    ),
+
+                    /// 🔹 PROMOTIONAL AUTO SLIDER
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: SizedBox(
+                        height: 160,
+                        child: PageView.builder(
+                          controller: _bannerController,
+                          itemCount: _bannerImages.length,
+                          onPageChanged: (index) => setState(() => _bannerIndex = index),
+                          itemBuilder: (_, index) {
+                            return _promoBanner(_bannerImages[index]);
+                          },
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    /// 🔹 ENQUIRY SECTION
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.pushNamed(context, AppRoutes.serviceEnquiry);
+                        },
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          width: double.infinity,
+                          height: 140,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            color: const Color(0xFFFFE5D0),
+                          ),
+                          child: Stack(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.all(20),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.headset_mic_outlined, color: Colors.orange, size: 36),
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      'Enquiry',
+                                      style: TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Assistance 24 hour',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.black.withOpacity(0.7),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Positioned(
+                                right: 0,
+                                top: 0,
+                                bottom: 0,
+                                child: ClipRRect(
+                                  borderRadius: const BorderRadius.only(
+                                    topRight: Radius.circular(20),
+                                    bottomRight: Radius.circular(20),
+                                  ),
+                                  child: Opacity(
+                                    opacity: 0.9,
+                                    child: Container(
+                                      width: 150,
+                                      alignment: Alignment.centerRight,
+                                      child: Icon(Icons.support_agent, size: 100, color: Colors.orange.withOpacity(0.2)),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 30),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _header() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 50, 16, 20),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: const BoxDecoration(
         color: AppColors.primary,
         borderRadius: BorderRadius.only(
@@ -260,48 +262,29 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          Stack(
-            children: [
-              const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 28),
-              Positioned(
-                right: 2,
-                top: 2,
-                child: Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
+          InkWell(
+            onTap: () {
+              Navigator.pushNamed(context, AppRoutes.notification);
+            },
+            child: Stack(
+              children: [
+                const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 28),
+                Positioned(
+                  right: 2,
+                  top: 2,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(minWidth: 8, minHeight: 8),
                   ),
-                  constraints: const BoxConstraints(minWidth: 8, minHeight: 8),
-                ),
-              )
-            ],
+                )
+              ],
+            ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _searchBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: TextField(
-        decoration: InputDecoration(
-          hintText: 'Search',
-          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 18),
-          prefixIcon: Icon(Icons.search, color: Colors.grey.shade400, size: 28),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(vertical: 0),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
-          ),
-        ),
       ),
     );
   }
@@ -319,93 +302,54 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _quickAddItem(Map<String, dynamic> item) {
-    return Column(
-      children: [
-        Container(
-          height: 80,
-          width: 80,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF5F5F5),
-            borderRadius: BorderRadius.circular(12),
+  Widget _quickAddItem(BuildContext context, Map<String, dynamic> item) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ProductScreen(initialCategory: item['label'] as String),
           ),
-          child: item['image'] != null
-              ? Image.asset(
-                  item['image'] as String,
-                  fit: BoxFit.contain,
-                )
-              : const Center(
-                  child: Text('Other', style: TextStyle(fontWeight: FontWeight.w500)),
-                ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          item['label'] as String,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-          textAlign: TextAlign.center,
-        ),
-      ],
+        );
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Column(
+        children: [
+          Container(
+            height: 80,
+            width: 80,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: item['image'] != null
+                ? Image.asset(
+                    item['image'] as String,
+                    fit: BoxFit.contain,
+                  )
+                : const Center(
+                    child: Text('Other', style: TextStyle(fontWeight: FontWeight.w500)),
+                  ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            item['label'] as String,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _promoBanner(Map<String, dynamic> banner) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: banner['color'] as Color,
-      ),
-      child: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  banner['title'] as String,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    height: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0A1D37),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      Text(
-                        'Book Now',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                      ),
-                      SizedBox(width: 8),
-                      Icon(Icons.north_east, color: Colors.white, size: 16),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: ClipRRect(
-              borderRadius: const BorderRadius.only(bottomRight: Radius.circular(16)),
-              child: Opacity(
-                opacity: 0.8,
-                child: Icon(Icons.person, size: 140, color: Colors.blue.withOpacity(0.3)),
-              ),
-            ),
-          ),
-        ],
+  Widget _promoBanner(String imagePath) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Image.asset(
+        imagePath,
+        fit: BoxFit.cover,
+        width: double.infinity,
       ),
     );
   }
@@ -413,7 +357,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class _QuickServiceCard extends StatelessWidget {
   final String title;
-  final IconData image;
+  final String image;
 
   const _QuickServiceCard({
     required this.title,
@@ -422,56 +366,72 @@ class _QuickServiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 180,
-      margin: const EdgeInsets.only(right: 16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-        color: Colors.white,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 110,
-            width: double.infinity,
-            decoration: const BoxDecoration(
-              color: Color(0xFFF5F5F5),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-            child: Center(
-              child: Icon(image, size: 60, color: Colors.black45),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+    return InkWell(
+      onTap: () {
+        Navigator.pushNamed(
+          context,
+          AppRoutes.quickServiceDetails,
+          arguments: {
+            'title': title,
+            'image': image,
+          },
+        );
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: 180,
+        margin: const EdgeInsets.only(right: 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+          color: Colors.white,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              height: 110,
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(15.0),
+                  child: Image.asset(image, fit: BoxFit.contain),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Visit charge of Rs 159 waived in final bill; spare part/repair cost extra.',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 10,
-                  ),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Visit charge of Rs 159 waived in final bill; spare part/repair cost extra.',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 10,
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -383,51 +383,54 @@ class ApiService {
     }
   }
 
+  /// Signup / Register
   Future<ApiResponse> signup({
-    required String name,
-    required String phone,
-    required String email,
-    required String address,
-    required String aadhar,
-    required String pan,
-    required File aadharFile,
-    required File panFile,
+    required Map<String, String> fields,
   }) async {
-    final uri = Uri.parse(ApiConstants.signup);
+    try {
+      debugPrint('🔵 API Request: POST ${ApiConstants.signup}');
+      debugPrint('🔵 Request Fields: $fields');
 
-    final request = http.MultipartRequest("POST", uri)
-      ..fields.addAll({
-        "name": name,
-        "phone": phone,
-        "email": email,
-        "address": address,
-        "aadhar_no": aadhar,
-        "pan_no": pan,
-      })
-      ..files.add(
-        await http.MultipartFile.fromPath("aadhar_document", aadharFile.path),
-      )
-      ..files.add(
-        await http.MultipartFile.fromPath("pan_document", panFile.path),
-      );
+      final request = http.MultipartRequest('POST', Uri.parse(ApiConstants.signup));
+      request.fields.addAll(fields);
 
-    final response = await request.send();
-    final resBody = await response.stream.bytesToString();
+      final streamedResponse = await request.send().timeout(ApiConstants.requestTimeout);
+      final response = await http.Response.fromStream(streamedResponse);
 
-    if (_looksLikeHtml(resBody)) {
-      debugPrint(
-        'HTML response detected for ${ApiConstants.signup}. Treating as failure.',
-      );
+      debugPrint('🟡 API Response Status: ${response.statusCode}');
+      debugPrint('🟡 API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+        return ApiResponse(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Signup successful',
+          data: jsonResponse['data'],
+          errors: jsonResponse['errors'],
+        );
+      }
+
       return ApiResponse(
         success: false,
-        message: 'Server returned HTML instead of JSON',
-        data: null,
-        errors: const {},
+        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Signup failed'),
+        errors: jsonResponse['errors'],
       );
+    } on SocketException {
+      return ApiResponse(
+        success: false,
+        message: 'No internet connection. Please check your network.',
+      );
+    } on TimeoutException {
+      return ApiResponse(
+        success: false,
+        message: 'Request timeout. Please try again.',
+      );
+    } catch (e) {
+      debugPrint('🔴 Unexpected Error: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
-
-    final json = jsonDecode(resBody);
-    return ApiResponse.fromJson(json, (data) => data);
   }
 
   /// Logout

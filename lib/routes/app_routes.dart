@@ -11,6 +11,9 @@ class AppRoutes {
   // OTP Verification Route
   static const String otpVerification = '/otp-verification';
   static const String hometab = '/hometab';
+  static const String notification = '/notification';
+  static const String quickServiceDetails = '/quick-service-details';
+  static const String serviceEnquiry = '/service-enquiry';
 
   // Sign Up Routes
   static const String signUp = '/signup';
@@ -40,4 +43,3 @@ class LoginArguments {
   final int roleId;
   LoginArguments({ this.roleId =AppStrings.roleId});
 }
-
