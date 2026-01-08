@@ -19,16 +19,16 @@ class RouteGenerator {
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
-      case AppRoutes.login:
-        return MaterialPageRoute(
-          builder: (_) => const DashboardScreen(),
-          settings: settings,
-        );
-      //      case AppRoutes.login:
-      //             return MaterialPageRoute(
-      //               builder: (_) => const LoginScreen(roleId: AppStrings.roleId,),
-      //               settings: settings,
-      //             );
+      // case AppRoutes.login:
+      //   return MaterialPageRoute(
+      //     builder: (_) => const DashboardScreen(),
+      //     settings: settings,
+      //   );
+           case AppRoutes.login:
+                  return MaterialPageRoute(
+                    builder: (_) => const LoginScreen(roleId: AppStrings.roleId,),
+                    settings: settings,
+                  );
 
       case AppRoutes.otpVerification:
         final args = settings.arguments as OtpArguments?;

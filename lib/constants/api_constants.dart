@@ -13,6 +13,7 @@ class ApiConstants {
   static const String refreshToken = '$baseUrl/refresh-token';
   static const String signup = '$baseUrl/signup';
   static const String logout = '$baseUrl/logout';
+  static const String productlist = '$baseUrl/product';
 
 
   // Request Timeout

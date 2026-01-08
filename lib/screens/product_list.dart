@@ -1,27 +1,71 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
+import '../models/product_model.dart';
 
-class ProductScreen extends StatelessWidget {
+class ProductScreen extends StatefulWidget {
   final String? initialCategory;
 
   const ProductScreen({super.key, this.initialCategory});
 
   @override
-  Widget build(BuildContext context) {
-    final double screenWidth = MediaQuery.of(context).size.width;
-    
-    // Responsive grid columns
-    int crossAxisCount = 3;
-    if (screenWidth < 360) {
-      crossAxisCount = 2;
-    } else if (screenWidth > 600) {
-      crossAxisCount = 5;
+  State<ProductScreen> createState() => _ProductScreenState();
+}
+
+class _ProductScreenState extends State<ProductScreen> {
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<ProductData> _products = [];
+  List<ProductData> _filteredProducts = [];
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProducts();
+  }
+
+  Future<void> _fetchProducts() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Role ID 4 as per your request
+      final response = await ApiService.instance.getProducts(roleId: 4);
+      
+      if (response.success && response.data != null) {
+        setState(() {
+          _products = response.data!.products ?? [];
+          _applyFilters();
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _errorMessage = response.message ?? 'Failed to load products';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'An unexpected error occurred';
+        _isLoading = false;
+      });
     }
+  }
 
-    // Filter products if a category is provided
-    final List<Product> filteredProducts = initialCategory != null && initialCategory != 'Other'
-        ? _products.where((p) => p.category.toLowerCase() == initialCategory!.toLowerCase()).toList()
-        : _products;
+  void _applyFilters() {
+    String query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredProducts = _products.where((p) {
+        final nameMatches = (p.warehouseProduct?.productName ?? '').toLowerCase().contains(query);
+        return nameMatches;
+      }).toList();
+    });
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return SafeArea(
       child: Scaffold(
         backgroundColor: Colors.white,
@@ -30,12 +74,9 @@ class ProductScreen extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: const Color(0xFF1F8B00),
           elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
+
           title: Text(
-            initialCategory ?? 'Product',
+            widget.initialCategory ?? 'Product',
             style: const TextStyle(color: Colors.white),
           ),
         ),
@@ -59,6 +100,8 @@ class ProductScreen extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
+                        controller: _searchController,
+                        onChanged: (value) => _applyFilters(),
                         decoration: InputDecoration(
                           hintText: 'Search',
                           hintStyle: TextStyle(color: Colors.grey.shade400),
@@ -74,21 +117,37 @@ class ProductScreen extends StatelessWidget {
 
             /// PRODUCT GRID
             Expanded(
-              child: filteredProducts.isEmpty
-                  ? const Center(child: Text('No products found in this category'))
-                  : GridView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: filteredProducts.length,
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: crossAxisCount,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 16,
-                        childAspectRatio: 0.75, 
-                      ),
-                      itemBuilder: (context, index) {
-                        return _productCard(filteredProducts[index]);
-                      },
-                    ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _errorMessage != null
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+                              const SizedBox(height: 10),
+                              ElevatedButton(
+                                onPressed: _fetchProducts,
+                                child: const Text('Retry'),
+                              )
+                            ],
+                          ),
+                        )
+                      : _filteredProducts.isEmpty
+                          ? const Center(child: Text('No products found'))
+                          : GridView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              itemCount: _filteredProducts.length,
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 16,
+                                mainAxisSpacing: 16,
+                                childAspectRatio: 0.68, // Slightly taller to fit 2 lines comfortably
+                              ),
+                              itemBuilder: (context, index) {
+                                return _productCard(_filteredProducts[index]);
+                              },
+                            ),
             ),
           ],
         ),
@@ -96,14 +155,19 @@ class ProductScreen extends StatelessWidget {
     );
   }
 
-  /// PRODUCT CARD (UI SAME AS IMAGE)
-  Widget _productCard(Product product) {
+  /// PRODUCT CARD
+  Widget _productCard(ProductData product) {
+    final wp = product.warehouseProduct;
+    final String imageUrl = wp?.mainProductImage != null 
+        ? "https://crackteck.co.in/${wp!.mainProductImage}"
+        : "";
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-
-        /// IMAGE PLACEHOLDER
-        Expanded(
+        /// IMAGE - Fixed square container
+        AspectRatio(
+          aspectRatio: 1, 
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -111,10 +175,13 @@ class ProductScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
-              child: Image.asset(
-                product.image,
-                fit: BoxFit.contain,
-              ),
+              child: imageUrl.isNotEmpty
+                  ? Image.network(
+                      imageUrl,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported, color: Colors.grey),
+                    )
+                  : const Icon(Icons.image, color: Colors.grey, size: 40),
             ),
           ),
         ),
@@ -123,7 +190,7 @@ class ProductScreen extends StatelessWidget {
 
         /// PRICE
         Text(
-          product.price,
+          "₹ ${wp?.finalPrice ?? '0'}",
           style: const TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 14,
@@ -132,145 +199,21 @@ class ProductScreen extends StatelessWidget {
 
         const SizedBox(height: 2),
 
-        /// NAME
-        Text(
-          product.name,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontSize: 11,
-            height: 1.3,
-            color: Colors.black54,
+        /// NAME - Fixed height for 2 lines to keep layout uniform
+        SizedBox(
+          height: 32, // Height enough for 2 lines of text
+          child: Text(
+            wp?.productName ?? 'Unnamed Product',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 11,
+              height: 1.2,
+              color: Colors.black54,
+            ),
           ),
         ),
       ],
     );
   }
 }
-
-/// ----------------------------
-/// PRODUCT MODEL
-/// ----------------------------
-class Product {
-  final String name;
-  final String price;
-  final String category;
-  final String image;
-
-  Product({
-    required this.name,
-    required this.price,
-    required this.category,
-    required this.image,
-  });
-}
-
-/// ----------------------------
-/// STATIC PRODUCT LIST
-/// ----------------------------
-final List<Product> _products = [
-  // Bio metric
-  Product(
-    name: 'ZKTeco K40 Fingerprint Terminal',
-    price: '₹ 4,500',
-    category: 'Bio Metric',
-    image: 'assests/Bio_metric.png',
-  ),
-  Product(
-    name: 'Realtime T52 Face & Fingerprint',
-    price: '₹ 5,200',
-    category: 'Bio Metric',
-    image: 'assests/Bio_metric.png',
-  ),
-  // CCTV
-  Product(
-    name: 'Hikvision 2MP Night Vision Camera',
-    price: '₹ 1,850',
-    category: 'CCTV',
-    image: 'assests/cctv.png',
-  ),
-  Product(
-    name: 'CP Plus 4MP Full HD Dome Camera',
-    price: '₹ 2,400',
-    category: 'CCTV',
-    image: 'assests/cctv.png',
-  ),
-  // Computer
-  Product(
-    name: 'HP Desktop PC i5 12th Gen',
-    price: '₹ 35,000',
-    category: 'Computer',
-    image: 'assests/computer.png',
-  ),
-  Product(
-    name: 'Dell OptiPlex Business Desktop',
-    price: '₹ 42,000',
-    category: 'Computer',
-    image: 'assests/computer.png',
-  ),
-  // EPBX
-  Product(
-    name: 'Panasonic KX-TES824 Hybrid System',
-    price: '₹ 12,500',
-    category: 'EPBX',
-    image: 'assests/epbx.png',
-  ),
-  Product(
-    name: 'Matrix ETERNITY PE SOHO PBX',
-    price: '₹ 15,800',
-    category: 'EPBX',
-    image: 'assests/epbx.png',
-  ),
-  // Laptop
-  Product(
-    name: 'Apple MacBook Air M2 chip',
-    price: '₹ 89,900',
-    category: 'Laptop',
-    image: 'assests/laptop.png',
-  ),
-  Product(
-    name: 'Dell Vostro 3420 Business Laptop',
-    price: '₹ 45,600',
-    category: 'Laptop',
-    image: 'assests/laptop.png',
-  ),
-  // Printer
-  Product(
-    name: 'Epson EcoTank L3210 Ink Tank',
-    price: '₹ 13,200',
-    category: 'Printer',
-    image: 'assests/printer.png',
-  ),
-  Product(
-    name: 'HP LaserJet Pro M126nw Printer',
-    price: '₹ 18,500',
-    category: 'Printer',
-    image: 'assests/printer.png',
-  ),
-  // Router
-  Product(
-    name: 'TP-Link Archer C6 AC1200 Router',
-    price: '₹ 2,499',
-    category: 'Router',
-    image: 'assests/router.png',
-  ),
-  Product(
-    name: 'D-Link DIR-825 Dual Band Router',
-    price: '₹ 2,199',
-    category: 'Router',
-    image: 'assests/router.png',
-  ),
-  // Server
-  Product(
-    name: 'Dell PowerEdge R750 Rack Server',
-    price: '₹ 4,50,000',
-    category: 'Server',
-    image: 'assests/server.png',
-  ),
-  Product(
-    name: 'HP ProLiant DL380 Gen10 Server',
-    price: '₹ 3,80,000',
-    category: 'Server',
-    image: 'assests/server.png',
-  ),
-];

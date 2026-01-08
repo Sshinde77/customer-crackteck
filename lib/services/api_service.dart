@@ -9,6 +9,7 @@ import '../constants/api_constants.dart';
 import '../constants/core/navigation_service.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/api_response.dart';
+import '../models/product_model.dart';
 
 /// API Service for handling HTTP requests
 class ApiService {
@@ -485,6 +486,51 @@ class ApiService {
       );
     } catch (e) {
       debugPrint('🔴 Unexpected Error: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  // ========================================
+  // Product List API
+  // ========================================
+
+  Future<ApiResponse<ProductModel>> getProducts({required int roleId}) async {
+    try {
+      debugPrint('🔵 API Request: GET ${ApiConstants.productlist}?role_id=$roleId');
+      
+      final url = Uri.parse(ApiConstants.productlist).replace(
+        queryParameters: {'role_id': roleId.toString()},
+      );
+      
+      final response = await _performAuthenticatedGet(url);
+      
+      debugPrint('🟡 API Response Status: ${response.statusCode}');
+      debugPrint('🟡 API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+        // Based on the example, "products" is at the root.
+        // We wrap it for ApiResponse if needed, or handle it here.
+        return ApiResponse<ProductModel>(
+          success: true,
+          message: 'Products fetched successfully',
+          data: ProductModel.fromJson(jsonResponse),
+        );
+      }
+
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to fetch products'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('🔴 Unexpected Error in getProducts: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
