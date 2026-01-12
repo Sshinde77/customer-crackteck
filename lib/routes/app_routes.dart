@@ -14,6 +14,17 @@ class AppRoutes {
   static const String notification = '/notification';
   static const String quickServiceDetails = '/quick-service-details';
   static const String serviceEnquiry = '/service-enquiry';
+  static const String personalInfo = '/personal-info';
+  static const String personalDetail = '/personal-detail';
+  static const String address = '/address';
+  static const String documents = '/documents';
+  static const String company = '/company';
+  static const String myProductOrders = '/my-product-orders';
+  static const String workProgressTracker = '/work-progress-tracker';
+  static const String myServiceRequest = '/my-service-request';
+  static const String quotation = '/quotation';
+  static const String feedback = '/feedback';
+  static const String serviceRequestDetails = '/service-request-details';
 
   // Sign Up Routes
   static const String signUp = '/signup';

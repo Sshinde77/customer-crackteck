@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
+import '../routes/app_routes.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -50,13 +51,49 @@ class ProfileScreen extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
                 children: [
-                  _buildProfileOption(Icons.info_outline, 'Personal info'),
-                  _buildProfileOption(Icons.inventory_2_outlined, 'My product orders'),
-                  _buildProfileOption(Icons.assignment_outlined, 'Work progress tracker'),
-                  _buildProfileOption(Icons.handyman_outlined, 'Repair Material'),
-                  _buildProfileOption(Icons.settings_suggest_outlined, 'My service request'),
-                  _buildProfileOption(Icons.description_outlined, 'Quotation'),
-                  _buildProfileOption(Icons.feedback_outlined, 'Feedback\'s'),
+                  _buildProfileOption(
+                    Icons.info_outline,
+                    'Personal info',
+                    onTap: () {
+                      Navigator.pushNamed(context, AppRoutes.personalInfo);
+                    },
+                  ),
+                  _buildProfileOption(
+                    Icons.inventory_2_outlined,
+                    'My product orders',
+                    onTap: () {
+                      Navigator.pushNamed(context, AppRoutes.myProductOrders);
+                    },
+                  ),
+                  // _buildProfileOption(
+                  //   Icons.assignment_outlined,
+                  //   'Work progress tracker',
+                  //   onTap: () {
+                  //     Navigator.pushNamed(context, AppRoutes.workProgressTracker);
+                  //   },
+                  // ),
+                  // _buildProfileOption(Icons.handyman_outlined, 'Repair Material'),
+                  _buildProfileOption(
+                    Icons.assignment_outlined,
+                    'My service request',
+                    onTap: () {
+                      Navigator.pushNamed(context, AppRoutes.myServiceRequest);
+                    },
+                  ),
+                  _buildProfileOption(
+                    Icons.description_outlined,
+                    'Quotation',
+                    onTap: () {
+                      Navigator.pushNamed(context, AppRoutes.quotation);
+                    },
+                  ),
+                  _buildProfileOption(
+                    Icons.feedback_outlined,
+                    'Feedback\'s',
+                    onTap: () {
+                      Navigator.pushNamed(context, AppRoutes.feedback);
+                    },
+                  ),
                   _buildProfileOption(Icons.headset_mic_outlined, 'Help & Support'),
                   _buildProfileOption(Icons.privacy_tip_outlined, 'Privacy policy'),
                 ],
@@ -68,7 +105,7 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileOption(IconData icon, String title) {
+  Widget _buildProfileOption(IconData icon, String title, {VoidCallback? onTap}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -87,8 +124,8 @@ class ProfileScreen extends StatelessWidget {
           ),
         ),
         trailing: const Icon(Icons.arrow_forward, color: Colors.green, size: 20),
-        onTap: () {
-          // Handle navigation
+        onTap: onTap ?? () {
+          // Default empty handler
         },
       ),
     );

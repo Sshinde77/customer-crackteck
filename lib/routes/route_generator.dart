@@ -1,7 +1,16 @@
 
+import 'package:customer_cracktreck/screens/address_screen.dart';
+import 'package:customer_cracktreck/screens/documents_screen.dart';
+import 'package:customer_cracktreck/screens/feedback_screen.dart';
+import 'package:customer_cracktreck/screens/my_product_orders_screen.dart';
+import 'package:customer_cracktreck/screens/my_service_request_screen.dart';
 import 'package:customer_cracktreck/screens/notification.dart';
+import 'package:customer_cracktreck/screens/personal_detail_screen.dart';
 import 'package:customer_cracktreck/screens/quick_service_details.dart';
+import 'package:customer_cracktreck/screens/quotation_screen.dart';
 import 'package:customer_cracktreck/screens/service_enquiry.dart';
+import 'package:customer_cracktreck/screens/service_request_details_screen.dart';
+import 'package:customer_cracktreck/screens/work_progress_tracker_screen.dart';
 import 'package:customer_cracktreck/signup_screen.dart';
 import 'package:flutter/material.dart';
 
@@ -10,6 +19,7 @@ import '../login.dart';
 
 import '../otp_screen.dart';
 import '../screens/dashboard_screen.dart';
+import '../screens/personal_info_screen.dart';
 import 'app_routes.dart';
 
 
@@ -19,16 +29,19 @@ class RouteGenerator {
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
+      // Handle the default root route
+      case '/':
+
       // case AppRoutes.login:
       //   return MaterialPageRoute(
       //     builder: (_) => const DashboardScreen(),
       //     settings: settings,
       //   );
-           case AppRoutes.login:
-                  return MaterialPageRoute(
-                    builder: (_) => const LoginScreen(roleId: AppStrings.roleId,),
-                    settings: settings,
-                  );
+      case AppRoutes.login:
+        return MaterialPageRoute(
+          builder: (_) => const LoginScreen(roleId: AppStrings.roleId,),
+          settings: settings,
+        );
 
       case AppRoutes.otpVerification:
         final args = settings.arguments as OtpArguments?;
@@ -67,6 +80,66 @@ class RouteGenerator {
       case AppRoutes.serviceEnquiry:
         return MaterialPageRoute(
           builder: (_) => const QuickServicesScreen(),
+          settings: settings,
+        );
+
+      case AppRoutes.personalInfo:
+        return MaterialPageRoute(
+          builder: (_) => const PersonalInfoScreen(),
+          settings: settings,
+        );
+
+      case AppRoutes.personalDetail:
+        return MaterialPageRoute(
+          builder: (_) => const PersonalDetailScreen(),
+          settings: settings,
+        );
+
+      case AppRoutes.address:
+        return MaterialPageRoute(
+          builder: (_) => const AddressScreen(),
+          settings: settings,
+        );
+
+      case AppRoutes.documents:
+        return MaterialPageRoute(
+          builder: (_) => const DocumentsScreen(),
+          settings: settings,
+        );
+
+      case AppRoutes.myProductOrders:
+        return MaterialPageRoute(
+          builder: (_) => const MyProductOrdersScreen(),
+          settings: settings,
+        );
+
+      case AppRoutes.workProgressTracker:
+        return MaterialPageRoute(
+          builder: (_) => const WorkProgressTrackerScreen(),
+          settings: settings,
+        );
+
+      case AppRoutes.myServiceRequest:
+        return MaterialPageRoute(
+          builder: (_) => const MyServiceRequestScreen(),
+          settings: settings,
+        );
+
+      case AppRoutes.quotation:
+        return MaterialPageRoute(
+          builder: (_) => const QuotationScreen(),
+          settings: settings,
+        );
+
+      case AppRoutes.feedback:
+        return MaterialPageRoute(
+          builder: (_) => const FeedbackScreen(),
+          settings: settings,
+        );
+
+      case AppRoutes.serviceRequestDetails:
+        return MaterialPageRoute(
+          builder: (_) => const ServiceRequestDetailsScreen(),
           settings: settings,
         );
 
