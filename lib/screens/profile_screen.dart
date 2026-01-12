@@ -65,13 +65,13 @@ class ProfileScreen extends StatelessWidget {
                       Navigator.pushNamed(context, AppRoutes.myProductOrders);
                     },
                   ),
-                  // _buildProfileOption(
-                  //   Icons.assignment_outlined,
-                  //   'Work progress tracker',
-                  //   onTap: () {
-                  //     Navigator.pushNamed(context, AppRoutes.workProgressTracker);
-                  //   },
-                  // ),
+                  _buildProfileOption(
+                    Icons.assignment_outlined,
+                    'Work progress tracker',
+                    onTap: () {
+                      Navigator.pushNamed(context, AppRoutes.workProgressTracker);
+                    },
+                  ),
                   // _buildProfileOption(Icons.handyman_outlined, 'Repair Material'),
                   _buildProfileOption(
                     Icons.assignment_outlined,
@@ -97,6 +97,36 @@ class ProfileScreen extends StatelessWidget {
                   _buildProfileOption(Icons.headset_mic_outlined, 'Help & Support'),
                   _buildProfileOption(Icons.privacy_tip_outlined, 'Privacy policy'),
                 ],
+              ),
+            ),
+
+            // Logout Button
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    // Navigate to login and clear stack
+                    Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (route) => false);
+                  },
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  label: const Text(
+                    'Logout',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.shade700,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
