@@ -10,6 +10,8 @@ import '../constants/core/navigation_service.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/api_response.dart';
 import '../models/product_model.dart';
+import '../models/user_model.dart';
+import '../models/address_model.dart';
 
 /// API Service for handling HTTP requests
 class ApiService {
@@ -347,7 +349,7 @@ class ApiService {
       if (!isHtml &&
           (response.statusCode == 200 || response.statusCode == 201)) {
         // Persist any tokens contained in the refresh response.
-        await _persistTokensFromData(jsonResponse['data'], roleId: roleId);
+        await _persistTokensFromData(jsonResponse, roleId: roleId);
         return ApiResponse(
           success: jsonResponse['success'] ?? true,
           message: jsonResponse['message'] ?? 'Token refreshed',
@@ -435,17 +437,26 @@ class ApiService {
   }
 
   /// Logout
-  Future<ApiResponse> logout({required int roleId}) async {
+  Future<ApiResponse> logout({required int userId, required int roleId}) async {
     try {
       debugPrint('🔵 API Request: POST ${ApiConstants.logout}');
-      debugPrint('🔵 Request Body: {"role_id": $roleId}');
+      debugPrint('🔵 Request Query: user_id=$userId&role_id=$roleId');
+
+      final accessToken = await SecureStorageService.getAccessToken();
+      final headers = {
+        'Accept': 'application/json',
+        if (accessToken != null) 'Authorization': 'Bearer $accessToken',
+      };
+
+      final uri = Uri.parse(ApiConstants.logout).replace(
+        queryParameters: {
+          'user_id': userId.toString(),
+          'role_id': roleId.toString(),
+        },
+      );
 
       final response = await http
-          .post(
-        Uri.parse(ApiConstants.logout),
-        headers: _headers,
-        body: jsonEncode({'role_id': roleId}),
-      )
+          .post(uri, headers: headers)
           .timeout(ApiConstants.requestTimeout);
 
       debugPrint('🟡 API Response Status: ${response.statusCode}');
@@ -454,8 +465,7 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml &&
-          (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
         return ApiResponse(
           success: jsonResponse['success'] ?? true,
           message: jsonResponse['message'] ?? 'Logged out',
@@ -466,26 +476,15 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message:
-        jsonResponse['message'] ??
-            (isHtml ? 'Server returned HTML instead of JSON' : 'Logout failed'),
+        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Logout failed'),
         errors: jsonResponse['errors'],
       );
-    } on HandshakeException catch (e) {
-      debugPrint('🔴 SSL Handshake Error: $e');
-      return ApiResponse(success: false, message: 'SSL error: ${e.message}');
     } on SocketException {
-      return ApiResponse(
-        success: false,
-        message: 'No internet connection. Please check your network.',
-      );
+      return ApiResponse(success: false, message: 'No internet connection.');
     } on TimeoutException {
-      return ApiResponse(
-        success: false,
-        message: 'Request timeout. Please try again.',
-      );
+      return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('🔴 Unexpected Error: $e');
+      debugPrint('🔴 Unexpected Error in logout: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -531,6 +530,282 @@ class ApiService {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
       debugPrint('🔴 Unexpected Error in getProducts: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  // ========================================
+  // Profile API
+  // ========================================
+
+  Future<ApiResponse<UserModel>> getProfile({required int userId, required int roleId}) async {
+    try {
+      debugPrint('🔵 API Request: GET ${ApiConstants.profile}?user_id=$userId&role_id=$roleId');
+
+      final url = Uri.parse(ApiConstants.profile).replace(
+        queryParameters: {
+          'user_id': userId.toString(),
+          'role_id': roleId.toString(),
+        },
+      );
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('🟡 API Response Status: ${response.statusCode}');
+      debugPrint('🟡 API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+        return ApiResponse<UserModel>(
+          success: true,
+          message: 'Profile fetched successfully',
+          data: UserModel.fromJson(jsonResponse),
+        );
+      }
+
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to fetch profile'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('🔴 Unexpected Error in getProfile: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  Future<ApiResponse> updateProfile({
+    required int userId,
+    required int roleId,
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String dob,
+    required String gender,
+  }) async {
+    try {
+      debugPrint('🔵 API Request: PUT ${ApiConstants.profile}');
+      final body = {
+        'user_id': userId,
+        'role_id': roleId,
+        'first_name': firstName,
+        'last_name': lastName,
+        'email': email,
+        'dob': dob,
+        'gender': gender,
+      };
+      debugPrint('🔵 Request Body: $body');
+
+      final response = await _performAuthenticatedPut(
+        Uri.parse(ApiConstants.profile),
+        body: body,
+      );
+
+      debugPrint('🟡 API Response Status: ${response.statusCode}');
+      debugPrint('🟡 API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+        return ApiResponse(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Profile updated successfully',
+          data: jsonResponse['data'],
+        );
+      }
+
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to update profile'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('🔴 Unexpected Error in updateProfile: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  // ========================================
+  // Address API
+  // ========================================
+
+  Future<ApiResponse<List<AddressModel>>> getAddresses({required int userId, required int roleId}) async {
+    try {
+      debugPrint('🔵 API Request: GET ${ApiConstants.addresses}?user_id=$userId&role_id=$roleId');
+
+      final url = Uri.parse(ApiConstants.addresses).replace(
+        queryParameters: {
+          'user_id': userId.toString(),
+          'role_id': roleId.toString(),
+        },
+      );
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('🟡 API Response Status: ${response.statusCode}');
+      debugPrint('🟡 API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+        final List<dynamic> addressList = jsonResponse['addresses'] ?? [];
+        return ApiResponse<List<AddressModel>>(
+          success: true,
+          message: 'Addresses fetched successfully',
+          data: addressList.map((e) => AddressModel.fromJson(e)).toList(),
+        );
+      }
+
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to fetch addresses'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('🔴 Unexpected Error in getAddresses: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  Future<ApiResponse<AddressModel>> storeAddress({
+    required int userId,
+    required int roleId,
+    required String branchName,
+    required String address1,
+    required String address2,
+    required String city,
+    required String state,
+    required String country,
+    required String pincode,
+    required bool isPrimary,
+  }) async {
+    try {
+      debugPrint('🔵 API Request: POST ${ApiConstants.address}');
+      
+      final url = Uri.parse(ApiConstants.address).replace(
+        queryParameters: {
+          'user_id': userId.toString(),
+          'role_id': roleId.toString(),
+          'branch_name': branchName,
+          'address1': address1,
+          'address2': address2,
+          'city': city,
+          'state': state,
+          'country': country,
+          'pincode': pincode,
+          'is_primary': isPrimary ? 'yes' : 'no',
+        },
+      );
+
+      // Perform an authenticated POST.
+      final response = await _performAuthenticatedPost(url, body: {});
+
+      debugPrint('🟡 API Response Status: ${response.statusCode}');
+      debugPrint('🟡 API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+        return ApiResponse<AddressModel>(
+          success: true,
+          message: jsonResponse['message'] ?? 'Address stored successfully',
+          data: AddressModel.fromJson(jsonResponse['address'] ?? jsonResponse),
+        );
+      }
+
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to store address'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('🔴 Unexpected Error in storeAddress: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  Future<ApiResponse> updateAddress({
+    required int addressId,
+    required int userId,
+    required int roleId,
+    required String branchName,
+    required String address1,
+    required String address2,
+    required String city,
+    required String state,
+    required String country,
+    required String pincode,
+    required bool isPrimary,
+  }) async {
+    try {
+      debugPrint('🔵 API Request: PUT ${ApiConstants.address}/$addressId');
+
+      final url = Uri.parse('${ApiConstants.address}/$addressId').replace(
+        queryParameters: {
+          'user_id': userId.toString(),
+          'role_id': roleId.toString(),
+        },
+      );
+
+      final body = {
+        'branch_name': branchName,
+        'address1': address1,
+        'address2': address2,
+        'city': city,
+        'state': state,
+        'country': country,
+        'pincode': pincode,
+        'is_primary': isPrimary ? 'yes' : 'no',
+      };
+
+      final response = await _performAuthenticatedPut(url, body: body);
+
+      debugPrint('🟡 API Response Status: ${response.statusCode}');
+      debugPrint('🟡 API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+        return ApiResponse(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Address updated successfully',
+          data: jsonResponse['data'],
+        );
+      }
+
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to update address'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('🔴 Unexpected Error in updateAddress: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -606,6 +881,76 @@ class ApiService {
 
       final response = await http
           .get(url, headers: headers)
+          .timeout(ApiConstants.requestTimeout);
+
+      if (!_isUnauthorizedResponse(response)) {
+        return response;
+      }
+
+      // Unauthorized
+      if (retryCount >= _maxAuthRetries) {
+        await _handleAuthFailure();
+        return response;
+      }
+
+      retryCount++;
+      final refreshed = await _attemptTokenRefresh();
+      if (!refreshed) {
+        await _handleAuthFailure();
+        return response;
+      }
+      // Token refreshed successfully, loop will retry with new token.
+    }
+  }
+
+  static Future<http.Response> _performAuthenticatedPut(Uri url, {required Map<String, dynamic> body}) async {
+    int retryCount = 0;
+    while (true) {
+      final accessToken = await SecureStorageService.getAccessToken();
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        if (accessToken != null && accessToken.isNotEmpty)
+          'Authorization': 'Bearer $accessToken',
+      };
+
+      final response = await http
+          .put(url, headers: headers, body: jsonEncode(body))
+          .timeout(ApiConstants.requestTimeout);
+
+      if (!_isUnauthorizedResponse(response)) {
+        return response;
+      }
+
+      // Unauthorized
+      if (retryCount >= _maxAuthRetries) {
+        await _handleAuthFailure();
+        return response;
+      }
+
+      retryCount++;
+      final refreshed = await _attemptTokenRefresh();
+      if (!refreshed) {
+        await _handleAuthFailure();
+        return response;
+      }
+      // Token refreshed successfully, loop will retry with new token.
+    }
+  }
+
+  static Future<http.Response> _performAuthenticatedPost(Uri url, {required Map<String, dynamic> body}) async {
+    int retryCount = 0;
+    while (true) {
+      final accessToken = await SecureStorageService.getAccessToken();
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        if (accessToken != null && accessToken.isNotEmpty)
+          'Authorization': 'Bearer $accessToken',
+      };
+
+      final response = await http
+          .post(url, headers: headers, body: jsonEncode(body))
           .timeout(ApiConstants.requestTimeout);
 
       if (!_isUnauthorizedResponse(response)) {

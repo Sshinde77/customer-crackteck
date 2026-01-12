@@ -1,26 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:country_state_city_picker/country_state_city_picker.dart';
 import '../constants/app_colors.dart';
-
-class AddressModel {
-  String addressLine1;
-  String addressLine2;
-  String city;
-  String state;
-  String country;
-  String pincode;
-  bool isDefault;
-
-  AddressModel({
-    required this.addressLine1,
-    required this.addressLine2,
-    required this.city,
-    required this.state,
-    required this.country,
-    required this.pincode,
-    this.isDefault = false,
-  });
-}
+import '../services/api_service.dart';
+import '../constants/core/secure_storage_service.dart';
+import '../models/address_model.dart';
+import '../models/api_response.dart';
 
 class AddressScreen extends StatefulWidget {
   const AddressScreen({super.key});
@@ -32,20 +16,13 @@ class AddressScreen extends StatefulWidget {
 class _AddressScreenState extends State<AddressScreen> {
   bool _isAdding = false;
   int? _editingIndex;
+  bool _isLoading = true;
+  bool _isSaving = false;
 
-  final List<AddressModel> _addresses = [
-    AddressModel(
-      addressLine1: "456 MG Road",
-      addressLine2: "Apt 45C",
-      city: "Pune",
-      state: "Maharashtra",
-      country: "India",
-      pincode: "411001",
-      isDefault: true,
-    ),
-  ];
+  List<AddressModel> _addresses = [];
 
   // Controllers for editing/adding
+  final TextEditingController _branchNameController = TextEditingController();
   final TextEditingController _address1Controller = TextEditingController();
   final TextEditingController _address2Controller = TextEditingController();
   final TextEditingController _pincodeController = TextEditingController();
@@ -53,7 +30,148 @@ class _AddressScreenState extends State<AddressScreen> {
   String? _selectedState;
   String? _selectedCity;
 
+  @override
+  void initState() {
+    super.initState();
+    _fetchAddresses();
+  }
+
+  Future<void> _fetchAddresses() async {
+    setState(() => _isLoading = true);
+    try {
+      final userId = await SecureStorageService.getUserId();
+      final roleId = await SecureStorageService.getRoleId();
+
+      if (userId != null && roleId != null) {
+        final ApiResponse<List<AddressModel>> response = await ApiService.instance.getAddresses(
+          userId: userId,
+          roleId: roleId,
+        );
+
+        if (response.success && response.data != null) {
+          setState(() {
+            _addresses = response.data!;
+          });
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(response.message ?? 'Failed to load addresses')),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching addresses: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _addNewAddress() async {
+    if (_address1Controller.text.isEmpty || _selectedCountry == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please fill required fields")),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      final userId = await SecureStorageService.getUserId();
+      final roleId = await SecureStorageService.getRoleId();
+
+      if (userId != null && roleId != null) {
+        final response = await ApiService.instance.storeAddress(
+          userId: userId,
+          roleId: roleId,
+          branchName: _branchNameController.text.trim().isEmpty ? "Home" : _branchNameController.text.trim(),
+          address1: _address1Controller.text.trim(),
+          address2: _address2Controller.text.trim(),
+          city: _selectedCity ?? "",
+          state: _selectedState ?? "",
+          country: _selectedCountry ?? "",
+          pincode: _pincodeController.text.trim(),
+          isPrimary: _addresses.isEmpty, // Make primary if it's the first address
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(response.message ?? 'Address saved')),
+          );
+          if (response.success) {
+            _isAdding = false;
+            _clearControllers();
+            _fetchAddresses(); // Refresh list
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error saving address: $e');
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _updateAddress() async {
+    if (_editingIndex == null) return;
+    
+    final addressId = _addresses[_editingIndex!].id;
+    if (addressId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Cannot update address: Missing ID")),
+      );
+      return;
+    }
+
+    if (_address1Controller.text.isEmpty || _selectedCountry == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please fill required fields")),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      final userId = await SecureStorageService.getUserId();
+      final roleId = await SecureStorageService.getRoleId();
+
+      if (userId != null && roleId != null) {
+        final response = await ApiService.instance.updateAddress(
+          addressId: addressId,
+          userId: userId,
+          roleId: roleId,
+          branchName: _branchNameController.text.trim(),
+          address1: _address1Controller.text.trim(),
+          address2: _address2Controller.text.trim(),
+          city: _selectedCity ?? "",
+          state: _selectedState ?? "",
+          country: _selectedCountry ?? "",
+          pincode: _pincodeController.text.trim(),
+          isPrimary: _addresses[_editingIndex!].isDefault,
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(response.message ?? 'Address updated')),
+          );
+          if (response.success) {
+            setState(() {
+              _editingIndex = null;
+              _clearControllers();
+            });
+            _fetchAddresses(); // Refresh list
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error updating address: $e');
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
   void _clearControllers() {
+    _branchNameController.clear();
     _address1Controller.clear();
     _address2Controller.clear();
     _pincodeController.clear();
@@ -64,6 +182,7 @@ class _AddressScreenState extends State<AddressScreen> {
 
   void _prepareEdit(int index) {
     final address = _addresses[index];
+    _branchNameController.text = address.branchName ?? '';
     _address1Controller.text = address.addressLine1;
     _address2Controller.text = address.addressLine2;
     _pincodeController.text = address.pincode;
@@ -89,51 +208,65 @@ class _AddressScreenState extends State<AddressScreen> {
         ),
         title: const Text('My Addresses', style: TextStyle(color: Colors.white)),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Add Address Button at the Top Right
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () {
-                  setState(() {
-                    if (_isAdding) {
-                      _isAdding = false;
-                    } else {
-                      _isAdding = true;
-                      _editingIndex = null;
-                      _clearControllers();
-                    }
-                  });
-                },
-                icon: Icon(_isAdding ? Icons.close : Icons.add, color: AppColors.primary),
-                label: Text(
-                  _isAdding ? "Cancel" : "Add Address",
-                  style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _fetchAddresses,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Add Address Button at the Top Right
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            if (_isAdding) {
+                              _isAdding = false;
+                            } else {
+                              _isAdding = true;
+                              _editingIndex = null;
+                              _clearControllers();
+                            }
+                          });
+                        },
+                        icon: Icon(_isAdding ? Icons.close : Icons.add, color: AppColors.primary),
+                        label: Text(
+                          _isAdding ? "Cancel" : "Add Address",
+                          style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+
+                    if (_isAdding || _editingIndex != null) _buildAddressForm(),
+
+                    const SizedBox(height: 16),
+
+                    if (_addresses.isEmpty && !_isAdding && _editingIndex == null)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.only(top: 50),
+                          child: Text("No addresses found. Add one now!"),
+                        ),
+                      ),
+
+                    // List of addresses
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _addresses.length,
+                      separatorBuilder: (context, index) => const SizedBox(height: 16),
+                      itemBuilder: (context, index) {
+                        return _buildAddressCard(index);
+                      },
+                    ),
+                  ],
                 ),
               ),
             ),
-
-            if (_isAdding || _editingIndex != null) _buildAddressForm(),
-
-            const SizedBox(height: 16),
-
-            // List of addresses
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _addresses.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 16),
-              itemBuilder: (context, index) {
-                return _buildAddressCard(index);
-              },
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -160,16 +293,14 @@ class _AddressScreenState extends State<AddressScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                address.isDefault ? "Default Address" : "Address ${index + 1}",
+                address.isDefault ? "Primary Address" : (address.branchName ?? "Address ${index + 1}"),
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
               ),
               if (!address.isDefault)
                 IconButton(
                   icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
                   onPressed: () {
-                    setState(() {
-                      _addresses.removeAt(index);
-                    });
+                    // TODO: Integrate delete API
                   },
                 ),
             ],
@@ -223,6 +354,7 @@ class _AddressScreenState extends State<AddressScreen> {
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primary),
           ),
           const SizedBox(height: 20),
+          _buildInput("Branch Name (e.g. Home, Office)", _branchNameController),
           _buildInput("Address Line 1", _address1Controller),
           _buildInput("Address Line 2", _address2Controller),
           
@@ -259,47 +391,20 @@ class _AddressScreenState extends State<AddressScreen> {
                 ),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () {
-                    if (_address1Controller.text.isEmpty || _selectedCountry == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Please fill required fields")),
-                      );
-                      return;
+                  onPressed: _isSaving ? null : () {
+                    if (_editingIndex != null) {
+                      _updateAddress();
+                    } else {
+                      _addNewAddress();
                     }
-
-                    setState(() {
-                      if (_editingIndex != null) {
-                        // Update existing
-                        _addresses[_editingIndex!] = AddressModel(
-                          addressLine1: _address1Controller.text,
-                          addressLine2: _address2Controller.text,
-                          city: _selectedCity ?? "",
-                          state: _selectedState ?? "",
-                          country: _selectedCountry ?? "",
-                          pincode: _pincodeController.text,
-                          isDefault: _addresses[_editingIndex!].isDefault,
-                        );
-                        _editingIndex = null;
-                      } else {
-                        // Add new
-                        _addresses.add(AddressModel(
-                          addressLine1: _address1Controller.text,
-                          addressLine2: _address2Controller.text,
-                          city: _selectedCity ?? "",
-                          state: _selectedState ?? "",
-                          country: _selectedCountry ?? "",
-                          pincode: _pincodeController.text,
-                        ));
-                        _isAdding = false;
-                      }
-                      _clearControllers();
-                    });
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  child: Text(_editingIndex != null ? "Update" : "Add Now", style: const TextStyle(color: Colors.white)),
+                  child: _isSaving 
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : Text(_editingIndex != null ? "Update" : "Add Now", style: const TextStyle(color: Colors.white)),
                 ),
               ),
             ],

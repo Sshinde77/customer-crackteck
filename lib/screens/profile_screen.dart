@@ -1,9 +1,126 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../routes/app_routes.dart';
+import '../services/api_service.dart';
+import '../constants/core/secure_storage_service.dart';
+import '../models/user_model.dart';
+import '../models/api_response.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  UserModel? _user;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProfileData();
+  }
+
+  Future<void> _fetchProfileData() async {
+    try {
+      final userId = await SecureStorageService.getUserId();
+      final roleId = await SecureStorageService.getRoleId();
+
+      if (userId != null && roleId != null) {
+        final ApiResponse<UserModel> response = await ApiService.instance.getProfile(
+          userId: userId,
+          roleId: roleId,
+        );
+
+        if (response.success && response.data != null) {
+          setState(() {
+            _user = response.data;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching profile: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleLogout(BuildContext context) async {
+    // Show confirmation dialog
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Logout', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      try {
+        final userId = await SecureStorageService.getUserId();
+        final roleId = await SecureStorageService.getRoleId();
+
+        if (userId != null && roleId != null) {
+          final response = await ApiService.instance.logout(
+            userId: userId,
+            roleId: roleId,
+          );
+
+          if (response.success) {
+            // Clear local storage
+            await SecureStorageService.clearTokens();
+            await SecureStorageService.saveUserId(0); // Clear user ID
+            
+            if (context.mounted) {
+              Navigator.pop(context); // Close loading indicator
+              Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (route) => false);
+            }
+          } else {
+            if (context.mounted) {
+              Navigator.pop(context); // Close loading indicator
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(response.message ?? 'Logout failed')),
+              );
+            }
+          }
+        } else {
+          // If no stored data, just clear and go to login
+          await SecureStorageService.clearTokens();
+          if (context.mounted) {
+            Navigator.pop(context);
+            Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (route) => false);
+          }
+        }
+      } catch (e) {
+        if (context.mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('An error occurred during logout')),
+          );
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,12 +151,19 @@ class ProfileScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 15),
-                  const Text(
-                    'Hello Sachin',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _isLoading ? 'Loading...' : 'Hii ${_user?.firstName ?? 'User'}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -55,7 +179,7 @@ class ProfileScreen extends StatelessWidget {
                     Icons.info_outline,
                     'Personal info',
                     onTap: () {
-                      Navigator.pushNamed(context, AppRoutes.personalInfo);
+                      Navigator.pushNamed(context, AppRoutes.personalInfo).then((_) => _fetchProfileData());
                     },
                   ),
                   _buildProfileOption(
@@ -72,7 +196,6 @@ class ProfileScreen extends StatelessWidget {
                       Navigator.pushNamed(context, AppRoutes.workProgressTracker);
                     },
                   ),
-                  // _buildProfileOption(Icons.handyman_outlined, 'Repair Material'),
                   _buildProfileOption(
                     Icons.assignment_outlined,
                     'My service request',
@@ -106,10 +229,7 @@ class ProfileScreen extends StatelessWidget {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    // Navigate to login and clear stack
-                    Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (route) => false);
-                  },
+                  onPressed: () => _handleLogout(context),
                   icon: const Icon(Icons.logout, color: Colors.white),
                   label: const Text(
                     'Logout',
