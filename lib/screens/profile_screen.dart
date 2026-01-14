@@ -189,13 +189,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Navigator.pushNamed(context, AppRoutes.myProductOrders);
                     },
                   ),
-                  _buildProfileOption(
-                    Icons.assignment_outlined,
-                    'Work progress tracker',
-                    onTap: () {
-                      Navigator.pushNamed(context, AppRoutes.workProgressTracker);
-                    },
-                  ),
+                  // _buildProfileOption(
+                  //   Icons.assignment_outlined,
+                  //   'Work progress tracker',
+                  //   onTap: () {
+                  //     Navigator.pushNamed(context, AppRoutes.workProgressTracker);
+                  //   },
+                  // ),
                   _buildProfileOption(
                     Icons.assignment_outlined,
                     'My service request',

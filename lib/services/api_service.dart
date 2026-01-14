@@ -12,6 +12,11 @@ import '../models/api_response.dart';
 import '../models/product_model.dart';
 import '../models/user_model.dart';
 import '../models/address_model.dart';
+import '../models/aadhar_card_model.dart';
+import '../models/pan_card_model.dart';
+import '../models/company_model.dart';
+import '../models/banner_model.dart';
+import '../models/quick_service_model.dart';
 
 /// API Service for handling HTTP requests
 class ApiService {
@@ -811,6 +816,326 @@ class ApiService {
   }
 
   // ========================================
+  // Document API
+  // ========================================
+
+  Future<ApiResponse<AadharCard>> getAadharDetails({required int userId, required int roleId}) async {
+    try {
+      final url = Uri.parse(ApiConstants.aadharCard).replace(
+        queryParameters: {
+          'user_id': userId.toString(),
+          'role_id': roleId.toString(),
+        },
+      );
+
+      final response = await _performAuthenticatedGet(url);
+      final jsonResponse = _safeJsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return ApiResponse<AadharCard>(
+          success: true,
+          message: 'Aadhar fetched',
+          data: AadharCardResponse.fromJson(jsonResponse).aadharCard,
+        );
+      }
+      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to fetch Aadhar');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
+    }
+  }
+
+  Future<ApiResponse<PanCard>> getPanDetails({required int userId, required int roleId}) async {
+    try {
+      final url = Uri.parse(ApiConstants.panCard).replace(
+        queryParameters: {
+          'user_id': userId.toString(),
+          'role_id': roleId.toString(),
+        },
+      );
+
+      final response = await _performAuthenticatedGet(url);
+      final jsonResponse = _safeJsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return ApiResponse<PanCard>(
+          success: true,
+          message: 'PAN fetched',
+          data: PanCardResponse.fromJson(jsonResponse).panCard,
+        );
+      }
+      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to fetch PAN');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
+    }
+  }
+
+  Future<ApiResponse> uploadAadhar({
+    required int userId,
+    required int roleId,
+    required String aadharNumber,
+    File? frontImage,
+    File? backImage,
+    int? documentId,
+  }) async {
+    try {
+      Uri url;
+      if (documentId != null) {
+        url = Uri.parse("${ApiConstants.aadharCard}/$documentId");
+      } else {
+        url = Uri.parse(ApiConstants.aadharCard);
+      }
+
+      final request = http.MultipartRequest('POST', url);
+      final token = await SecureStorageService.getAccessToken();
+
+      request.headers.addAll({
+        'Accept': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      });
+
+      request.fields['user_id'] = userId.toString();
+      request.fields['role_id'] = roleId.toString();
+      request.fields['aadhar_number'] = aadharNumber;
+      
+      if (documentId != null) {
+        request.fields['_method'] = 'PUT';
+      }
+
+      if (frontImage != null) {
+        request.files.add(await http.MultipartFile.fromPath('aadhar_front_path', frontImage.path));
+      }
+      if (backImage != null) {
+        request.files.add(await http.MultipartFile.fromPath('aadhar_back_path', backImage.path));
+      }
+
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
+      final response = await http.Response.fromStream(streamedResponse);
+      final jsonResponse = _safeJsonDecode(response.body);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResponse(success: true, message: jsonResponse['message'] ?? 'Aadhar saved');
+      }
+      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to save Aadhar');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
+    }
+  }
+
+  Future<ApiResponse> uploadPan({
+    required int userId,
+    required int roleId,
+    required String panNumber,
+    File? frontImage,
+    File? backImage,
+    int? documentId,
+  }) async {
+    try {
+      Uri url;
+      if (documentId != null) {
+        url = Uri.parse("${ApiConstants.panCard}/$documentId");
+      } else {
+        url = Uri.parse(ApiConstants.panCard);
+      }
+
+      final request = http.MultipartRequest('POST', url);
+      final token = await SecureStorageService.getAccessToken();
+
+      request.headers.addAll({
+        'Accept': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      });
+
+      request.fields['user_id'] = userId.toString();
+      request.fields['role_id'] = roleId.toString();
+      request.fields['pan_number'] = panNumber;
+      
+      if (documentId != null) {
+        request.fields['_method'] = 'PUT';
+      }
+
+      if (frontImage != null) {
+        request.files.add(await http.MultipartFile.fromPath('pan_card_front_path', frontImage.path));
+      }
+      if (backImage != null) {
+        request.files.add(await http.MultipartFile.fromPath('pan_card_back_path', backImage.path));
+      }
+
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
+      final response = await http.Response.fromStream(streamedResponse);
+      final jsonResponse = _safeJsonDecode(response.body);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResponse(success: true, message: jsonResponse['message'] ?? 'PAN saved');
+      }
+      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to save PAN');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
+    }
+  }
+
+  // ========================================
+  // Company API
+  // ========================================
+
+  Future<ApiResponse<CompanyDetails>> getCompanyDetails({required int userId, required int roleId}) async {
+    try {
+      final url = Uri.parse(ApiConstants.company).replace(
+        queryParameters: {
+          'user_id': userId.toString(),
+          'role_id': roleId.toString(),
+        },
+      );
+
+      final response = await _performAuthenticatedGet(url);
+      final jsonResponse = _safeJsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return ApiResponse<CompanyDetails>(
+          success: true,
+          message: 'Company details fetched',
+          data: CompanyDetailsResponse.fromJson(jsonResponse).companyDetails,
+        );
+      }
+      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to fetch company details');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
+    }
+  }
+
+  Future<ApiResponse> storeCompanyDetails({
+    required int userId,
+    required int roleId,
+    required String companyName,
+    required String address1,
+    required String address2,
+    required String city,
+    required String state,
+    required String country,
+    required String pincode,
+    required String gstNo,
+    int? companyId,
+  }) async {
+    try {
+      if (companyId != null) {
+        // For Edit: PUT request with params in URL as per Postman screenshot
+        final url = Uri.parse("${ApiConstants.company}/$companyId").replace(
+          queryParameters: {
+            'user_id': userId.toString(),
+            'role_id': roleId.toString(),
+            'company_name': companyName,
+            'comp_address1': address1,
+            'comp_address2': address2,
+            'comp_city': city,
+            'comp_state': state,
+            'comp_country': country,
+            'comp_pincode': pincode,
+            'gst_no': gstNo,
+          },
+        );
+        
+        final response = await _performAuthenticatedPutRequest(url);
+        final jsonResponse = _safeJsonDecode(response.body);
+
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          return ApiResponse(
+            success: true, 
+            message: jsonResponse['message'] ?? 'Company details updated',
+            data: jsonResponse['company_details'],
+          );
+        }
+      } else {
+        // For Store: POST request with body
+        final url = Uri.parse(ApiConstants.company);
+        final body = {
+          'user_id': userId,
+          'role_id': roleId,
+          'company_name': companyName,
+          'comp_address1': address1,
+          'comp_address2': address2,
+          'comp_city': city,
+          'comp_state': state,
+          'comp_country': country,
+          'comp_pincode': pincode,
+          'gst_no': gstNo,
+        };
+
+        final response = await _performAuthenticatedPost(url, body: body);
+        final jsonResponse = _safeJsonDecode(response.body);
+
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          return ApiResponse(
+            success: true, 
+            message: jsonResponse['message'] ?? 'Company details saved',
+            data: jsonResponse['company_details'],
+          );
+        }
+      }
+      
+      return ApiResponse(success: false, message: 'Failed to save company details');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
+    }
+  }
+
+  // ========================================
+  // Banners API
+  // ========================================
+
+  Future<ApiResponse<List<BannerModel>>> getBanners({required int roleId}) async {
+    try {
+      final url = Uri.parse(ApiConstants.banners).replace(
+        queryParameters: {
+          'role_id': roleId.toString(),
+        },
+      );
+
+      final response = await _performAuthenticatedGet(url);
+      final jsonResponse = _safeJsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> bannerList = jsonResponse['banners'] ?? [];
+        return ApiResponse<List<BannerModel>>(
+          success: true,
+          message: 'Banners fetched successfully',
+          data: bannerList.map((e) => BannerModel.fromJson(e)).toList(),
+        );
+      }
+      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to fetch banners');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
+    }
+  }
+
+  // ========================================
+  // Quick Services API
+  // ========================================
+
+  Future<ApiResponse<List<QuickService>>> getQuickServices({required int roleId}) async {
+    try {
+      final url = Uri.parse(ApiConstants.quickservices).replace(
+        queryParameters: {
+          'role_id': roleId.toString(),
+        },
+      );
+
+      final response = await _performAuthenticatedGet(url);
+      final jsonResponse = _safeJsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> serviceList = jsonResponse['quick_services'] ?? [];
+        return ApiResponse<List<QuickService>>(
+          success: true,
+          message: 'Quick services fetched successfully',
+          data: serviceList.map((e) => QuickService.fromJson(e)).toList(),
+        );
+      }
+      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to fetch quick services');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
+    }
+  }
+
+  // ========================================
   // Sales Dashboard API Methods
   // ========================================
 
@@ -935,6 +1260,39 @@ class ApiService {
         return response;
       }
       // Token refreshed successfully, loop will retry with new token.
+    }
+  }
+
+  static Future<http.Response> _performAuthenticatedPutRequest(Uri url) async {
+    int retryCount = 0;
+    while (true) {
+      final accessToken = await SecureStorageService.getAccessToken();
+      final headers = <String, String>{
+        'Accept': 'application/json',
+        if (accessToken != null && accessToken.isNotEmpty)
+          'Authorization': 'Bearer $accessToken',
+      };
+
+      final response = await http
+          .put(url, headers: headers)
+          .timeout(ApiConstants.requestTimeout);
+
+      if (!_isUnauthorizedResponse(response)) {
+        return response;
+      }
+
+      // Unauthorized
+      if (retryCount >= _maxAuthRetries) {
+        await _handleAuthFailure();
+        return response;
+      }
+
+      retryCount++;
+      final refreshed = await _attemptTokenRefresh();
+      if (!refreshed) {
+        await _handleAuthFailure();
+        return response;
+      }
     }
   }
 

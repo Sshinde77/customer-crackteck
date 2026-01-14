@@ -17,6 +17,11 @@ class ApiConstants {
   static const String profile = '$baseUrl/profile';
   static const String addresses = '$baseUrl/addresses';
   static const String address = '$baseUrl/address';
+  static const String aadharCard = '$baseUrl/aadhar-card';
+  static const String panCard = '$baseUrl/customer-pan-card';
+  static const String company = '$baseUrl/company-details';
+  static const String banners = '$baseUrl/banners';
+  static const String quickservices = '$baseUrl/quick-services';
 
 
 

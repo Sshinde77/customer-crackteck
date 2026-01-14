@@ -1,7 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
+import '../models/quick_service_model.dart';
+import '../provider/quick_service_provider.dart';
 import 'payment_screen.dart';
 
 class ServiceRequestScreen extends StatefulWidget {
@@ -16,7 +19,7 @@ class ServiceRequestScreen extends StatefulWidget {
 class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  String? _selectedServiceType;
+  QuickService? _selectedQuickService;
   String? _selectedDeviceType;
 
   final TextEditingController _nameController = TextEditingController();
@@ -28,37 +31,17 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   final ImagePicker _picker = ImagePicker();
   File? _selectedImage;
 
-  final List<String> _serviceTypes = [
-    'Windows PC Display Issues',
-    'Mac PC Display Issues',
-    'Windows PC Restart Issues',
-    'Mac PC Restart Issues',
-  ];
-
-  final Map<String, Map<String, String>> _serviceDetails = {
-    'Windows PC Display Issues': {
-      'description': 'Visit charge of Rs 159 waived in final bill; spare part/repair cost extra.',
-      'price': '500',
-      'image': 'assests/computer.png',
-    },
-    'Mac PC Display Issues': {
-      'description': 'Visit charge of Rs 159 waived in final bill; spare part/repair cost extra.',
-      'price': '800',
-      'image': 'assests/laptop.png',
-    },
-    'Windows PC Restart Issues': {
-      'description': 'Visit charge of Rs 159 waived in final bill; spare part/repair cost extra.',
-      'price': '400',
-      'image': 'assests/computer.png',
-    },
-    'Mac PC Restart Issues': {
-      'description': 'Visit charge of Rs 159 waived in final bill; spare part/repair cost extra.',
-      'price': '700',
-      'image': 'assests/laptop.png',
-    },
-  };
-
   final List<String> _deviceTypes = ['mac', 'linux', 'windows'];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.title.contains('Quick')) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.read<QuickServiceProvider>().fetchQuickServices();
+      });
+    }
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     try {
@@ -118,7 +101,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   void _submitRequest() {
     List<String> missingFields = [];
 
-    if (_selectedServiceType == null) missingFields.add('Service Type');
+    if (_selectedQuickService == null) missingFields.add('Service Type');
     if (_selectedDeviceType == null) missingFields.add('Type');
     if (_nameController.text.trim().isEmpty) missingFields.add('Name');
     if (_selectedImage == null) missingFields.add('Image');
@@ -177,18 +160,29 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildLabel('Service Type'),
-                DropdownButtonFormField<String>(
-                  value: _selectedServiceType,
-                  items: _serviceTypes.map((type) {
-                    return DropdownMenuItem(value: type, child: Text(type));
-                  }).toList(),
-                  onChanged: (value) => setState(() => _selectedServiceType = value),
-                  decoration: _inputDecoration('Select Service Type'),
+                Consumer<QuickServiceProvider>(
+                  builder: (context, provider, child) {
+                    if (provider.isLoading) {
+                      return const Center(child: LinearProgressIndicator());
+                    }
+                    return DropdownButtonFormField<QuickService>(
+                      value: _selectedQuickService,
+                      hint: const Text('Select Service Type'),
+                      items: provider.quickServices.map((service) {
+                        return DropdownMenuItem(
+                          value: service, 
+                          child: Text(service.serviceName ?? 'Unnamed Service')
+                        );
+                      }).toList(),
+                      onChanged: (value) => setState(() => _selectedQuickService = value),
+                      decoration: _inputDecoration('Select Service Type'),
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
 
-                if (_selectedServiceType != null) ...[
-                  _buildServiceDetailCard(_selectedServiceType!),
+                if (_selectedQuickService != null) ...[
+                  _buildServiceDetailCard(_selectedQuickService!),
                   const SizedBox(height: 16),
                 ],
 
@@ -294,8 +288,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     );
   }
 
-  Widget _buildServiceDetailCard(String serviceType) {
-    final details = _serviceDetails[serviceType]!;
+  Widget _buildServiceDetailCard(QuickService service) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -312,10 +305,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
               color: Colors.grey.shade100,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Image.asset(
-              details['image']!,
-              fit: BoxFit.contain,
-            ),
+            child: const Center(child: Icon(Icons.miscellaneous_services, size: 40, color: Colors.grey)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -323,7 +313,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  serviceType,
+                  service.serviceName ?? 'Unnamed Service',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -331,7 +321,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  details['description']!,
+                  service.diagnosisList?.join(', ') ?? 'No diagnosis available',
                   style: const TextStyle(fontSize: 10, color: Colors.grey),
                 ),
                 const SizedBox(height: 8),
@@ -342,7 +332,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primary),
                     ),
                     Text(
-                      '₹ ${details['price']}',
+                      '₹ ${service.serviceCharge ?? "0.00"}',
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primary),
                     ),
                     const SizedBox(width: 4),

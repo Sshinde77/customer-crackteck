@@ -1,5 +1,6 @@
 
 import 'package:customer_cracktreck/screens/address_screen.dart';
+import 'package:customer_cracktreck/screens/company_screen.dart';
 import 'package:customer_cracktreck/screens/documents_screen.dart';
 import 'package:customer_cracktreck/screens/feedback_screen.dart';
 import 'package:customer_cracktreck/screens/my_product_orders_screen.dart';
@@ -104,6 +105,12 @@ class RouteGenerator {
       case AppRoutes.documents:
         return MaterialPageRoute(
           builder: (_) => const DocumentsScreen(),
+          settings: settings,
+        );
+
+      case AppRoutes.company:
+        return MaterialPageRoute(
+          builder: (_) => const CompanyScreen(),
           settings: settings,
         );
 

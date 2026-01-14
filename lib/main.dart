@@ -1,12 +1,27 @@
 import 'package:customer_cracktreck/routes/app_routes.dart';
 import 'package:customer_cracktreck/routes/route_generator.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'constants/app_strings.dart';
 import 'constants/core/navigation_service.dart';
+import 'provider/document_provider.dart';
+import 'provider/company_provider.dart';
+import 'provider/banner_provider.dart';
+import 'provider/quick_service_provider.dart';
 
 
 void main() {
-  runApp(const CrackCustomerTechApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => DocumentProvider()),
+        ChangeNotifierProvider(create: (_) => CompanyProvider()),
+        ChangeNotifierProvider(create: (_) => BannerProvider()),
+        ChangeNotifierProvider(create: (_) => QuickServiceProvider()),
+      ],
+      child: const CrackCustomerTechApp(),
+    ),
+  );
 }
 
 class CrackCustomerTechApp extends StatelessWidget {

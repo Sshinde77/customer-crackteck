@@ -1,7 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
 import '../routes/app_routes.dart';
+import '../provider/banner_provider.dart';
+import '../provider/quick_service_provider.dart';
+import '../models/quick_service_model.dart';
 import 'product_list.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -20,26 +24,33 @@ class _HomeScreenState extends State<HomeScreen> {
   int _bannerIndex = 0;
   Timer? _timer;
 
-  final List<String> _bannerImages = [
-    'assests/banner_1.jpg',
-    'assests/banner_2.png',
-  ];
-
   @override
   void initState() {
     super.initState();
-    _startAutoSlide();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<BannerProvider>().fetchBanners().then((_) {
+        _startAutoSlide();
+      });
+      context.read<QuickServiceProvider>().fetchQuickServices();
+    });
   }
 
   void _startAutoSlide() {
+    final banners = context.read<BannerProvider>().banners;
+    if (banners.isEmpty) return;
+
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (_bannerController.hasClients) {
-        _bannerIndex = (_bannerIndex + 1) % _bannerImages.length;
-        _bannerController.animateToPage(
-          _bannerIndex,
-          duration: const Duration(milliseconds: 600),
-          curve: Curves.easeInOut,
-        );
+        final totalBanners = context.read<BannerProvider>().banners.length;
+        if (totalBanners > 0) {
+          _bannerIndex = (_bannerIndex + 1) % totalBanners;
+          _bannerController.animateToPage(
+            _bannerIndex,
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeInOut,
+          );
+        }
       }
     });
   }
@@ -67,28 +78,36 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                
+
                     /// 🔹 QUICK SERVICE
                     _sectionTitle('Quick Service'),
                     SizedBox(
                       height: 250,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        children: const [
-                          _QuickServiceCard(
-                            title: 'Windows PC Restart Issues',
-                            image: 'assests/computer.png',
-                          ),
-                          _QuickServiceCard(
-                            title: 'Mac PC Restart Issues',
-                            image: 'assests/laptop.png',
-                          ),
-                          _QuickServiceCard(
-                            title: 'Windows Update Issues',
-                            image: 'assests/computer.png',
-                          ),
-                        ],
+                      child: Consumer<QuickServiceProvider>(
+                        builder: (context, provider, child) {
+                          if (provider.isLoading) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+
+                          if (provider.quickServices.isEmpty) {
+                            return const Center(child: Text('No quick services available'));
+                          }
+
+                          return ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: provider.quickServices.length,
+                            itemBuilder: (context, index) {
+                              final service = provider.quickServices[index];
+                              return _QuickServiceCard(
+                                title: service.serviceName ?? 'N/A',
+                                // Using generic assets since API doesn't provide images
+                                image: index % 2 == 0 ? 'assests/computer.png' : 'assests/laptop.png',
+                                serviceData: service,
+                              );
+                            },
+                          );
+                        },
                       ),
                     ),
 
@@ -135,16 +154,39 @@ class _HomeScreenState extends State<HomeScreen> {
                     /// 🔹 PROMOTIONAL AUTO SLIDER
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: SizedBox(
-                        height: 160,
-                        child: PageView.builder(
-                          controller: _bannerController,
-                          itemCount: _bannerImages.length,
-                          onPageChanged: (index) => setState(() => _bannerIndex = index),
-                          itemBuilder: (_, index) {
-                            return _promoBanner(_bannerImages[index]);
-                          },
-                        ),
+                      child: Consumer<BannerProvider>(
+                        builder: (context, provider, child) {
+                          if (provider.isLoading) {
+                            return Container(
+                              height: 160,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Center(child: CircularProgressIndicator()),
+                            );
+                          }
+
+                          if (provider.banners.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+
+                          return SizedBox(
+                            height: 160,
+                            child: PageView.builder(
+                              controller: _bannerController,
+                              itemCount: provider.banners.length,
+                              onPageChanged: (index) => setState(() => _bannerIndex = index),
+                              itemBuilder: (_, index) {
+                                final banner = provider.banners[index];
+                                final imageUrl = banner.bannerPath != null
+                                    ? "https://crackteck.co.in/${banner.bannerPath}"
+                                    : "";
+                                return _promoBanner(imageUrl);
+                              },
+                            ),
+                          );
+                        },
                       ),
                     ),
 
@@ -325,12 +367,12 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             child: item['image'] != null
                 ? Image.asset(
-                    item['image'] as String,
-                    fit: BoxFit.contain,
-                  )
+              item['image'] as String,
+              fit: BoxFit.contain,
+            )
                 : const Center(
-                    child: Text('Other', style: TextStyle(fontWeight: FontWeight.w500)),
-                  ),
+              child: Text('Other', style: TextStyle(fontWeight: FontWeight.w500)),
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -343,13 +385,27 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _promoBanner(String imagePath) {
+  Widget _promoBanner(String imageUrl) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
-      child: Image.asset(
-        imagePath,
+      child: Image.network(
+        imageUrl,
         fit: BoxFit.cover,
         width: double.infinity,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                  : null,
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) => Container(
+          color: Colors.grey.shade200,
+          child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+        ),
       ),
     );
   }
@@ -358,10 +414,12 @@ class _HomeScreenState extends State<HomeScreen> {
 class _QuickServiceCard extends StatelessWidget {
   final String title;
   final String image;
+  final QuickService? serviceData;
 
   const _QuickServiceCard({
     required this.title,
     required this.image,
+    this.serviceData,
   });
 
   @override
@@ -374,6 +432,7 @@ class _QuickServiceCard extends StatelessWidget {
           arguments: {
             'title': title,
             'image': image,
+            'serviceData': serviceData,
           },
         );
       },
@@ -419,7 +478,7 @@ class _QuickServiceCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Visit charge of Rs 159 waived in final bill; spare part/repair cost extra.',
+                    serviceData?.diagnosisList?.join(', ') ?? 'Visit charge of Rs 159 waived in final bill; spare part/repair cost extra.',
                     style: TextStyle(
                       color: Colors.grey.shade600,
                       fontSize: 10,
