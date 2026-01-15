@@ -1257,6 +1257,150 @@ class ApiService {
     }
   }
 
+  /// Give Feedback
+  Future<ApiResponse> giveFeedback({
+    required int roleId,
+    required int customerId,
+    required String serviceType,
+    required String serviceId,
+    required int rating,
+    required String comments,
+  }) async {
+    try {
+      final url = Uri.parse(ApiConstants.givefeedback).replace(
+        queryParameters: {
+          'role_id': roleId.toString(),
+          'customer_id': customerId.toString(),
+          'service_type': serviceType,
+          'service_id': serviceId,
+          'rating': rating.toString(),
+          'comments': comments,
+        },
+      );
+
+      debugPrint('🔵 API Request: POST $url');
+
+      // The Postman screenshot shows it as a POST but with query parameters.
+      // We use _performAuthenticatedPost with an empty body if the backend expects POST method.
+      final response = await _performAuthenticatedPost(url, body: {});
+      final jsonResponse = _safeJsonDecode(response.body);
+
+      debugPrint('🟡 API Response Status: ${response.statusCode}');
+      debugPrint('🟡 API Response Body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResponse(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Feedback submitted successfully',
+          data: jsonResponse['data'],
+        );
+      }
+
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to submit feedback',
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('🔴 Unexpected Error in giveFeedback: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  /// Get Individual Feedback
+  Future<ApiResponse> getFeedbackDetails({
+    required int roleId,
+    required int customerId,
+    required String feedbackId,
+  }) async {
+    try {
+      // Endpoint: https://crackteck.co.in/api/v1/get-feedback/2?role_id=4&customer_id=3
+      final url = Uri.parse("${ApiConstants.getfeedback}/$feedbackId").replace(
+        queryParameters: {
+          'role_id': roleId.toString(),
+          'customer_id': customerId.toString(),
+        },
+      );
+
+      debugPrint('🔵 API Request: GET $url');
+
+      final response = await _performAuthenticatedGet(url);
+      final jsonResponse = _safeJsonDecode(response.body);
+
+      debugPrint('🟡 API Response Status: ${response.statusCode}');
+      debugPrint('🟡 API Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return ApiResponse(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Feedback fetched successfully',
+          data: jsonResponse['feedback'],
+        );
+      }
+
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to fetch feedback details',
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('🔴 Unexpected Error in getFeedbackDetails: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  /// Get All Feedback
+  Future<ApiResponse<List<dynamic>>> getAllFeedback({
+    required int roleId,
+    required int customerId,
+  }) async {
+    try {
+      final url = Uri.parse(ApiConstants.getallfeedback).replace(
+        queryParameters: {
+          'role_id': roleId.toString(),
+          'customer_id': customerId.toString(),
+        },
+      );
+
+      debugPrint('🔵 API Request: GET $url');
+
+      final response = await _performAuthenticatedGet(url);
+      final jsonResponse = _safeJsonDecode(response.body);
+
+      debugPrint('🟡 API Response Status: ${response.statusCode}');
+      debugPrint('🟡 API Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return ApiResponse<List<dynamic>>(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Feedback fetched successfully',
+          data: jsonResponse['data'] as List<dynamic>?,
+        );
+      }
+
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to fetch feedback list',
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('🔴 Unexpected Error in getAllFeedback: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
   // ========================================
   // Sales Dashboard API Methods
   // ========================================

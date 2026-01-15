@@ -25,6 +25,9 @@ class ApiConstants {
   static const String submitQuickService = '$baseUrl/submit-quick-service-request';
   static const String servicesList = '$baseUrl/services-list';
   static const String services = '$baseUrl/services';
+  static const String givefeedback = '$baseUrl/give-feedback';
+  static const String getfeedback = '$baseUrl/get-feedback';
+  static const String getallfeedback = '$baseUrl/get-all-feedback';
 
 
 
