@@ -22,6 +22,9 @@ class ApiConstants {
   static const String company = '$baseUrl/company-details';
   static const String banners = '$baseUrl/banners';
   static const String quickservices = '$baseUrl/quick-services';
+  static const String submitQuickService = '$baseUrl/submit-quick-service-request';
+  static const String servicesList = '$baseUrl/services-list';
+  static const String services = '$baseUrl/services';
 
 
 

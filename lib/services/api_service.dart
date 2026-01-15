@@ -400,6 +400,7 @@ class ApiService {
       debugPrint('🔵 Request Fields: $fields');
 
       final request = http.MultipartRequest('POST', Uri.parse(ApiConstants.signup));
+      request.headers.addAll({'Accept': 'application/json'});
       request.fields.addAll(fields);
 
       final streamedResponse = await request.send().timeout(ApiConstants.requestTimeout);
@@ -1132,6 +1133,127 @@ class ApiService {
       return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to fetch quick services');
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
+    }
+  }
+
+  /// Submit Quick Service Request
+  Future<ApiResponse> submitQuickServiceRequest({
+    required int customerId,
+    required int roleId,
+    required String serviceType,
+    required List<Map<String, dynamic>> products,
+  }) async {
+    try {
+      debugPrint('🔵 API Request: POST ${ApiConstants.submitQuickService}');
+      
+      final url = Uri.parse(ApiConstants.submitQuickService);
+      final request = http.MultipartRequest('POST', url);
+      final token = await SecureStorageService.getAccessToken();
+
+      request.headers.addAll({
+        'Accept': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      });
+
+      request.fields['customer_id'] = customerId.toString();
+      request.fields['role_id'] = roleId.toString();
+      request.fields['service_type'] = serviceType;
+
+      for (int i = 0; i < products.length; i++) {
+        final product = products[i];
+        request.fields['products[$i][name]'] = product['name'] ?? '';
+        request.fields['products[$i][type]'] = product['type'] ?? '';
+        request.fields['products[$i][model_no]'] = product['model_no'] ?? '';
+        request.fields['products[$i][sku]'] = product['sku'] ?? ''; // Optional
+        request.fields['products[$i][hsn]'] = product['hsn'] ?? ''; // Optional
+        request.fields['products[$i][purchase_date]'] = product['purchase_date'] ?? '';
+        request.fields['products[$i][brand]'] = product['brand'] ?? '';
+        request.fields['products[$i][description]'] = product['description'] ?? '';
+
+        // Add images if any
+        if (product['images'] != null && product['images'] is List<File>) {
+          final List<File> images = product['images'];
+          for (var img in images) {
+            request.files.add(await http.MultipartFile.fromPath(
+              'products[$i][images][]',
+              img.path,
+            ));
+          }
+        }
+      }
+
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
+      final response = await http.Response.fromStream(streamedResponse);
+      
+      debugPrint('🟡 API Response Status: ${response.statusCode}');
+      debugPrint('🟡 API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResponse(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Request submitted successfully',
+          data: jsonResponse['data'],
+        );
+      }
+
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to submit request',
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('🔴 Unexpected Error in submitQuickServiceRequest: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  /// Get Services List (Filtered by role_id and service_type)
+  Future<ApiResponse<List<QuickService>>> getServicesList({
+    required int roleId,
+    required String serviceType,
+  }) async {
+    try {
+      final url = Uri.parse(ApiConstants.servicesList).replace(
+        queryParameters: {
+          'role_id': roleId.toString(),
+          'service_type': serviceType,
+        },
+      );
+
+      debugPrint('🔵 API Request: GET $url');
+
+      final response = await _performAuthenticatedGet(url);
+      final jsonResponse = _safeJsonDecode(response.body);
+
+      debugPrint('🟡 API Response Status: ${response.statusCode}');
+      debugPrint('🟡 API Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final List<dynamic> serviceList = jsonResponse['services'] ?? [];
+        return ApiResponse<List<QuickService>>(
+          success: true,
+          message: 'Services fetched successfully',
+          data: serviceList.map((e) => QuickService.fromJson(e)).toList(),
+        );
+      }
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to fetch services',
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('🔴 Unexpected Error in getServicesList: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
 

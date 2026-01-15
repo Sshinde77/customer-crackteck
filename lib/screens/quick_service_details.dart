@@ -2,7 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../constants/app_colors.dart';
+import '../constants/core/secure_storage_service.dart';
+import '../models/api_response.dart';
 import '../models/quick_service_model.dart';
+import '../services/api_service.dart';
 import 'payment_screen.dart';
 
 class ProductFormModel {
@@ -43,6 +46,7 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
   final _formKey = GlobalKey<FormState>();
   final List<ProductFormModel> _products = [ProductFormModel()];
   final ImagePicker _picker = ImagePicker();
+  bool _isLoading = false;
 
   bool get _isFormValid {
     return _products.every((product) => product.isValid);
@@ -73,7 +77,9 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
     );
     if (picked != null) {
       setState(() {
-        product.purchaseDateController.text = "${picked.day}/${picked.month}/${picked.year}";
+        // Formatting to YYYY-MM-DD as seen in Postman screenshot
+        product.purchaseDateController.text =
+            "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
       });
     }
   }
@@ -88,6 +94,71 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
     setState(() {
       _products.add(ProductFormModel());
     });
+  }
+
+  Future<void> _submitRequest() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final customerId = await SecureStorageService.getUserId();
+      final roleId = await SecureStorageService.getRoleId();
+
+      if (customerId == null || roleId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('User session expired. Please login again.')),
+          );
+        }
+        return;
+      }
+
+      final List<Map<String, dynamic>> productData = _products.map((p) {
+        return {
+          'name': p.nameController.text.trim(),
+          'type': p.selectedPcType ?? '',
+          'model_no': p.modelNoController.text.trim(),
+          'purchase_date': p.purchaseDateController.text.trim(),
+          'brand': p.brandController.text.trim(),
+          'description': p.descriptionController.text.trim(),
+          'images': p.selectedImages,
+        };
+      }).toList();
+
+      final response = await ApiService.instance.submitQuickServiceRequest(
+        customerId: customerId,
+        roleId: roleId,
+        serviceType: 'quick_service', // Hardcoded as per Postman screenshot
+        products: productData,
+      );
+
+      if (mounted) {
+        if (response.success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(response.message ?? 'Request submitted successfully')),
+          );
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const PaymentScreen(),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(response.message ?? 'Failed to submit request')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -117,133 +188,139 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
         elevation: 0,
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Service Summary Card
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade200),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 100,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Image.asset(
-                          widget.serviceData['image'] ?? 'assests/computer.png',
-                          fit: BoxFit.contain,
-                        ),
+        child: Stack(
+          children: [
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Service Summary Card
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade200),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              service?.serviceName ?? widget.serviceData['title'] ?? 'Windows PC Display Issues',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 100,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              service?.diagnosisList?.join(', ') ?? 'Visit charge of Rs 159 waived in final bill; spare part/repair cost extra.',
-                              style: const TextStyle(fontSize: 10, color: Colors.grey),
+                            child: Image.asset(
+                              widget.serviceData['image'] ?? 'assests/computer.png',
+                              fit: BoxFit.contain,
                             ),
-                            const SizedBox(height: 8),
-                            Row(
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'Starts at ',
-                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green),
-                                ),
                                 Text(
-                                  '₹ ${service?.serviceCharge ?? "500"}',
-                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green),
+                                  service?.serviceName ?? widget.serviceData['title'] ?? 'Windows PC Display Issues',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                                const SizedBox(width: 4),
+                                const SizedBox(height: 4),
                                 Text(
-                                  '(with GST)',
-                                  style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+                                  service?.diagnosisList?.join(', ') ?? 'Visit charge of Rs 159 waived in final bill; spare part/repair cost extra.',
+                                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    const Text(
+                                      'Starts at ',
+                                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green),
+                                    ),
+                                    Text(
+                                      '₹ ${service?.serviceCharge ?? "500"}',
+                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '(with GST)',
+                                      style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
-                          ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Add Product Button Aligned Right (Below the service summary card)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: _isLoading ? null : _addProduct,
+                        icon: const Icon(Icons.add, color: AppColors.primary),
+                        label: const Text(
+                          'Add Product',
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-                // Add Product Button Aligned Right (Below the service summary card)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: _addProduct,
-                    icon: const Icon(Icons.add, color: AppColors.primary),
-                    label: const Text(
-                      'Add Product',
-                      style: TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.bold,
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    ..._products.asMap().entries.map((entry) {
+                      int index = entry.key;
+                      ProductFormModel product = entry.value;
+                      return _buildProductForm(product, index);
+                    }),
+
+                    const SizedBox(height: 32),
+
+                    // Submit Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: (_isFormValid && !_isLoading) ? _submitRequest : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: (_isFormValid && !_isLoading) ? AppColors.primary : Colors.grey.shade400,
+                          disabledBackgroundColor: Colors.grey.shade400,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              )
+                            : const Text(
+                                'Submit request',
+                                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-
-                const SizedBox(height: 8),
-
-                ..._products.asMap().entries.map((entry) {
-                  int index = entry.key;
-                  ProductFormModel product = entry.value;
-                  return _buildProductForm(product, index);
-                }),
-
-                const SizedBox(height: 32),
-
-                // Submit Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _isFormValid
-                        ? () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const PaymentScreen(),
-                              ),
-                            );
-                          }
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isFormValid ? AppColors.primary : Colors.grey.shade400,
-                      disabledBackgroundColor: Colors.grey.shade400,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      'Submit request',
-                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
+            if (_isLoading)
+              Container(
+                color: Colors.black12,
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+          ],
         ),
       ),
     );
@@ -282,11 +359,13 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
           items: ['Windows', 'Mac', 'Linux'].map((type) {
             return DropdownMenuItem(value: type, child: Text(type));
           }).toList(),
-          onChanged: (val) {
-            setState(() {
-              product.selectedPcType = val;
-            });
-          },
+          onChanged: _isLoading
+              ? null
+              : (val) {
+                  setState(() {
+                    product.selectedPcType = val;
+                  });
+                },
           icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.green),
         ),
         const SizedBox(height: 16),
@@ -294,6 +373,7 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
         _buildLabel('Name'),
         TextFormField(
           controller: product.nameController,
+          enabled: !_isLoading,
           decoration: _inputDecoration('Name'),
           onChanged: (val) => setState(() {}),
         ),
@@ -302,6 +382,7 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
         _buildLabel('Model No'),
         TextFormField(
           controller: product.modelNoController,
+          enabled: !_isLoading,
           decoration: _inputDecoration('Enter Model No'),
         ),
         const SizedBox(height: 16),
@@ -310,6 +391,7 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
         TextFormField(
           controller: product.purchaseDateController,
           readOnly: true,
+          enabled: !_isLoading,
           onTap: () => _selectDate(context, product),
           decoration: _inputDecoration('Select Purchase Date').copyWith(
             suffixIcon: const Icon(Icons.calendar_today, color: AppColors.primary),
@@ -320,6 +402,7 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
         _buildLabel('Brand'),
         TextFormField(
           controller: product.brandController,
+          enabled: !_isLoading,
           decoration: _inputDecoration('Enter Brand'),
           onChanged: (val) => setState(() {}),
         ),
@@ -328,6 +411,7 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
         _buildLabel('Description'),
         TextFormField(
           controller: product.descriptionController,
+          enabled: !_isLoading,
           maxLines: 3,
           decoration: _inputDecoration('Enter Description'),
           onChanged: (val) => setState(() {}),
@@ -336,7 +420,7 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
 
         // Add Photos
         InkWell(
-          onTap: () => _pickImage(product),
+          onTap: _isLoading ? null : () => _pickImage(product),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
@@ -384,7 +468,7 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
                       top: 0,
                       right: 12,
                       child: GestureDetector(
-                        onTap: () => _removeImage(product, imgIndex),
+                        onTap: _isLoading ? null : () => _removeImage(product, imgIndex),
                         child: Container(
                           padding: const EdgeInsets.all(4),
                           decoration: const BoxDecoration(

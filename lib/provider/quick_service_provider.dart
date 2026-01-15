@@ -10,13 +10,15 @@ class QuickServiceProvider extends ChangeNotifier {
   List<QuickService> get quickServices => _quickServices;
   bool get isLoading => _isLoading;
 
-  Future<void> fetchQuickServices() async {
+  Future<void> fetchQuickServices({String serviceType = 'quick_service'}) async {
     _isLoading = true;
+    _quickServices = [];
     notifyListeners();
 
     try {
-      final response = await ApiService.instance.getQuickServices(
+      final response = await ApiService.instance.getServicesList(
         roleId: AppStrings.roleId,
+        serviceType: serviceType,
       );
 
       if (response.success) {
