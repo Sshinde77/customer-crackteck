@@ -17,6 +17,7 @@ import '../models/pan_card_model.dart';
 import '../models/company_model.dart';
 import '../models/banner_model.dart';
 import '../models/quick_service_model.dart';
+import '../models/amc_plan_model.dart';
 
 /// API Service for handling HTTP requests
 class ApiService {
@@ -34,7 +35,7 @@ class ApiService {
     if (_looksLikeHtml(trimmed)) {
       debugPrint(
         '🔴 HTML response detected instead of JSON. Body preview: '
-            '${trimmed.length > 120 ? trimmed.substring(0, 120) : trimmed}',
+        '${trimmed.length > 120 ? trimmed.substring(0, 120) : trimmed}',
       );
       return {
         'message': 'Server returned HTML instead of JSON',
@@ -67,9 +68,9 @@ class ApiService {
   // Helper: token persistence
   // ---------------------------
   Future<void> _persistTokensFromData(
-      dynamic data, {
-        required int roleId,
-      }) async {
+    dynamic data, {
+    required int roleId,
+  }) async {
     if (data == null) {
       return;
     }
@@ -153,10 +154,10 @@ class ApiService {
 
       final response = await http
           .post(
-        Uri.parse(ApiConstants.login),
-        headers: _headers,
-        body: jsonEncode({'role_id': roleId, 'phone_number': phoneNumber}),
-      )
+            Uri.parse(ApiConstants.login),
+            headers: _headers,
+            body: jsonEncode({'role_id': roleId, 'phone_number': phoneNumber}),
+          )
           .timeout(ApiConstants.requestTimeout);
 
       debugPrint('🟡 API Response Status: ${response.statusCode}');
@@ -190,7 +191,7 @@ class ApiService {
       return ApiResponse(
         success: false,
         message:
-        jsonResponse['message'] ??
+            jsonResponse['message'] ??
             (isHtml
                 ? 'Server returned HTML instead of JSON'
                 : 'Server error: ${response.statusCode}'),
@@ -237,14 +238,14 @@ class ApiService {
 
       final response = await http
           .post(
-        Uri.parse(ApiConstants.verifyOtp),
-        headers: _headers,
-        body: jsonEncode({
-          'role_id': roleId,
-          'phone_number': phoneNumber,
-          'otp': otp,
-        }),
-      )
+            Uri.parse(ApiConstants.verifyOtp),
+            headers: _headers,
+            body: jsonEncode({
+              'role_id': roleId,
+              'phone_number': phoneNumber,
+              'otp': otp,
+            }),
+          )
           .timeout(ApiConstants.requestTimeout);
 
       debugPrint('🟡 API Response Status: ${response.statusCode}');
@@ -280,7 +281,7 @@ class ApiService {
       return ApiResponse(
         success: false,
         message:
-        jsonResponse['message'] ??
+            jsonResponse['message'] ??
             (isHtml
                 ? 'Server returned HTML instead of JSON'
                 : 'Server error: ${response.statusCode}'),
@@ -338,11 +339,11 @@ class ApiService {
 
       final response = await http
           .post(
-        uri,
-        headers: headers,
-        // Keep body for backward compatibility; backend primarily reads query.
-        body: jsonEncode({'role_id': roleId}),
-      )
+            uri,
+            headers: headers,
+            // Keep body for backward compatibility; backend primarily reads query.
+            body: jsonEncode({'role_id': roleId}),
+          )
           .timeout(ApiConstants.requestTimeout);
 
       debugPrint('🟡 API Response Status: ${response.statusCode}');
@@ -366,7 +367,7 @@ class ApiService {
       return ApiResponse(
         success: false,
         message:
-        jsonResponse['message'] ??
+            jsonResponse['message'] ??
             (isHtml
                 ? 'Server returned HTML instead of JSON'
                 : 'Token refresh failed'),
@@ -392,18 +393,20 @@ class ApiService {
   }
 
   /// Signup / Register
-  Future<ApiResponse> signup({
-    required Map<String, String> fields,
-  }) async {
+  Future<ApiResponse> signup({required Map<String, String> fields}) async {
     try {
       debugPrint('🔵 API Request: POST ${ApiConstants.signup}');
       debugPrint('🔵 Request Fields: $fields');
 
-      final request = http.MultipartRequest('POST', Uri.parse(ApiConstants.signup));
-      request.headers.addAll({'Accept': 'application/json'});
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse(ApiConstants.signup),
+      );
       request.fields.addAll(fields);
 
-      final streamedResponse = await request.send().timeout(ApiConstants.requestTimeout);
+      final streamedResponse = await request.send().timeout(
+        ApiConstants.requestTimeout,
+      );
       final response = await http.Response.fromStream(streamedResponse);
 
       debugPrint('🟡 API Response Status: ${response.statusCode}');
@@ -412,7 +415,8 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         return ApiResponse(
           success: jsonResponse['success'] ?? true,
           message: jsonResponse['message'] ?? 'Signup successful',
@@ -423,7 +427,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Signup failed'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Signup failed'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -471,7 +477,8 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         return ApiResponse(
           success: jsonResponse['success'] ?? true,
           message: jsonResponse['message'] ?? 'Logged out',
@@ -482,7 +489,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Logout failed'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Logout failed'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -501,21 +510,24 @@ class ApiService {
 
   Future<ApiResponse<ProductModel>> getProducts({required int roleId}) async {
     try {
-      debugPrint('🔵 API Request: GET ${ApiConstants.productlist}?role_id=$roleId');
-      
-      final url = Uri.parse(ApiConstants.productlist).replace(
-        queryParameters: {'role_id': roleId.toString()},
+      debugPrint(
+        '🔵 API Request: GET ${ApiConstants.productlist}?role_id=$roleId',
       );
-      
+
+      final url = Uri.parse(
+        ApiConstants.productlist,
+      ).replace(queryParameters: {'role_id': roleId.toString()});
+
       final response = await _performAuthenticatedGet(url);
-      
+
       debugPrint('🟡 API Response Status: ${response.statusCode}');
       debugPrint('🟡 API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         // Based on the example, "products" is at the root.
         // We wrap it for ApiResponse if needed, or handle it here.
         return ApiResponse<ProductModel>(
@@ -527,7 +539,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to fetch products'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch products'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -544,9 +558,14 @@ class ApiService {
   // Profile API
   // ========================================
 
-  Future<ApiResponse<UserModel>> getProfile({required int userId, required int roleId}) async {
+  Future<ApiResponse<UserModel>> getProfile({
+    required int userId,
+    required int roleId,
+  }) async {
     try {
-      debugPrint('🔵 API Request: GET ${ApiConstants.profile}?user_id=$userId&role_id=$roleId');
+      debugPrint(
+        '🔵 API Request: GET ${ApiConstants.profile}?user_id=$userId&role_id=$roleId',
+      );
 
       final url = Uri.parse(ApiConstants.profile).replace(
         queryParameters: {
@@ -563,7 +582,8 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         return ApiResponse<UserModel>(
           success: true,
           message: 'Profile fetched successfully',
@@ -573,7 +593,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to fetch profile'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch profile'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -619,7 +641,8 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         return ApiResponse(
           success: jsonResponse['success'] ?? true,
           message: jsonResponse['message'] ?? 'Profile updated successfully',
@@ -629,7 +652,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to update profile'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to update profile'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -646,9 +671,14 @@ class ApiService {
   // Address API
   // ========================================
 
-  Future<ApiResponse<List<AddressModel>>> getAddresses({required int userId, required int roleId}) async {
+  Future<ApiResponse<List<AddressModel>>> getAddresses({
+    required int userId,
+    required int roleId,
+  }) async {
     try {
-      debugPrint('🔵 API Request: GET ${ApiConstants.addresses}?user_id=$userId&role_id=$roleId');
+      debugPrint(
+        '🔵 API Request: GET ${ApiConstants.addresses}?user_id=$userId&role_id=$roleId',
+      );
 
       final url = Uri.parse(ApiConstants.addresses).replace(
         queryParameters: {
@@ -665,7 +695,8 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         final List<dynamic> addressList = jsonResponse['addresses'] ?? [];
         return ApiResponse<List<AddressModel>>(
           success: true,
@@ -676,7 +707,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to fetch addresses'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch addresses'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -703,7 +736,7 @@ class ApiService {
   }) async {
     try {
       debugPrint('🔵 API Request: POST ${ApiConstants.address}');
-      
+
       final url = Uri.parse(ApiConstants.address).replace(
         queryParameters: {
           'user_id': userId.toString(),
@@ -728,7 +761,8 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         return ApiResponse<AddressModel>(
           success: true,
           message: jsonResponse['message'] ?? 'Address stored successfully',
@@ -738,7 +772,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to store address'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to store address'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -793,7 +829,8 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         return ApiResponse(
           success: jsonResponse['success'] ?? true,
           message: jsonResponse['message'] ?? 'Address updated successfully',
@@ -803,7 +840,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to update address'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to update address'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -820,7 +859,10 @@ class ApiService {
   // Document API
   // ========================================
 
-  Future<ApiResponse<AadharCard>> getAadharDetails({required int userId, required int roleId}) async {
+  Future<ApiResponse<AadharCard>> getAadharDetails({
+    required int userId,
+    required int roleId,
+  }) async {
     try {
       final url = Uri.parse(ApiConstants.aadharCard).replace(
         queryParameters: {
@@ -839,13 +881,19 @@ class ApiService {
           data: AadharCardResponse.fromJson(jsonResponse).aadharCard,
         );
       }
-      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to fetch Aadhar');
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to fetch Aadhar',
+      );
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
     }
   }
 
-  Future<ApiResponse<PanCard>> getPanDetails({required int userId, required int roleId}) async {
+  Future<ApiResponse<PanCard>> getPanDetails({
+    required int userId,
+    required int roleId,
+  }) async {
     try {
       final url = Uri.parse(ApiConstants.panCard).replace(
         queryParameters: {
@@ -864,7 +912,10 @@ class ApiService {
           data: PanCardResponse.fromJson(jsonResponse).panCard,
         );
       }
-      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to fetch PAN');
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to fetch PAN',
+      );
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
     }
@@ -897,26 +948,41 @@ class ApiService {
       request.fields['user_id'] = userId.toString();
       request.fields['role_id'] = roleId.toString();
       request.fields['aadhar_number'] = aadharNumber;
-      
+
       if (documentId != null) {
         request.fields['_method'] = 'PUT';
       }
 
       if (frontImage != null) {
-        request.files.add(await http.MultipartFile.fromPath('aadhar_front_path', frontImage.path));
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'aadhar_front_path',
+            frontImage.path,
+          ),
+        );
       }
       if (backImage != null) {
-        request.files.add(await http.MultipartFile.fromPath('aadhar_back_path', backImage.path));
+        request.files.add(
+          await http.MultipartFile.fromPath('aadhar_back_path', backImage.path),
+        );
       }
 
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 60),
+      );
       final response = await http.Response.fromStream(streamedResponse);
       final jsonResponse = _safeJsonDecode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResponse(success: true, message: jsonResponse['message'] ?? 'Aadhar saved');
+        return ApiResponse(
+          success: true,
+          message: jsonResponse['message'] ?? 'Aadhar saved',
+        );
       }
-      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to save Aadhar');
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to save Aadhar',
+      );
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
     }
@@ -949,26 +1015,44 @@ class ApiService {
       request.fields['user_id'] = userId.toString();
       request.fields['role_id'] = roleId.toString();
       request.fields['pan_number'] = panNumber;
-      
+
       if (documentId != null) {
         request.fields['_method'] = 'PUT';
       }
 
       if (frontImage != null) {
-        request.files.add(await http.MultipartFile.fromPath('pan_card_front_path', frontImage.path));
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'pan_card_front_path',
+            frontImage.path,
+          ),
+        );
       }
       if (backImage != null) {
-        request.files.add(await http.MultipartFile.fromPath('pan_card_back_path', backImage.path));
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'pan_card_back_path',
+            backImage.path,
+          ),
+        );
       }
 
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 60),
+      );
       final response = await http.Response.fromStream(streamedResponse);
       final jsonResponse = _safeJsonDecode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResponse(success: true, message: jsonResponse['message'] ?? 'PAN saved');
+        return ApiResponse(
+          success: true,
+          message: jsonResponse['message'] ?? 'PAN saved',
+        );
       }
-      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to save PAN');
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to save PAN',
+      );
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
     }
@@ -978,7 +1062,10 @@ class ApiService {
   // Company API
   // ========================================
 
-  Future<ApiResponse<CompanyDetails>> getCompanyDetails({required int userId, required int roleId}) async {
+  Future<ApiResponse<CompanyDetails>> getCompanyDetails({
+    required int userId,
+    required int roleId,
+  }) async {
     try {
       final url = Uri.parse(ApiConstants.company).replace(
         queryParameters: {
@@ -997,7 +1084,10 @@ class ApiService {
           data: CompanyDetailsResponse.fromJson(jsonResponse).companyDetails,
         );
       }
-      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to fetch company details');
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to fetch company details',
+      );
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
     }
@@ -1033,13 +1123,13 @@ class ApiService {
             'gst_no': gstNo,
           },
         );
-        
+
         final response = await _performAuthenticatedPutRequest(url);
         final jsonResponse = _safeJsonDecode(response.body);
 
         if (response.statusCode == 200 || response.statusCode == 201) {
           return ApiResponse(
-            success: true, 
+            success: true,
             message: jsonResponse['message'] ?? 'Company details updated',
             data: jsonResponse['company_details'],
           );
@@ -1065,14 +1155,17 @@ class ApiService {
 
         if (response.statusCode == 200 || response.statusCode == 201) {
           return ApiResponse(
-            success: true, 
+            success: true,
             message: jsonResponse['message'] ?? 'Company details saved',
             data: jsonResponse['company_details'],
           );
         }
       }
-      
-      return ApiResponse(success: false, message: 'Failed to save company details');
+
+      return ApiResponse(
+        success: false,
+        message: 'Failed to save company details',
+      );
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
     }
@@ -1082,13 +1175,13 @@ class ApiService {
   // Banners API
   // ========================================
 
-  Future<ApiResponse<List<BannerModel>>> getBanners({required int roleId}) async {
+  Future<ApiResponse<List<BannerModel>>> getBanners({
+    required int roleId,
+  }) async {
     try {
-      final url = Uri.parse(ApiConstants.banners).replace(
-        queryParameters: {
-          'role_id': roleId.toString(),
-        },
-      );
+      final url = Uri.parse(
+        ApiConstants.banners,
+      ).replace(queryParameters: {'role_id': roleId.toString()});
 
       final response = await _performAuthenticatedGet(url);
       final jsonResponse = _safeJsonDecode(response.body);
@@ -1101,7 +1194,10 @@ class ApiService {
           data: bannerList.map((e) => BannerModel.fromJson(e)).toList(),
         );
       }
-      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to fetch banners');
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to fetch banners',
+      );
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
     }
@@ -1111,13 +1207,13 @@ class ApiService {
   // Quick Services API
   // ========================================
 
-  Future<ApiResponse<List<QuickService>>> getQuickServices({required int roleId}) async {
+  Future<ApiResponse<List<QuickService>>> getQuickServices({
+    required int roleId,
+  }) async {
     try {
-      final url = Uri.parse(ApiConstants.quickservices).replace(
-        queryParameters: {
-          'role_id': roleId.toString(),
-        },
-      );
+      final url = Uri.parse(
+        ApiConstants.quickservices,
+      ).replace(queryParameters: {'role_id': roleId.toString()});
 
       final response = await _performAuthenticatedGet(url);
       final jsonResponse = _safeJsonDecode(response.body);
@@ -1130,221 +1226,102 @@ class ApiService {
           data: serviceList.map((e) => QuickService.fromJson(e)).toList(),
         );
       }
-      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to fetch quick services');
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to fetch quick services',
+      );
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
     }
   }
 
-  /// Submit Quick Service Request
-  Future<ApiResponse> submitQuickServiceRequest({
-    required int customerId,
+  // ========================================
+  // AMC Plans API
+  // ========================================
+
+  Future<ApiResponse<List<AmcPlanItem>>> getAmcPlans({
     required int roleId,
-    required String serviceType,
-    required List<Map<String, dynamic>> products,
   }) async {
     try {
-      debugPrint('🔵 API Request: POST ${ApiConstants.submitQuickService}');
-      
-      final url = Uri.parse(ApiConstants.submitQuickService);
-      final request = http.MultipartRequest('POST', url);
-      final token = await SecureStorageService.getAccessToken();
-
-      request.headers.addAll({
-        'Accept': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      });
-
-      request.fields['customer_id'] = customerId.toString();
-      request.fields['role_id'] = roleId.toString();
-      request.fields['service_type'] = serviceType;
-
-      for (int i = 0; i < products.length; i++) {
-        final product = products[i];
-        request.fields['products[$i][name]'] = product['name'] ?? '';
-        request.fields['products[$i][type]'] = product['type'] ?? '';
-        request.fields['products[$i][model_no]'] = product['model_no'] ?? '';
-        request.fields['products[$i][sku]'] = product['sku'] ?? ''; // Optional
-        request.fields['products[$i][hsn]'] = product['hsn'] ?? ''; // Optional
-        request.fields['products[$i][purchase_date]'] = product['purchase_date'] ?? '';
-        request.fields['products[$i][brand]'] = product['brand'] ?? '';
-        request.fields['products[$i][description]'] = product['description'] ?? '';
-
-        // Add images if any
-        if (product['images'] != null && product['images'] is List<File>) {
-          final List<File> images = product['images'];
-          for (var img in images) {
-            request.files.add(await http.MultipartFile.fromPath(
-              'products[$i][images][]',
-              img.path,
-            ));
-          }
-        }
-      }
-
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
-      final response = await http.Response.fromStream(streamedResponse);
-      
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
-
-      final jsonResponse = _safeJsonDecode(response.body);
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResponse(
-          success: jsonResponse['success'] ?? true,
-          message: jsonResponse['message'] ?? 'Request submitted successfully',
-          data: jsonResponse['data'],
-        );
-      }
-
-      return ApiResponse(
-        success: false,
-        message: jsonResponse['message'] ?? 'Failed to submit request',
-        errors: jsonResponse['errors'],
-      );
-    } on SocketException {
-      return ApiResponse(success: false, message: 'No internet connection.');
-    } on TimeoutException {
-      return ApiResponse(success: false, message: 'Request timeout.');
-    } catch (e) {
-      debugPrint('🔴 Unexpected Error in submitQuickServiceRequest: $e');
-      return ApiResponse(success: false, message: 'Unexpected error: $e');
-    }
-  }
-
-  /// Get Services List (Filtered by role_id and service_type)
-  Future<ApiResponse<List<QuickService>>> getServicesList({
-    required int roleId,
-    required String serviceType,
-  }) async {
-    try {
-      final url = Uri.parse(ApiConstants.servicesList).replace(
-        queryParameters: {
-          'role_id': roleId.toString(),
-          'service_type': serviceType,
-        },
+      debugPrint(
+        '🔵 API Request: GET ${ApiConstants.amcPlans}?role_id=$roleId',
       );
 
-      debugPrint('🔵 API Request: GET $url');
+      final url = Uri.parse(
+        ApiConstants.amcPlans,
+      ).replace(queryParameters: {'role_id': roleId.toString()});
 
       final response = await _performAuthenticatedGet(url);
-      final jsonResponse = _safeJsonDecode(response.body);
 
       debugPrint('🟡 API Response Status: ${response.statusCode}');
       debugPrint('🟡 API Response Body: ${response.body}');
 
-      if (response.statusCode == 200) {
-        final List<dynamic> serviceList = jsonResponse['services'] ?? [];
-        return ApiResponse<List<QuickService>>(
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final List<dynamic> planList = jsonResponse['amc_plans'] ?? [];
+        return ApiResponse<List<AmcPlanItem>>(
           success: true,
-          message: 'Services fetched successfully',
-          data: serviceList.map((e) => QuickService.fromJson(e)).toList(),
-        );
-      }
-      return ApiResponse(
-        success: false,
-        message: jsonResponse['message'] ?? 'Failed to fetch services',
-        errors: jsonResponse['errors'],
-      );
-    } on SocketException {
-      return ApiResponse(success: false, message: 'No internet connection.');
-    } on TimeoutException {
-      return ApiResponse(success: false, message: 'Request timeout.');
-    } catch (e) {
-      debugPrint('🔴 Unexpected Error in getServicesList: $e');
-      return ApiResponse(success: false, message: 'Unexpected error: $e');
-    }
-  }
-
-  /// Give Feedback
-  Future<ApiResponse> giveFeedback({
-    required int roleId,
-    required int customerId,
-    required String serviceType,
-    required String serviceId,
-    required int rating,
-    required String comments,
-  }) async {
-    try {
-      final url = Uri.parse(ApiConstants.givefeedback).replace(
-        queryParameters: {
-          'role_id': roleId.toString(),
-          'customer_id': customerId.toString(),
-          'service_type': serviceType,
-          'service_id': serviceId,
-          'rating': rating.toString(),
-          'comments': comments,
-        },
-      );
-
-      debugPrint('🔵 API Request: POST $url');
-
-      // The Postman screenshot shows it as a POST but with query parameters.
-      // We use _performAuthenticatedPost with an empty body if the backend expects POST method.
-      final response = await _performAuthenticatedPost(url, body: {});
-      final jsonResponse = _safeJsonDecode(response.body);
-
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResponse(
-          success: jsonResponse['success'] ?? true,
-          message: jsonResponse['message'] ?? 'Feedback submitted successfully',
-          data: jsonResponse['data'],
+          message: 'AMC plans fetched successfully',
+          data: planList.map((e) => AmcPlanItem.fromJson(e)).toList(),
         );
       }
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? 'Failed to submit feedback',
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch AMC plans'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
       return ApiResponse(success: false, message: 'No internet connection.');
-    } on TimeoutException {
-      return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('🔴 Unexpected Error in giveFeedback: $e');
-      return ApiResponse(success: false, message: 'Unexpected error: $e');
+      debugPrint('❌ Error fetching AMC plans: $e');
+      return ApiResponse(success: false, message: 'An error occurred: $e');
     }
   }
 
-  /// Get Individual Feedback
-  Future<ApiResponse> getFeedbackDetails({
+  // Get AMC Plan Details by ID
+  Future<ApiResponse<AmcPlanDetailResponse>> getAmcPlanDetails({
+    required int planId,
     required int roleId,
-    required int customerId,
-    required String feedbackId,
   }) async {
     try {
-      // Endpoint: https://crackteck.co.in/api/v1/get-feedback/2?role_id=4&customer_id=3
-      final url = Uri.parse("${ApiConstants.getfeedback}/$feedbackId").replace(
-        queryParameters: {
-          'role_id': roleId.toString(),
-          'customer_id': customerId.toString(),
-        },
+      debugPrint(
+        '🔵 API Request: GET ${ApiConstants.amcPlanDetails}/$planId?role_id=$roleId',
       );
 
-      debugPrint('🔵 API Request: GET $url');
+      final url = Uri.parse(
+        '${ApiConstants.amcPlanDetails}/$planId',
+      ).replace(queryParameters: {'role_id': roleId.toString()});
 
       final response = await _performAuthenticatedGet(url);
-      final jsonResponse = _safeJsonDecode(response.body);
 
       debugPrint('🟡 API Response Status: ${response.statusCode}');
       debugPrint('🟡 API Response Body: ${response.body}');
 
-      if (response.statusCode == 200) {
-        return ApiResponse(
-          success: jsonResponse['success'] ?? true,
-          message: jsonResponse['message'] ?? 'Feedback fetched successfully',
-          data: jsonResponse['feedback'],
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        return ApiResponse<AmcPlanDetailResponse>(
+          success: true,
+          message: 'AMC plan details fetched successfully',
+          data: AmcPlanDetailResponse.fromJson(jsonResponse),
         );
       }
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? 'Failed to fetch feedback details',
+        message:
+            jsonResponse['message'] ??
+            (isHtml
+                ? 'Server returned HTML'
+                : 'Failed to fetch AMC plan details'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -1352,51 +1329,7 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('🔴 Unexpected Error in getFeedbackDetails: $e');
-      return ApiResponse(success: false, message: 'Unexpected error: $e');
-    }
-  }
-
-  /// Get All Feedback
-  Future<ApiResponse<List<dynamic>>> getAllFeedback({
-    required int roleId,
-    required int customerId,
-  }) async {
-    try {
-      final url = Uri.parse(ApiConstants.getallfeedback).replace(
-        queryParameters: {
-          'role_id': roleId.toString(),
-          'customer_id': customerId.toString(),
-        },
-      );
-
-      debugPrint('🔵 API Request: GET $url');
-
-      final response = await _performAuthenticatedGet(url);
-      final jsonResponse = _safeJsonDecode(response.body);
-
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        return ApiResponse<List<dynamic>>(
-          success: jsonResponse['success'] ?? true,
-          message: jsonResponse['message'] ?? 'Feedback fetched successfully',
-          data: jsonResponse['data'] as List<dynamic>?,
-        );
-      }
-
-      return ApiResponse(
-        success: false,
-        message: jsonResponse['message'] ?? 'Failed to fetch feedback list',
-        errors: jsonResponse['errors'],
-      );
-    } on SocketException {
-      return ApiResponse(success: false, message: 'No internet connection.');
-    } on TimeoutException {
-      return ApiResponse(success: false, message: 'Request timeout.');
-    } catch (e) {
-      debugPrint('🔴 Unexpected Error in getAllFeedback: $e');
+      debugPrint('🔴 Unexpected Error in getAmcPlanDetails: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -1427,7 +1360,7 @@ class ApiService {
     if (_looksLikeHtml(response.body)) {
       debugPrint(
         '🔴 HTML login page detected from ${response.request?.url}. '
-            'Treating as unauthorized.',
+        'Treating as unauthorized.',
       );
       return true;
     }
@@ -1494,7 +1427,10 @@ class ApiService {
     }
   }
 
-  static Future<http.Response> _performAuthenticatedPut(Uri url, {required Map<String, dynamic> body}) async {
+  static Future<http.Response> _performAuthenticatedPut(
+    Uri url, {
+    required Map<String, dynamic> body,
+  }) async {
     int retryCount = 0;
     while (true) {
       final accessToken = await SecureStorageService.getAccessToken();
@@ -1562,7 +1498,10 @@ class ApiService {
     }
   }
 
-  static Future<http.Response> _performAuthenticatedPost(Uri url, {required Map<String, dynamic> body}) async {
+  static Future<http.Response> _performAuthenticatedPost(
+    Uri url, {
+    required Map<String, dynamic> body,
+  }) async {
     int retryCount = 0;
     while (true) {
       final accessToken = await SecureStorageService.getAccessToken();
@@ -1596,5 +1535,4 @@ class ApiService {
       // Token refreshed successfully, loop will retry with new token.
     }
   }
-
 }

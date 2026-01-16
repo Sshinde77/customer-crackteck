@@ -22,14 +22,8 @@ class ApiConstants {
   static const String company = '$baseUrl/company-details';
   static const String banners = '$baseUrl/banners';
   static const String quickservices = '$baseUrl/quick-services';
-  static const String submitQuickService = '$baseUrl/submit-quick-service-request';
-  static const String servicesList = '$baseUrl/services-list';
-  static const String services = '$baseUrl/services';
-  static const String givefeedback = '$baseUrl/give-feedback';
-  static const String getfeedback = '$baseUrl/get-feedback';
-  static const String getallfeedback = '$baseUrl/get-all-feedback';
-
-
+  static const String amcPlans = '$baseUrl/amc-plans';
+  static const String amcPlanDetails = '$baseUrl/amc-plan-details';
 
   // Request Timeout
   static const Duration requestTimeout = Duration(seconds: 30);

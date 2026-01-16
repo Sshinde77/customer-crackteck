@@ -45,5 +45,23 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+	<!-- Essential: Camera access for document uploads and service request photos -->
+	<key>NSCameraUsageDescription</key>
+	<string>We need camera access to capture photos of documents (Aadhar, PAN card) and service-related images for your requests.</string>
+
+	<!-- Essential: Photo Library access for selecting and uploading images -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>We need photo library access to let you select images for document uploads and service requests.</string>
+
+	<!-- App Transport Security Settings (for API communication) -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
+	</dict>
+
 </dict>
 </plist>

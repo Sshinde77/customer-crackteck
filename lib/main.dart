@@ -8,7 +8,7 @@ import 'provider/document_provider.dart';
 import 'provider/company_provider.dart';
 import 'provider/banner_provider.dart';
 import 'provider/quick_service_provider.dart';
-
+import 'provider/amc_plan_provider.dart';
 
 void main() {
   runApp(
@@ -18,6 +18,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => CompanyProvider()),
         ChangeNotifierProvider(create: (_) => BannerProvider()),
         ChangeNotifierProvider(create: (_) => QuickServiceProvider()),
+        ChangeNotifierProvider(create: (_) => AmcPlanProvider()),
       ],
       child: const CrackCustomerTechApp(),
     ),
@@ -29,16 +30,16 @@ class CrackCustomerTechApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return  MaterialApp(
-        navigatorKey: NavigationService.navigatorKey,
-        title: AppStrings.appName,
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
-          useMaterial3: true,
-        ),
-        initialRoute: AppRoutes.login,
-        onGenerateRoute: RouteGenerator.generateRoute,
+    return MaterialApp(
+      navigatorKey: NavigationService.navigatorKey,
+      title: AppStrings.appName,
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
+        useMaterial3: true,
+      ),
+      initialRoute: AppRoutes.login,
+      onGenerateRoute: RouteGenerator.generateRoute,
     );
   }
 }

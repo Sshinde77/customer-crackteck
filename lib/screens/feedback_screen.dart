@@ -1,83 +1,8 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
-import '../constants/core/secure_storage_service.dart';
-import '../services/api_service.dart';
-import 'give_feedback_screen.dart';
-import 'feedback_detail_screen.dart';
 
-class FeedbackScreen extends StatefulWidget {
+class FeedbackScreen extends StatelessWidget {
   const FeedbackScreen({super.key});
-
-  @override
-  State<FeedbackScreen> createState() => _FeedbackScreenState();
-}
-
-class _FeedbackScreenState extends State<FeedbackScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  List<Map<String, dynamic>> _givenFeedbacks = [];
-  bool _isLoading = true;
-  String? _errorMessage;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _fetchGivenFeedbacks();
-  }
-
-  Future<void> _fetchGivenFeedbacks() async {
-    if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final customerId = await SecureStorageService.getUserId();
-      final roleId = await SecureStorageService.getRoleId();
-
-      if (customerId == null || roleId == null) {
-        setState(() {
-          _errorMessage = 'Session expired. Please login again.';
-          _isLoading = false;
-        });
-        return;
-      }
-
-      final response = await ApiService.instance.getAllFeedback(
-        roleId: roleId,
-        customerId: customerId,
-      );
-
-      if (!mounted) return;
-
-      if (response.success) {
-        setState(() {
-          _givenFeedbacks = List<Map<String, dynamic>>.from(response.data ?? []);
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _errorMessage = response.message ?? 'Failed to load feedback';
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = 'An error occurred: $e';
-        _isLoading = false;
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -93,216 +18,120 @@ class _FeedbackScreenState extends State<FeedbackScreen>
           'Feedback\'s',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(text: 'Pending'),
-            Tab(text: 'Given'),
-          ],
-        ),
+        centerTitle: false,
+        elevation: 0,
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildPendingFeedbackList(),
-          _buildGivenFeedbackList(),
-        ],
+      body: ListView.builder(
+        padding: const EdgeInsets.all(16.0),
+        itemCount: 6,
+        itemBuilder: (context, index) {
+          return _buildFeedbackCard(index);
+        },
       ),
     );
   }
 
-  // ------------------ PENDING ------------------
-
-  Widget _buildPendingFeedbackList() {
-    // Note: This is currently static. In a real app, you would fetch this from an API.
-    final List<Map<String, String>> pendingServices = [
-      {'id': 'QS-001', 'type': 'Quick Service', 'date': '15 Jan 2024'},
-      {'id': 'AMC-042', 'type': 'AMC Service', 'date': '12 Jan 2024'},
-      {'id': 'INST-99', 'type': 'Installation', 'date': '08 Jan 2024'},
-      {'id': 'REP-213', 'type': 'Repairing', 'date': '05 Jan 2024'},
+  Widget _buildFeedbackCard(int index) {
+    // Sample data for variety
+    final feedbacks = [
+      {
+        'user': 'Caover92',
+        'date': '22 Jul',
+        'text': 'KaiB was amazing with our cats!! ✨✨✨ This was our first time using a pet-sitting service, so we were naturally quite anxious. We took a chance on Kai and completely lucked out!We booked Kai to come twice a day for three days.',
+        'rating': 5,
+      },
+      {
+        'user': 'KaiB',
+        'date': '22 Jul',
+        'text': 'KaiB was phenomenal with our dog, Max! We were first-time users of a pet-sitting service and were quite nervous. Kai\'s professionalism and warmth immediately put us at ease.',
+        'rating': 5,
+      },
+      {
+        'user': 'PetParent7',
+        'date': '22 Jul',
+        'text': 'KaiB was phenomenal with our dog, Max! We were first-time users of a pet-sitting service and were quite nervous. Kai\'s professionalism and warmth immediately put us at ease.',
+        'rating': 5,
+      },
+      {
+        'user': 'HappyPetMom',
+        'date': '22 Jul',
+        'text': 'Absolutely fantastic service from Kai! As first-time Pet Backer users, we were unsure what to expect. Kai\'s attentive care and detailed updates put us at ease.',
+        'rating': 5,
+      },
+      {
+        'user': 'FurBabyFan',
+        'date': '22 Jul',
+        'text': 'KaiB did an outstanding job looking after our bunny, Thumper! ✨✨✨ We were worried about leaving him alone, but Kai\'s attentive care made all the difference.',
+        'rating': 5,
+      },
+      {
+        'user': 'Caover92',
+        'date': '22 Jul',
+        'text': 'KaiB was amazing with our cats!! ✨✨✨ This was our first time using a pet-sitting service, so we were naturally quite anxious. We took a chance on Kai and completely lucked out!We booked Kai to come twice a day for three days.',
+        'rating': 5,
+      },
     ];
 
-    return ListView.builder(
+    final feedback = feedbacks[index % feedbacks.length];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
-      itemCount: pendingServices.length,
-      itemBuilder: (context, index) {
-        final service = pendingServices[index];
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade200),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-          child: Row(
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              CircleAvatar(
-                backgroundColor: AppColors.primary.withOpacity(0.1),
-                child: const Icon(Icons.miscellaneous_services,
-                    color: AppColors.primary),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      service['type'] ?? '',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    Text(
-                      'ID: ${service['id']} | ${service['date']}',
-                      style:
-                      TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  final result = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          GiveFeedbackScreen(service: service),
-                    ),
-                  );
-                  if (result == true) {
-                    _fetchGivenFeedbacks();
-                    _tabController.animateTo(1); // Switch to "Given" tab on success
-                  }
-                },
-                child: const Text('Feedback'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // ------------------ GIVEN ------------------
-
-  Widget _buildGivenFeedbackList() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_errorMessage != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(_errorMessage!, textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              ElevatedButton(onPressed: _fetchGivenFeedbacks, child: const Text('Retry')),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_givenFeedbacks.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: _fetchGivenFeedbacks,
-        child: ListView(
-          children: const [
-            SizedBox(height: 100),
-            Center(child: Text('No feedback given yet')),
-          ],
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _fetchGivenFeedbacks,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _givenFeedbacks.length,
-        itemBuilder: (context, index) {
-          final Map<String, dynamic> feedback = _givenFeedbacks[index];
-
-          final String user = feedback['customer_name']?.toString() ?? 'User';
-          final String date = feedback['created_at']?.toString() ?? '';
-          final int rating = int.tryParse(feedback['rating']?.toString() ?? '0') ?? 0;
-          final String comment = feedback['comments']?.toString() ?? '';
-
-          return GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => FeedbackDetailScreen(
-                    feedbackId: '${feedback['id']}',
-                  ),
-                ),
-              );
-            },
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey.shade200),
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(user,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 16)),
-                      ),
-                      Row(
-                        children: List.generate(
-                          5,
-                              (i) => Icon(Icons.star,
-                              size: 16,
-                              color: i < rating
-                                  ? Colors.amber
-                                  : Colors.grey.shade300),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  if (date.isNotEmpty)
-                    Text(
-                      date,
-                      style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
-                    ),
-                  const SizedBox(height: 12),
                   Text(
-                    comment.isEmpty ? 'No comment provided' : comment,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.grey.shade700, height: 1.4),
+                    feedback['user'] as String,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.circle, size: 4, color: Colors.grey),
+                  const SizedBox(width: 8),
+                  Text(
+                    feedback['date'] as String,
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
                   ),
                 ],
               ),
+              Row(
+                children: List.generate(
+                  5,
+                  (i) => Icon(
+                    Icons.star,
+                    color: i < (feedback['rating'] as int) ? Colors.amber : Colors.grey.shade300,
+                    size: 18,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            feedback['text'] as String,
+            style: const TextStyle(
+              fontSize: 14,
+              color: Colors.black87,
+              height: 1.4,
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
