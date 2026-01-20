@@ -3,6 +3,7 @@ import 'package:customer_cracktreck/screens/profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'hometab.dart';
 import '../widgets/custom_bottom_nav.dart';
+import 'amc_plans_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -17,7 +18,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // The screens for each tab
   final List<Widget> _pages = [
     const HomeScreen(), // Home Tab
-    const Center(child: Text('Coming soon')),
+    const AmcPlansScreen(),
     const ProductScreen(), // Product Tab
     const ProfileScreen(), // Profile Tab
   ];

@@ -8,6 +8,7 @@ import 'provider/document_provider.dart';
 import 'provider/company_provider.dart';
 import 'provider/banner_provider.dart';
 import 'provider/quick_service_provider.dart';
+import 'provider/amc_plan_provider.dart';
 
 
 void main() {
@@ -18,6 +19,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => CompanyProvider()),
         ChangeNotifierProvider(create: (_) => BannerProvider()),
         ChangeNotifierProvider(create: (_) => QuickServiceProvider()),
+        ChangeNotifierProvider(create: (_) => AmcPlanProvider()),
       ],
       child: const CrackCustomerTechApp(),
     ),

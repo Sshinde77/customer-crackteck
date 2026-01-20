@@ -29,10 +29,10 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
+        // leading: IconButton(
+        //   icon: const Icon(Icons.arrow_back, color: Colors.white),
+        //   onPressed: () => Navigator.pop(context),
+        // ),
         title: const Text('AMC Plans', style: TextStyle(color: Colors.white)),
       ),
       body: Consumer<AmcPlanProvider>(

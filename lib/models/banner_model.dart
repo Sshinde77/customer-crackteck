@@ -23,7 +23,7 @@ class BannerModel {
   factory BannerModel.fromJson(Map<String, dynamic> json) {
     return BannerModel(
       id: json['id'],
-      bannerPath: json['banner_path'],
+      bannerPath: json['image_url'],
       createdAt: json['created_at'],
       updatedAt: json['updated_at'],
     );
