@@ -38,8 +38,14 @@ class ServiceProductFormModel {
 
 class ServiceRequestScreen extends StatefulWidget {
   final String title;
+  final Map<String, dynamic>? amcPlanData;
 
-  const ServiceRequestScreen({super.key, required this.title});
+  const ServiceRequestScreen({
+    super.key,
+    required this.title,
+    this.amcPlanData,
+  });
+
 
   @override
   State<ServiceRequestScreen> createState() => _ServiceRequestScreenState();

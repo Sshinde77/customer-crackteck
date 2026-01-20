@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import '../constants/api_constants.dart';
 import '../constants/core/navigation_service.dart';
 import '../constants/core/secure_storage_service.dart';
+import '../models/amc_plan_model.dart';
 import '../models/api_response.dart';
 import '../models/product_model.dart';
 import '../models/user_model.dart';
@@ -1401,6 +1402,104 @@ class ApiService {
     }
   }
 
+  // ========================================
+  // AMC Plans API
+  // ========================================
+
+  Future<ApiResponse<List<AmcPlanItem>>> getAmcPlans({
+    required int roleId,
+  }) async {
+    try {
+      debugPrint(
+        '🔵 API Request: GET ${ApiConstants.amcPlans}?role_id=$roleId',
+      );
+
+      final url = Uri.parse(
+        ApiConstants.amcPlans,
+      ).replace(queryParameters: {'role_id': roleId.toString()});
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('🟡 API Response Status: ${response.statusCode}');
+      debugPrint('🟡 API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final List<dynamic> planList = jsonResponse['amc_plans'] ?? [];
+        return ApiResponse<List<AmcPlanItem>>(
+          success: true,
+          message: 'AMC plans fetched successfully',
+          data: planList.map((e) => AmcPlanItem.fromJson(e)).toList(),
+        );
+      }
+
+      return ApiResponse(
+        success: false,
+        message:
+        jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch AMC plans'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } catch (e) {
+      debugPrint('❌ Error fetching AMC plans: $e');
+      return ApiResponse(success: false, message: 'An error occurred: $e');
+    }
+  }
+
+  // Get AMC Plan Details by ID
+  Future<ApiResponse<AmcPlanDetailResponse>> getAmcPlanDetails({
+    required int planId,
+    required int roleId,
+  }) async {
+    try {
+      debugPrint(
+        '🔵 API Request: GET ${ApiConstants.amcPlanDetails}/$planId?role_id=$roleId',
+      );
+
+      final url = Uri.parse(
+        '${ApiConstants.amcPlanDetails}/$planId',
+      ).replace(queryParameters: {'role_id': roleId.toString()});
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('🟡 API Response Status: ${response.statusCode}');
+      debugPrint('🟡 API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        return ApiResponse<AmcPlanDetailResponse>(
+          success: true,
+          message: 'AMC plan details fetched successfully',
+          data: AmcPlanDetailResponse.fromJson(jsonResponse),
+        );
+      }
+
+      return ApiResponse(
+        success: false,
+        message:
+        jsonResponse['message'] ??
+            (isHtml
+                ? 'Server returned HTML'
+                : 'Failed to fetch AMC plan details'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('🔴 Unexpected Error in getAmcPlanDetails: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
   // ========================================
   // Sales Dashboard API Methods
   // ========================================
