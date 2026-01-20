@@ -69,11 +69,16 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   }
 
   String _getServiceTypeFromTitle() {
+    if (widget.amcPlanData != null) {
+      return 'amc';
+    }
     final title = widget.title.toLowerCase();
     if (title.contains('installation')) {
       return 'installation';
     } else if (title.contains('repairing')) {
       return 'repairing';
+    } else if (title.contains('amc')) {
+      return 'amc';
     } else if (title.contains('quick')) {
       return 'quick_service';
     }
