@@ -9,6 +9,7 @@ import '../models/quick_service_model.dart';
 import '../provider/quick_service_provider.dart';
 import '../services/api_service.dart';
 import 'payment_screen.dart';
+import 'service_detail_screen.dart';
 
 class ServiceProductFormModel {
   QuickService? selectedQuickService;
@@ -532,6 +533,27 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                       style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
                     ),
                   ],
+                ),
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ServiceDetailScreen(
+                            service: service,
+                            imagePath: 'assests/computer.png',
+                          ),
+                        ),
+                      );
+                    },
+                    child: const Text(
+                      'View Details',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
                 ),
               ],
             ),
