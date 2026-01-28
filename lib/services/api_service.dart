@@ -1143,6 +1143,7 @@ class ApiService {
     required int roleId,
     required String serviceType,
     required List<Map<String, dynamic>> products,
+    int? amcPlanId,
   }) async {
     try {
       debugPrint('🔵 API Request: POST ${ApiConstants.submitQuickService}');
@@ -1159,17 +1160,24 @@ class ApiService {
       request.fields['customer_id'] = customerId.toString();
       request.fields['role_id'] = roleId.toString();
       request.fields['service_type'] = serviceType;
+      if (amcPlanId != null) {
+        request.fields['amc_plan_id'] = amcPlanId.toString();
+      }
 
       for (int i = 0; i < products.length; i++) {
         final product = products[i];
-        request.fields['products[$i][name]'] = product['name'] ?? '';
-        request.fields['products[$i][type]'] = product['type'] ?? '';
-        request.fields['products[$i][model_no]'] = product['model_no'] ?? '';
-        request.fields['products[$i][sku]'] = product['sku'] ?? ''; // Optional
-        request.fields['products[$i][hsn]'] = product['hsn'] ?? ''; // Optional
-        request.fields['products[$i][purchase_date]'] = product['purchase_date'] ?? '';
-        request.fields['products[$i][brand]'] = product['brand'] ?? '';
-        request.fields['products[$i][description]'] = product['description'] ?? '';
+        request.fields['products[$i][name]'] = (product['name'] ?? '').toString();
+        request.fields['products[$i][type]'] = (product['type'] ?? '').toString();
+        request.fields['products[$i][model_no]'] = (product['model_no'] ?? '').toString();
+        request.fields['products[$i][sku]'] = (product['sku'] ?? '').toString(); // Optional
+        request.fields['products[$i][hsn]'] = (product['hsn'] ?? '').toString(); // Optional
+        request.fields['products[$i][purchase_date]'] = (product['purchase_date'] ?? '').toString();
+        request.fields['products[$i][brand]'] = (product['brand'] ?? '').toString();
+        request.fields['products[$i][description]'] = (product['description'] ?? '').toString();
+        if (product['service_type_id'] != null) {
+          request.fields['products[$i][service_type_id]'] =
+              product['service_type_id'].toString();
+        }
 
         // Add images if any
         if (product['images'] != null && product['images'] is List<File>) {
@@ -1183,6 +1191,12 @@ class ApiService {
         }
       }
 
+      // Log the exact multipart keys/files being sent (to compare with Postman).
+      debugPrint('Quick Service fields: ${request.fields}');
+      debugPrint(
+        'Quick Service files: ${request.files.map((f) => '${f.field}:${f.filename}').toList()}',
+      );
+
       final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
       final response = await http.Response.fromStream(streamedResponse);
       
@@ -1192,10 +1206,12 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        final dynamic responseData =
+            jsonResponse['data'] ?? jsonResponse['quick_service_request'];
         return ApiResponse(
           success: jsonResponse['success'] ?? true,
           message: jsonResponse['message'] ?? 'Request submitted successfully',
-          data: jsonResponse['data'],
+          data: responseData,
         );
       }
 

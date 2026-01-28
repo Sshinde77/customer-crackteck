@@ -115,11 +115,24 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
         return;
       }
 
+      final String serviceType =
+          (widget.serviceData['service_type'] ?? 'quick_service').toString();
+      final int? amcPlanId = widget.serviceData['amc_plan_id'] is int
+          ? widget.serviceData['amc_plan_id'] as int
+          : int.tryParse('${widget.serviceData['amc_plan_id'] ?? ''}');
+      final QuickService? service =
+          widget.serviceData['serviceData'] as QuickService?;
+      final dynamic rawServiceTypeId = service?.id ?? widget.serviceData['id'];
+      final int? serviceTypeId = rawServiceTypeId is int
+          ? rawServiceTypeId
+          : int.tryParse('${rawServiceTypeId ?? ''}');
+
       final List<Map<String, dynamic>> productData = _products.map((p) {
         return {
           'name': p.nameController.text.trim(),
           'type': p.selectedPcType ?? '',
           'model_no': p.modelNoController.text.trim(),
+          if (serviceTypeId != null) 'service_type_id': serviceTypeId,
           'purchase_date': p.purchaseDateController.text.trim(),
           'brand': p.brandController.text.trim(),
           'description': p.descriptionController.text.trim(),
@@ -130,8 +143,9 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
       final response = await ApiService.instance.submitQuickServiceRequest(
         customerId: customerId,
         roleId: roleId,
-        serviceType: 'quick_service', // Hardcoded as per Postman screenshot
+        serviceType: serviceType,
         products: productData,
+        amcPlanId: serviceType == 'amc' ? amcPlanId : null,
       );
 
       if (mounted) {

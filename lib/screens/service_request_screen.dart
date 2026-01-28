@@ -19,7 +19,7 @@ class ServiceProductFormModel {
   final TextEditingController purchaseDateController = TextEditingController();
   final TextEditingController brandController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
-  File? selectedImage;
+  final List<File> selectedImages = [];
 
   void dispose() {
     nameController.dispose();
@@ -33,7 +33,7 @@ class ServiceProductFormModel {
     return selectedQuickService != null &&
         selectedDeviceType != null &&
         nameController.text.trim().isNotEmpty &&
-        selectedImage != null;
+        selectedImages.isNotEmpty;
   }
 }
 
@@ -94,12 +94,18 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       );
       if (image != null) {
         setState(() {
-          product.selectedImage = File(image.path);
+          product.selectedImages.add(File(image.path));
         });
       }
     } catch (e) {
       debugPrint('Error picking image: $e');
     }
+  }
+
+  void _removeImage(ServiceProductFormModel product, int index) {
+    setState(() {
+      product.selectedImages.removeAt(index);
+    });
   }
 
   void _showImageSourceActionSheet(BuildContext context, ServiceProductFormModel product) {
@@ -199,11 +205,12 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
           'type': p.selectedDeviceType ?? '',
           'model_no': p.modelNoController.text.trim(),
           'sku': p.selectedQuickService?.itemCode ?? '', // Mapping item code from selected service
+          'service_type_id': p.selectedQuickService?.id,
           'hsn': '', // HSN is not in UI, sending empty
           'purchase_date': p.purchaseDateController.text.trim(),
           'brand': p.brandController.text.trim(),
           'description': p.descriptionController.text.trim(),
-          'images': p.selectedImage != null ? [p.selectedImage!] : [],
+          'images': p.selectedImages,
         };
       }).toList();
 
@@ -450,32 +457,75 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         ),
         const SizedBox(height: 16),
 
-        _buildLabel('Image Picker'),
-        GestureDetector(
+        _buildLabel('Images'),
+        InkWell(
           onTap: _isLoading ? null : () => _showImageSourceActionSheet(context, product),
           child: Container(
-            width: double.infinity,
-            height: 150,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(10),
-              color: Colors.grey.shade50,
+              color: Colors.grey.shade200,
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: product.selectedImage == null
-                ? Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Icons.add_a_photo, size: 40, color: Colors.grey),
-                      SizedBox(height: 8),
-                      Text('Tap to pick image', style: TextStyle(color: Colors.grey)),
-                    ],
-                  )
-                : ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.file(product.selectedImage!, fit: BoxFit.cover),
-                  ),
+            child: Row(
+              children: const [
+                Icon(Icons.camera_alt, color: AppColors.primary),
+                SizedBox(width: 12),
+                Text(
+                  'Add Photos',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                ),
+                Spacer(),
+              ],
+            ),
           ),
         ),
+        if (product.selectedImages.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 100,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: product.selectedImages.length,
+              itemBuilder: (context, imgIndex) {
+                return Stack(
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(right: 12),
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        image: DecorationImage(
+                          image: FileImage(product.selectedImages[imgIndex]),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 0,
+                      right: 12,
+                      child: GestureDetector(
+                        onTap: _isLoading ? null : () => _removeImage(product, imgIndex),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
       ],
     );
   }
