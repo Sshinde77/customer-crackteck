@@ -17,9 +17,6 @@ class ComingSoonScreen extends StatefulWidget {
 }
 
 class _ComingSoonScreenState extends State<ComingSoonScreen> {
-  int _currentIndex = 0;
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(

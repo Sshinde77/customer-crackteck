@@ -11,9 +11,6 @@ class DeliveryBottomNavigation extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  static const Color _green = Color(0xFF1E7C10);
-  static const Color _inactive = Color(0xFF8E8E93);
-
   @override
   Widget build(BuildContext context) {
     return Container(
