@@ -59,7 +59,13 @@ class _ProductScreenState extends State<ProductScreen> {
     setState(() {
       _filteredProducts = _products.where((p) {
         final nameMatches = (p.warehouseProduct?.productName ?? '').toLowerCase().contains(query);
-        return nameMatches;
+        final categoryFilter = widget.initialCategory?.trim();
+        if (categoryFilter == null || categoryFilter.isEmpty) {
+          return nameMatches;
+        }
+        final productCategory = (p.categoryName ?? '').toLowerCase();
+        final categoryMatches = productCategory.contains(categoryFilter.toLowerCase());
+        return nameMatches && categoryMatches;
       }).toList();
     });
   }

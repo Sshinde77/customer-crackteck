@@ -6,6 +6,8 @@ import '../routes/app_routes.dart';
 import '../provider/banner_provider.dart';
 import '../provider/quick_service_provider.dart';
 import '../models/quick_service_model.dart';
+import '../models/product_category_model.dart';
+import '../services/api_service.dart';
 import 'product_list.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -24,6 +26,11 @@ class _HomeScreenState extends State<HomeScreen> {
   int _bannerIndex = 0;
   Timer? _timer;
 
+  // Quick Add categories
+  bool _isLoadingCategories = true;
+  String? _categoryError;
+  List<ProductCategory> _categories = [];
+
   @override
   void initState() {
     super.initState();
@@ -32,7 +39,35 @@ class _HomeScreenState extends State<HomeScreen> {
         _startAutoSlide();
       });
       context.read<QuickServiceProvider>().fetchQuickServices();
+      _fetchProductCategories();
     });
+  }
+
+  Future<void> _fetchProductCategories() async {
+    setState(() {
+      _isLoadingCategories = true;
+      _categoryError = null;
+    });
+
+    try {
+      final response = await ApiService.instance.getProductCategories(roleId: 4);
+      if (response.success && response.data != null) {
+        setState(() {
+          _categories = response.data!;
+          _isLoadingCategories = false;
+        });
+      } else {
+        setState(() {
+          _categoryError = response.message ?? 'Failed to load categories';
+          _isLoadingCategories = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _categoryError = 'An unexpected error occurred';
+        _isLoadingCategories = false;
+      });
+    }
   }
 
   void _startAutoSlide() {
@@ -116,21 +151,36 @@ class _HomeScreenState extends State<HomeScreen> {
                     _sectionTitle('Quick Add'),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          childAspectRatio: 0.85,
-                        ),
-                        itemCount: _showAllQuickAdd ? _allQuickAdd.length : 3,
-                        itemBuilder: (context, index) {
-                          final item = _showAllQuickAdd ? _allQuickAdd[index] : _shortQuickAdd[index];
-                          return _quickAddItem(context, item);
-                        },
-                      ),
+                      child: _isLoadingCategories
+                          ? const SizedBox(
+                              height: 120,
+                              child: Center(child: CircularProgressIndicator()),
+                            )
+                          : _categoryError != null
+                              ? SizedBox(
+                                  height: 120,
+                                  child: Center(
+                                    child: Text(
+                                      _categoryError!,
+                                      style: const TextStyle(color: Colors.red),
+                                    ),
+                                  ),
+                                )
+                              : GridView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 3,
+                                    crossAxisSpacing: 12,
+                                    mainAxisSpacing: 12,
+                                    childAspectRatio: 0.85,
+                                  ),
+                                  itemCount: _visibleQuickAddItems.length,
+                                  itemBuilder: (context, index) {
+                                    final item = _visibleQuickAddItems[index];
+                                    return _quickAddItem(context, item);
+                                  },
+                                ),
                     ),
 
                     /// 🔽 Expand / Collapse Arrow
@@ -271,6 +321,29 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  List<_QuickAddItem> get _allQuickAddItems {
+    final items = _categories
+        .where((c) => (c.name ?? '').trim().isNotEmpty)
+        .map(
+          (c) => _QuickAddItem(
+            label: c.name!.trim(),
+            imageUrl: c.image != null ? 'https://crackteck.co.in/${c.image}' : null,
+          ),
+        )
+        .toList();
+
+    items.add(const _QuickAddItem(label: 'Other', imageUrl: null, isOther: true));
+    return items;
+  }
+
+  List<_QuickAddItem> get _visibleQuickAddItems {
+    if (_showAllQuickAdd) return _allQuickAddItems;
+    final categoryItems = _allQuickAddItems.where((i) => !i.isOther).toList();
+    final visible = categoryItems.take(2).toList();
+    visible.add(const _QuickAddItem(label: 'Other', imageUrl: null, isOther: true));
+    return visible;
+  }
+
   Widget _header() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -344,13 +417,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _quickAddItem(BuildContext context, Map<String, dynamic> item) {
+  Widget _quickAddItem(BuildContext context, _QuickAddItem item) {
     return InkWell(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ProductScreen(initialCategory: item['label'] as String),
+            builder: (context) => ProductScreen(
+              initialCategory: item.isOther ? null : item.label,
+            ),
           ),
         );
       },
@@ -365,18 +440,22 @@ class _HomeScreenState extends State<HomeScreen> {
               color: const Color(0xFFF5F5F5),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: item['image'] != null
-                ? Image.asset(
-              item['image'] as String,
-              fit: BoxFit.contain,
-            )
+            child: item.imageUrl != null
+                ? Image.network(
+                    item.imageUrl!,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) => const Icon(
+                      Icons.image_not_supported,
+                      color: Colors.grey,
+                    ),
+                  )
                 : const Center(
-              child: Text('Other', style: TextStyle(fontWeight: FontWeight.w500)),
-            ),
+                    child: Text('Other', style: TextStyle(fontWeight: FontWeight.w500)),
+                  ),
           ),
           const SizedBox(height: 8),
           Text(
-            item['label'] as String,
+            item.label,
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
             textAlign: TextAlign.center,
           ),
@@ -496,20 +575,14 @@ class _QuickServiceCard extends StatelessWidget {
   }
 }
 
-final List<Map<String, dynamic>> _shortQuickAdd = [
-  {'label': 'Computer', 'image': 'assests/computer.png'},
-  {'label': 'Laptop', 'image': 'assests/laptop.png'},
-  {'label': 'CCTV', 'image': 'assests/cctv.png'},
-];
+class _QuickAddItem {
+  final String label;
+  final String? imageUrl;
+  final bool isOther;
 
-final List<Map<String, dynamic>> _allQuickAdd = [
-  {'label': 'Computer', 'image': 'assests/computer.png'},
-  {'label': 'Laptop', 'image': 'assests/laptop.png'},
-  {'label': 'CCTV', 'image': 'assests/cctv.png'},
-  {'label': 'Printer', 'image': 'assests/printer.png'},
-  {'label': 'Server', 'image': 'assests/server.png'},
-  {'label': 'EPBX', 'image': 'assests/epbx.png'},
-  {'label': 'Bio Metric', 'image': 'assests/Bio_metric.png'},
-  {'label': 'Router', 'image': 'assests/router.png'},
-  {'label': 'Other', 'image': null},
-];
+  const _QuickAddItem({
+    required this.label,
+    required this.imageUrl,
+    this.isOther = false,
+  });
+}

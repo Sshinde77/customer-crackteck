@@ -30,6 +30,7 @@ class ApiConstants {
   static const String getallfeedback = '$baseUrl/get-all-feedback';
   static const String amcPlans = '$baseUrl/amc-plans';
   static const String amcPlanDetails = '$baseUrl/amc-plan-details';
+  static const String product_category = '$baseUrl/product/categories';
 
 
 

@@ -18,6 +18,7 @@ import '../models/pan_card_model.dart';
 import '../models/company_model.dart';
 import '../models/banner_model.dart';
 import '../models/quick_service_model.dart';
+import '../models/product_category_model.dart';
 
 /// API Service for handling HTTP requests
 class ApiService {
@@ -537,6 +538,50 @@ class ApiService {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
       debugPrint('🔴 Unexpected Error in getProducts: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  // ========================================
+  // Product Categories API
+  // ========================================
+
+  Future<ApiResponse<List<ProductCategory>>> getProductCategories({required int roleId}) async {
+    try {
+      debugPrint('ðŸ”µ API Request: GET ${ApiConstants.product_category}?role_id=$roleId');
+
+      final url = Uri.parse(ApiConstants.product_category).replace(
+        queryParameters: {'role_id': roleId.toString()},
+      );
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+        final categories = ProductCategoryResponse.fromJson(jsonResponse).categories;
+        return ApiResponse<List<ProductCategory>>(
+          success: true,
+          message: 'Categories fetched successfully',
+          data: categories,
+        );
+      }
+
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to fetch categories'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('ðŸ”´ Unexpected Error in getProductCategories: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }

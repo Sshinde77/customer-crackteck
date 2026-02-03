@@ -26,6 +26,7 @@ class ProductData {
   final String? ecommerceStatus;
   final String? createdAt;
   final String? updatedAt;
+  final String? categoryName;
   final WarehouseProduct? warehouseProduct;
 
   ProductData({
@@ -42,10 +43,23 @@ class ProductData {
     this.ecommerceStatus,
     this.createdAt,
     this.updatedAt,
+    this.categoryName,
     this.warehouseProduct,
   });
 
   factory ProductData.fromJson(Map<String, dynamic> json) {
+    final Map<String, dynamic>? warehouseJson =
+        json['warehouse_product'] is Map<String, dynamic> ? json['warehouse_product'] as Map<String, dynamic> : null;
+    final String? resolvedCategory =
+        json['category_name'] ??
+        json['category'] ??
+        json['product_category'] ??
+        json['product_category_name'] ??
+        warehouseJson?['category_name'] ??
+        warehouseJson?['category'] ??
+        warehouseJson?['product_category'] ??
+        warehouseJson?['product_category_name'];
+
     return ProductData(
       id: json['id'],
       warehouseProductId: json['warehouse_product_id'],
@@ -60,9 +74,8 @@ class ProductData {
       ecommerceStatus: json['ecommerce_status'],
       createdAt: json['created_at'],
       updatedAt: json['updated_at'],
-      warehouseProduct: json['warehouse_product'] != null
-          ? WarehouseProduct.fromJson(json['warehouse_product'])
-          : null,
+      categoryName: resolvedCategory,
+      warehouseProduct: warehouseJson != null ? WarehouseProduct.fromJson(warehouseJson) : null,
     );
   }
 }
