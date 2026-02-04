@@ -26,7 +26,9 @@ class ProductData {
   final String? ecommerceStatus;
   final String? createdAt;
   final String? updatedAt;
+  final int? categoryId;
   final String? categoryName;
+  final String? categorySlug;
   final WarehouseProduct? warehouseProduct;
 
   ProductData({
@@ -43,22 +45,70 @@ class ProductData {
     this.ecommerceStatus,
     this.createdAt,
     this.updatedAt,
+    this.categoryId,
     this.categoryName,
+    this.categorySlug,
     this.warehouseProduct,
   });
 
   factory ProductData.fromJson(Map<String, dynamic> json) {
     final Map<String, dynamic>? warehouseJson =
         json['warehouse_product'] is Map<String, dynamic> ? json['warehouse_product'] as Map<String, dynamic> : null;
+
+    int? tryParseInt(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      if (value is String) return int.tryParse(value);
+      return null;
+    }
+
+    String? readString(dynamic value) {
+      return value is String ? value : null;
+    }
+
+    final Map<String, dynamic>? categoryMap =
+        json['category'] is Map<String, dynamic> ? json['category'] as Map<String, dynamic> : null;
+    final Map<String, dynamic>? productCategoryMap =
+        json['product_category'] is Map<String, dynamic> ? json['product_category'] as Map<String, dynamic> : null;
+
+    final int? resolvedCategoryId =
+        tryParseInt(json['category_id']) ??
+        tryParseInt(json['product_category_id']) ??
+        tryParseInt(json['category']) ??
+        tryParseInt(json['product_category']) ??
+        tryParseInt(json['categoryId']) ??
+        tryParseInt(json['productCategoryId']) ??
+        tryParseInt(categoryMap?['id']) ??
+        tryParseInt(productCategoryMap?['id']) ??
+        tryParseInt(warehouseJson?['category_id']) ??
+        tryParseInt(warehouseJson?['product_category_id']) ??
+        tryParseInt(warehouseJson?['category']) ??
+        tryParseInt(warehouseJson?['product_category']) ??
+        tryParseInt(warehouseJson?['categoryId']) ??
+        tryParseInt(warehouseJson?['productCategoryId']);
+
     final String? resolvedCategory =
-        json['category_name'] ??
-        json['category'] ??
-        json['product_category'] ??
-        json['product_category_name'] ??
-        warehouseJson?['category_name'] ??
-        warehouseJson?['category'] ??
-        warehouseJson?['product_category'] ??
-        warehouseJson?['product_category_name'];
+        readString(json['category_name']) ??
+        readString(json['product_category_name']) ??
+        readString(json['category']) ??
+        readString(json['product_category']) ??
+        readString(categoryMap?['name']) ??
+        readString(productCategoryMap?['name']) ??
+        readString(warehouseJson?['category_name']) ??
+        readString(warehouseJson?['product_category_name']) ??
+        readString(warehouseJson?['category']) ??
+        readString(warehouseJson?['product_category']);
+
+    final String? resolvedCategorySlug =
+        readString(json['category_slug']) ??
+        readString(json['product_category_slug']) ??
+        readString(json['slug']) ??
+        readString(categoryMap?['slug']) ??
+        readString(productCategoryMap?['slug']) ??
+        readString(warehouseJson?['category_slug']) ??
+        readString(warehouseJson?['product_category_slug']) ??
+        readString(warehouseJson?['slug']);
 
     return ProductData(
       id: json['id'],
@@ -74,7 +124,9 @@ class ProductData {
       ecommerceStatus: json['ecommerce_status'],
       createdAt: json['created_at'],
       updatedAt: json['updated_at'],
+      categoryId: resolvedCategoryId,
       categoryName: resolvedCategory,
+      categorySlug: resolvedCategorySlug,
       warehouseProduct: warehouseJson != null ? WarehouseProduct.fromJson(warehouseJson) : null,
     );
   }

@@ -326,13 +326,15 @@ class _HomeScreenState extends State<HomeScreen> {
         .where((c) => (c.name ?? '').trim().isNotEmpty)
         .map(
           (c) => _QuickAddItem(
+            categoryId: c.id,
             label: c.name!.trim(),
+            slug: c.slug,
             imageUrl: c.image != null ? 'https://crackteck.co.in/${c.image}' : null,
           ),
         )
         .toList();
 
-    items.add(const _QuickAddItem(label: 'Other', imageUrl: null, isOther: true));
+    items.add(const _QuickAddItem(categoryId: null, label: 'Other', slug: null, imageUrl: null, isOther: true));
     return items;
   }
 
@@ -340,7 +342,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_showAllQuickAdd) return _allQuickAddItems;
     final categoryItems = _allQuickAddItems.where((i) => !i.isOther).toList();
     final visible = categoryItems.take(2).toList();
-    visible.add(const _QuickAddItem(label: 'Other', imageUrl: null, isOther: true));
+    visible.add(const _QuickAddItem(categoryId: null, label: 'Other', slug: null, imageUrl: null, isOther: true));
     return visible;
   }
 
@@ -425,6 +427,8 @@ class _HomeScreenState extends State<HomeScreen> {
           MaterialPageRoute(
             builder: (context) => ProductScreen(
               initialCategory: item.isOther ? null : item.label,
+              initialCategoryId: item.isOther ? null : item.categoryId,
+              initialCategorySlug: item.isOther ? null : item.slug,
             ),
           ),
         );
@@ -576,12 +580,16 @@ class _QuickServiceCard extends StatelessWidget {
 }
 
 class _QuickAddItem {
+  final int? categoryId;
   final String label;
+  final String? slug;
   final String? imageUrl;
   final bool isOther;
 
   const _QuickAddItem({
+    required this.categoryId,
     required this.label,
+    required this.slug,
     required this.imageUrl,
     this.isOther = false,
   });

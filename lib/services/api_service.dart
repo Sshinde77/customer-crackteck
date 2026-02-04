@@ -518,12 +518,14 @@ class ApiService {
       final bool isHtml = jsonResponse['isHtml'] == true;
 
       if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
-        // Based on the example, "products" is at the root.
-        // We wrap it for ApiResponse if needed, or handle it here.
+        final Map<String, dynamic> payload =
+            jsonResponse['data'] is Map<String, dynamic>
+                ? jsonResponse['data'] as Map<String, dynamic>
+                : jsonResponse;
         return ApiResponse<ProductModel>(
           success: true,
           message: 'Products fetched successfully',
-          data: ProductModel.fromJson(jsonResponse),
+          data: ProductModel.fromJson(payload),
         );
       }
 
@@ -563,7 +565,11 @@ class ApiService {
       final bool isHtml = jsonResponse['isHtml'] == true;
 
       if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
-        final categories = ProductCategoryResponse.fromJson(jsonResponse).categories;
+        final Map<String, dynamic> payload =
+            jsonResponse['data'] is Map<String, dynamic>
+                ? jsonResponse['data'] as Map<String, dynamic>
+                : jsonResponse;
+        final categories = ProductCategoryResponse.fromJson(payload).categories;
         return ApiResponse<List<ProductCategory>>(
           success: true,
           message: 'Categories fetched successfully',

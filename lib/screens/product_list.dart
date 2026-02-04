@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../models/product_model.dart';
+import 'product_detail_screen.dart';
 
 class ProductScreen extends StatefulWidget {
   final String? initialCategory;
+  final int? initialCategoryId;
+  final String? initialCategorySlug;
 
-  const ProductScreen({super.key, this.initialCategory});
+  const ProductScreen({super.key, this.initialCategory, this.initialCategoryId, this.initialCategorySlug});
 
   @override
   State<ProductScreen> createState() => _ProductScreenState();
@@ -59,12 +62,36 @@ class _ProductScreenState extends State<ProductScreen> {
     setState(() {
       _filteredProducts = _products.where((p) {
         final nameMatches = (p.warehouseProduct?.productName ?? '').toLowerCase().contains(query);
-        final categoryFilter = widget.initialCategory?.trim();
-        if (categoryFilter == null || categoryFilter.isEmpty) {
+        final categoryIdFilter = widget.initialCategoryId;
+        final categoryNameFilter = widget.initialCategory?.trim();
+        final categorySlugFilter = widget.initialCategorySlug?.trim();
+        final bool hasNameFilter = categoryNameFilter != null && categoryNameFilter.isNotEmpty;
+        final bool hasSlugFilter = categorySlugFilter != null && categorySlugFilter.isNotEmpty;
+        if (categoryIdFilter == null && !hasNameFilter && !hasSlugFilter) {
           return nameMatches;
         }
-        final productCategory = (p.categoryName ?? '').toLowerCase();
-        final categoryMatches = productCategory.contains(categoryFilter.toLowerCase());
+
+        bool categoryMatches = true;
+        if (categoryIdFilter != null) {
+          if (p.categoryId != null) {
+            categoryMatches = p.categoryId == categoryIdFilter;
+          } else if (hasSlugFilter) {
+            final productCategorySlug = (p.categorySlug ?? '').toLowerCase();
+            categoryMatches = productCategorySlug == categorySlugFilter.toLowerCase();
+          } else if (hasNameFilter) {
+            final productCategory = (p.categoryName ?? '').toLowerCase();
+            categoryMatches = productCategory.contains(categoryNameFilter.toLowerCase());
+          } else {
+            categoryMatches = false;
+          }
+        } else if (hasSlugFilter) {
+          final productCategorySlug = (p.categorySlug ?? '').toLowerCase();
+          categoryMatches = productCategorySlug == categorySlugFilter.toLowerCase();
+        } else if (hasNameFilter) {
+          final productCategory = (p.categoryName ?? '').toLowerCase();
+          categoryMatches = productCategory.contains(categoryNameFilter.toLowerCase());
+        }
+
         return nameMatches && categoryMatches;
       }).toList();
     });
@@ -151,7 +178,7 @@ class _ProductScreenState extends State<ProductScreen> {
                                 childAspectRatio: 0.68, // Slightly taller to fit 2 lines comfortably
                               ),
                               itemBuilder: (context, index) {
-                                return _productCard(_filteredProducts[index]);
+                                return _productCard(context, _filteredProducts[index]);
                               },
                             ),
             ),
@@ -162,64 +189,75 @@ class _ProductScreenState extends State<ProductScreen> {
   }
 
   /// PRODUCT CARD
-  Widget _productCard(ProductData product) {
+  Widget _productCard(BuildContext context, ProductData product) {
     final wp = product.warehouseProduct;
     final String imageUrl = wp?.mainProductImage != null 
         ? "https://crackteck.co.in/${wp!.mainProductImage}"
         : "";
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        /// IMAGE - Fixed square container
-        AspectRatio(
-          aspectRatio: 1, 
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Center(
-              child: imageUrl.isNotEmpty
-                  ? Image.network(
-                      imageUrl,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported, color: Colors.grey),
-                    )
-                  : const Icon(Icons.image, color: Colors.grey, size: 40),
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ProductDetailScreen(product: product),
+          ),
+        );
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          /// IMAGE - Fixed square container
+          AspectRatio(
+            aspectRatio: 1, 
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(
+                child: imageUrl.isNotEmpty
+                    ? Image.network(
+                        imageUrl,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported, color: Colors.grey),
+                      )
+                    : const Icon(Icons.image, color: Colors.grey, size: 40),
+              ),
             ),
           ),
-        ),
 
-        const SizedBox(height: 8),
+          const SizedBox(height: 8),
 
-        /// PRICE
-        Text(
-          "₹ ${wp?.finalPrice ?? '0'}",
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-          ),
-        ),
-
-        const SizedBox(height: 2),
-
-        /// NAME - Fixed height for 2 lines to keep layout uniform
-        SizedBox(
-          height: 32, // Height enough for 2 lines of text
-          child: Text(
-            wp?.productName ?? 'Unnamed Product',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+          /// PRICE
+          Text(
+            "₹ ${wp?.finalPrice ?? '0'}",
             style: const TextStyle(
-              fontSize: 11,
-              height: 1.2,
-              color: Colors.black54,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
             ),
           ),
-        ),
-      ],
+
+          const SizedBox(height: 2),
+
+          /// NAME - Fixed height for 2 lines to keep layout uniform
+          SizedBox(
+            height: 32, // Height enough for 2 lines of text
+            child: Text(
+              wp?.productName ?? 'Unnamed Product',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11,
+                height: 1.2,
+                color: Colors.black54,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
+
