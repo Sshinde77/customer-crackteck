@@ -19,6 +19,7 @@ import '../models/company_model.dart';
 import '../models/banner_model.dart';
 import '../models/quick_service_model.dart';
 import '../models/product_category_model.dart';
+import '../models/order_model.dart';
 
 /// API Service for handling HTTP requests
 class ApiService {
@@ -642,6 +643,121 @@ class ApiService {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
       debugPrint('🔴 Unexpected Error in buyProduct: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  // ========================================
+  // Order List API
+  // ========================================
+
+  Future<ApiResponse<List<OrderModel>>> getOrderList({
+    required int roleId,
+    required int customerId,
+  }) async {
+    try {
+      debugPrint(
+        'ðŸ”µ API Request: GET ${ApiConstants.order_list}?role_id=$roleId&customer_id=$customerId',
+      );
+
+      final url = Uri.parse(ApiConstants.order_list).replace(
+        queryParameters: {
+          'role_id': roleId.toString(),
+          'customer_id': customerId.toString(),
+        },
+      );
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+        final dynamic dataRoot = jsonResponse['data'];
+        final Map<String, dynamic> payload =
+            dataRoot is Map<String, dynamic> ? dataRoot : jsonResponse;
+
+        dynamic ordersNode = payload['orders'];
+        if (ordersNode == null && payload['data'] is Map<String, dynamic>) {
+          ordersNode = (payload['data'] as Map<String, dynamic>)['orders'];
+        }
+        if (ordersNode == null && dataRoot is List) {
+          ordersNode = dataRoot;
+        }
+
+        final orders = ordersNode is List
+            ? ordersNode
+                .whereType<Map>()
+                .map((e) => OrderModel.fromJson(Map<String, dynamic>.from(e)))
+                .toList()
+            : <OrderModel>[];
+
+        return ApiResponse<List<OrderModel>>(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Orders fetched successfully',
+          data: orders,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<List<OrderModel>>(
+        success: false,
+        message: jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch orders'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('ðŸ”´ Unexpected Error in getOrderList: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  Future<ApiResponse<OrderModel>> getOrderDetail({
+    required int roleId,
+    required int customerId,
+    required int orderId,
+  }) async {
+    try {
+      final response = await getOrderList(
+        roleId: roleId,
+        customerId: customerId,
+      );
+
+      if (!response.success) {
+        return ApiResponse<OrderModel>(
+          success: false,
+          message: response.message ?? 'Failed to fetch order details',
+          errors: response.errors,
+        );
+      }
+
+      final orders = response.data ?? <OrderModel>[];
+      final OrderModel? selectedOrder = orders.cast<OrderModel?>().firstWhere(
+            (order) => order?.id == orderId,
+            orElse: () => null,
+          );
+
+      if (selectedOrder == null) {
+        return ApiResponse<OrderModel>(
+          success: false,
+          message: 'Order details not found',
+        );
+      }
+
+      return ApiResponse<OrderModel>(
+        success: true,
+        message: 'Order details fetched successfully',
+        data: selectedOrder,
+      );
+    } catch (e) {
+      debugPrint('Unexpected Error in getOrderDetail: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -1597,11 +1713,11 @@ class ApiService {
 
       if (!isHtml &&
           (response.statusCode == 200 || response.statusCode == 201)) {
-        final List<dynamic> planList = jsonResponse['amc_plans'] ?? [];
+        final parsed = AmcPlanResponse.fromJson(jsonResponse);
         return ApiResponse<List<AmcPlanItem>>(
           success: true,
           message: 'AMC plans fetched successfully',
-          data: planList.map((e) => AmcPlanItem.fromJson(e)).toList(),
+          data: parsed.amcPlans ?? <AmcPlanItem>[],
         );
       }
 
@@ -1644,10 +1760,19 @@ class ApiService {
 
       if (!isHtml &&
           (response.statusCode == 200 || response.statusCode == 201)) {
+        final payload = jsonResponse['data'] is Map<String, dynamic>
+            ? jsonResponse['data'] as Map<String, dynamic>
+            : jsonResponse;
+        final detailPayload = payload['data'] is Map<String, dynamic>
+            ? payload['data'] as Map<String, dynamic>
+            : payload;
+
         return ApiResponse<AmcPlanDetailResponse>(
           success: true,
           message: 'AMC plan details fetched successfully',
-          data: AmcPlanDetailResponse.fromJson(jsonResponse),
+          data: AmcPlanDetailResponse.fromJson(
+            {'data': detailPayload},
+          ),
         );
       }
 

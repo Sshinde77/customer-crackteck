@@ -4,11 +4,28 @@ class AmcPlanResponse {
   AmcPlanResponse({this.amcPlans});
 
   factory AmcPlanResponse.fromJson(Map<String, dynamic> json) {
+    final dynamic rootData = json['data'];
+    dynamic plansNode = json['amc_plans'];
+    if (plansNode == null && rootData is Map<String, dynamic>) {
+      plansNode = rootData['amc_plans'] ?? rootData['plans'];
+    }
+    if (plansNode == null && rootData is List) {
+      plansNode = rootData;
+    }
+    if (plansNode == null && json['plans'] is List) {
+      plansNode = json['plans'];
+    }
+
     return AmcPlanResponse(
-      amcPlans: json['amc_plans'] != null
-          ? (json['amc_plans'] as List)
-                .map((i) => AmcPlanItem.fromJson(i))
-                .toList()
+      amcPlans: plansNode is List
+          ? plansNode
+              .whereType<Map>()
+              .map(
+                (i) => AmcPlanItem.fromJson(
+                  Map<String, dynamic>.from(i),
+                ),
+              )
+              .toList()
           : null,
     );
   }
@@ -22,15 +39,25 @@ class AmcPlanDetailResponse {
   AmcPlanDetailResponse({this.amcPlan, this.coveredItems});
 
   factory AmcPlanDetailResponse.fromJson(Map<String, dynamic> json) {
-    final data = json['data'] as Map<String, dynamic>?;
+    final data = json['data'] is Map<String, dynamic>
+        ? json['data'] as Map<String, dynamic>
+        : json;
+    final rawPlan = data['amc_plan'] ?? data['plan'];
+    final rawCoveredItems =
+        data['covered_items'] ?? data['covered_services'] ?? data['services'];
 
     return AmcPlanDetailResponse(
-      amcPlan: data?['amc_plan'] != null
-          ? AmcPlan.fromJson(data!['amc_plan'])
+      amcPlan: rawPlan is Map
+          ? AmcPlan.fromJson(Map<String, dynamic>.from(rawPlan))
           : null,
-      coveredItems: data?['covered_items'] != null
-          ? (data!['covered_items'] as List)
-                .map((i) => CoveredItem.fromJson(i))
+      coveredItems: rawCoveredItems is List
+          ? rawCoveredItems
+                .whereType<Map>()
+                .map(
+                  (i) => CoveredItem.fromJson(
+                    Map<String, dynamic>.from(i),
+                  ),
+                )
                 .toList()
           : null,
     );
@@ -44,11 +71,21 @@ class AmcPlanItem {
   AmcPlanItem({this.plan, this.coveredItems});
 
   factory AmcPlanItem.fromJson(Map<String, dynamic> json) {
+    final dynamic rawPlan = json['plan'] ?? json['amc_plan'];
+    final dynamic rawCoveredItems = json['covered_items'];
+
     return AmcPlanItem(
-      plan: json['plan'] != null ? AmcPlan.fromJson(json['plan']) : null,
-      coveredItems: json['covered_items'] != null
-          ? (json['covered_items'] as List)
-                .map((i) => CoveredItem.fromJson(i))
+      plan: rawPlan is Map
+          ? AmcPlan.fromJson(Map<String, dynamic>.from(rawPlan))
+          : AmcPlan.fromJson(json),
+      coveredItems: rawCoveredItems is List
+          ? rawCoveredItems
+                .whereType<Map>()
+                .map(
+                  (i) => CoveredItem.fromJson(
+                    Map<String, dynamic>.from(i),
+                  ),
+                )
                 .toList()
           : null,
     );
@@ -98,29 +135,60 @@ class AmcPlan {
     this.updatedAt,
   });
 
+  static int? _toInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  static String? _toStringValue(dynamic value) {
+    if (value == null) return null;
+    if (value is String) return value;
+    if (value is num || value is bool) return value.toString();
+    return null;
+  }
+
+  static List<int>? _toIntList(dynamic value) {
+    if (value == null) return null;
+    if (value is List) {
+      final out = <int>[];
+      for (final item in value) {
+        if (item is Map) {
+          final int? id = _toInt(item['id']);
+          if (id != null) out.add(id);
+          continue;
+        }
+        final int? parsed = _toInt(item);
+        if (parsed != null) out.add(parsed);
+      }
+      return out;
+    }
+    return null;
+  }
+
   factory AmcPlan.fromJson(Map<String, dynamic> json) {
     return AmcPlan(
-      id: json['id'],
-      planName: json['plan_name'],
-      planCode: json['plan_code'],
-      description: json['description'],
-      duration: json['duration'],
-      totalVisits: json['total_visits'],
-      planCost: json['plan_cost'],
-      tax: json['tax'],
-      totalCost: json['total_cost'],
-      payTerms: json['pay_terms'],
-      supportType: json['support_type'],
-      coveredItems: json['covered_items'] != null
-          ? List<int>.from(json['covered_items'])
-          : null,
-      brochure: json['brochure'],
-      tandc: json['tandc'],
-      replacementPolicy: json['replacement_policy'],
-      status: json['status'],
-      deletedAt: json['deleted_at'],
-      createdAt: json['created_at'],
-      updatedAt: json['updated_at'],
+      id: _toInt(json['id']),
+      planName: _toStringValue(json['plan_name'] ?? json['planName'] ?? json['name']),
+      planCode: _toStringValue(json['plan_code'] ?? json['planCode'] ?? json['code']),
+      description: _toStringValue(json['description']),
+      duration: _toInt(json['duration']),
+      totalVisits: _toInt(json['total_visits'] ?? json['totalVisits']),
+      planCost: _toStringValue(json['plan_cost'] ?? json['planCost']),
+      tax: _toStringValue(json['tax']),
+      totalCost: _toStringValue(json['total_cost'] ?? json['totalCost']),
+      payTerms: _toStringValue(json['pay_terms'] ?? json['payTerms']),
+      supportType: _toStringValue(json['support_type'] ?? json['supportType']),
+      coveredItems: _toIntList(json['covered_items'] ?? json['coveredItems']),
+      brochure: _toStringValue(json['brochure']),
+      tandc: _toStringValue(json['tandc']),
+      replacementPolicy: _toStringValue(json['replacement_policy'] ?? json['replacementPolicy']),
+      status: _toStringValue(json['status']),
+      deletedAt: _toStringValue(json['deleted_at']),
+      createdAt: _toStringValue(json['created_at']),
+      updatedAt: _toStringValue(json['updated_at']),
     );
   }
 
@@ -174,20 +242,44 @@ class CoveredItem {
     this.updatedAt,
   });
 
+  static int? _toInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  static String? _toStringValue(dynamic value) {
+    if (value == null) return null;
+    if (value is String) return value;
+    if (value is num || value is bool) return value.toString();
+    return null;
+  }
+
+  static List<String>? _toStringList(dynamic value) {
+    if (value == null) return null;
+    if (value is List) {
+      return value.map((e) => e.toString()).toList();
+    }
+    if (value is String && value.trim().isNotEmpty) {
+      return [value];
+    }
+    return null;
+  }
+
   factory CoveredItem.fromJson(Map<String, dynamic> json) {
     return CoveredItem(
-      id: json['id'],
-      itemCode: json['item_code'],
-      serviceType: json['service_type'],
-      serviceName: json['service_name'],
-      serviceCharge: json['service_charge'],
-      status: json['status'],
-      diagnosisList: json['diagnosis_list'] != null
-          ? List<String>.from(json['diagnosis_list'])
-          : null,
-      deletedAt: json['deleted_at'],
-      createdAt: json['created_at'],
-      updatedAt: json['updated_at'],
+      id: _toInt(json['id']),
+      itemCode: _toStringValue(json['item_code'] ?? json['itemCode']),
+      serviceType: _toStringValue(json['service_type'] ?? json['serviceType']),
+      serviceName: _toStringValue(json['service_name'] ?? json['serviceName']),
+      serviceCharge: _toStringValue(json['service_charge'] ?? json['serviceCharge']),
+      status: _toStringValue(json['status']),
+      diagnosisList: _toStringList(json['diagnosis_list'] ?? json['diagnosisList']),
+      deletedAt: _toStringValue(json['deleted_at']),
+      createdAt: _toStringValue(json['created_at']),
+      updatedAt: _toStringValue(json['updated_at']),
     );
   }
 

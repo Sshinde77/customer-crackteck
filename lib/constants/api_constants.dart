@@ -33,6 +33,7 @@ class ApiConstants {
   static const String product_category = '$baseUrl/product/categories';
     static const String productdetail = '$baseUrl/product';
   static const String product_buy = '$baseUrl/buy-product';
+  static const String order_list = '$baseUrl/order';
 
 
 

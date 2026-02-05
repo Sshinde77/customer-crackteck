@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../constants/app_colors.dart';
-import '../provider/amc_plan_provider.dart';
 import '../models/amc_plan_model.dart';
+import '../provider/amc_plan_provider.dart';
 import 'amc_plan_detail_screen.dart';
 
 class AmcPlansScreen extends StatefulWidget {
@@ -16,7 +17,6 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
   @override
   void initState() {
     super.initState();
-    // Fetch AMC plans when screen loads
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AmcPlanProvider>().fetchAmcPlans();
     });
@@ -29,10 +29,6 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         elevation: 0,
-        // leading: IconButton(
-        //   icon: const Icon(Icons.arrow_back, color: Colors.white),
-        //   onPressed: () => Navigator.pop(context),
-        // ),
         title: const Text('AMC Plans', style: TextStyle(color: Colors.white)),
       ),
       body: Consumer<AmcPlanProvider>(
@@ -43,22 +39,25 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
 
           if (provider.errorMessage != null) {
             return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error: ${provider.errorMessage}',
-                    style: const TextStyle(fontSize: 16),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => provider.fetchAmcPlans(),
-                    child: const Text('Retry'),
-                  ),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Error: ${provider.errorMessage}',
+                      style: const TextStyle(fontSize: 16),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: provider.fetchAmcPlans,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
               ),
             );
           }
@@ -80,14 +79,11 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
           }
 
           return RefreshIndicator(
-            onRefresh: () => provider.fetchAmcPlans(),
+            onRefresh: provider.fetchAmcPlans,
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: provider.amcPlans.length,
-              itemBuilder: (context, index) {
-                final planItem = provider.amcPlans[index];
-                return _buildPlanCard(planItem);
-              },
+              itemBuilder: (context, index) => _buildPlanCard(provider.amcPlans[index]),
             ),
           );
         },
@@ -98,14 +94,20 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
   Widget _buildPlanCard(AmcPlanItem planItem) {
     final plan = planItem.plan;
     final coveredItems = planItem.coveredItems ?? [];
+    final status = (plan?.status ?? 'inactive').trim().toLowerCase();
+    final isActive = status == 'active';
+    final planName = (plan?.planName ?? '').trim().isNotEmpty ? plan!.planName! : 'N/A';
+    final planCode = (plan?.planCode ?? '').trim();
+    final description = (plan?.description ?? '').trim();
+    final totalCost = (plan?.totalCost ?? '').trim().isNotEmpty ? plan!.totalCost! : '0';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
+        borderRadius: BorderRadius.circular(12),
         onTap: () {
-          // Navigate to plan details screen
           if (plan?.id != null) {
             Navigator.push(
               context,
@@ -115,13 +117,11 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
             );
           }
         },
-        borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Plan Header
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -130,81 +130,62 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          plan?.planName ?? 'N/A',
+                          planName,
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          plan?.planCode ?? '',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
+                        if (planCode.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            planCode,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: plan?.status == 'active'
-                          ? Colors.green[50]
-                          : Colors.grey[200],
+                      color: isActive ? Colors.green[50] : Colors.grey[200],
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      plan?.status?.toUpperCase() ?? 'N/A',
+                      status.toUpperCase(),
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
-                        color: plan?.status == 'active'
-                            ? Colors.green[700]
-                            : Colors.grey[700],
+                        color: isActive ? Colors.green[700] : Colors.grey[700],
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-
-              // Description
-              if (plan?.description != null)
+              if (description.isNotEmpty) ...[
+                const SizedBox(height: 12),
                 Text(
-                  plan!.description!,
+                  description,
                   style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
+              ],
               const SizedBox(height: 16),
-
-              // Plan Details
-              Row(
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
                 children: [
-                  _buildInfoChip(
-                    Icons.calendar_today,
-                    '${plan?.duration ?? 0} months',
-                  ),
-                  const SizedBox(width: 12),
-                  _buildInfoChip(
-                    Icons.support_agent,
-                    '${plan?.totalVisits ?? 0} visits',
-                  ),
-                  const SizedBox(width: 12),
-                  _buildInfoChip(
-                    Icons.build,
-                    '${coveredItems.length} services',
-                  ),
+                  _buildInfoChip(Icons.calendar_today, '${plan?.duration ?? 0} months'),
+                  _buildInfoChip(Icons.support_agent, '${plan?.totalVisits ?? 0} visits'),
+                  _buildInfoChip(Icons.build, '${coveredItems.length} services'),
                 ],
               ),
               const SizedBox(height: 16),
-
-              // Price Section
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -226,7 +207,7 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '₹${plan?.totalCost ?? '0'}',
+                          '₹$totalCost',
                           style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -241,8 +222,7 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) =>
-                                  AmcPlanDetailScreen(planId: plan!.id!),
+                              builder: (context) => AmcPlanDetailScreen(planId: plan!.id!),
                             ),
                           );
                         }
@@ -280,9 +260,13 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
         children: [
           Icon(icon, size: 14, color: Colors.grey[700]),
           const SizedBox(width: 4),
-          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[700])),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+          ),
         ],
       ),
     );
   }
 }
+
