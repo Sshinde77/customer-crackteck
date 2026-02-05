@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import '../routes/app_routes.dart';
+import 'package:flutter/material.dart';
+
+import '../constants/core/secure_storage_service.dart';
 import '../models/product_model.dart';
+import '../routes/app_routes.dart';
+import '../services/api_service.dart';
 
 class PaymentScreen extends StatefulWidget {
   final ProductData? product;
@@ -22,6 +26,7 @@ class PaymentScreen extends StatefulWidget {
 
 class _PaymentScreenState extends State<PaymentScreen> {
   int selectedIndex = -1;
+  bool _isSubmitting = false;
 
   static const String _imageBaseUrl = 'https://crackteck.co.in/';
 
@@ -66,6 +71,97 @@ class _PaymentScreenState extends State<PaymentScreen> {
     final raw = widget.product?.warehouseProduct?.mainProductImage;
     if (raw == null || raw.trim().isEmpty) return '';
     return _normalizeImageUrl(raw);
+  }
+
+  Future<void> _handleDone() async {
+    if (_isSubmitting) return;
+
+    if (selectedIndex == -1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a payment method'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Only call buy-product API when this screen was opened from product purchase flow.
+    if (widget.product == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Payment Successful'),
+          backgroundColor: Color(0xFF1F8B00),
+        ),
+      );
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.hometab,
+        (route) => false,
+      );
+      return;
+    }
+
+    final productId = widget.product?.id;
+    if (productId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Missing product id'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final int quantity = widget.quantity < 1 ? 1 : widget.quantity;
+    final int roleId = (await SecureStorageService.getRoleId()) ?? 4;
+    final int? customerId = await SecureStorageService.getUserId();
+
+    if (customerId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('User session expired. Please login again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    try {
+      final response = await ApiService.instance.buyProduct(
+        productId: productId,
+        roleId: roleId,
+        quantity: quantity,
+        customerId: customerId,
+      );
+
+      if (!mounted) return;
+
+      if (response.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response.message ?? 'Product purchased successfully'),
+            backgroundColor: const Color(0xFF1F8B00),
+          ),
+        );
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.hometab,
+          (route) => false,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response.message ?? 'Failed to buy product'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override
@@ -256,39 +352,24 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  onPressed: () {
-                    if (selectedIndex == -1) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Please select a payment method'),
-                          backgroundColor: Colors.red,
+                  onPressed: _isSubmitting ? null : _handleDone,
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text(
+                          'Done',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      );
-                      return;
-                    }
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Payment Successful'),
-                        backgroundColor: Color(0xFF1F8B00),
-                      ),
-                    );
-
-                    // Redirect to home screen/dashboard
-                    Navigator.pushNamedAndRemoveUntil(
-                      context,
-                      AppRoutes.hometab,
-                      (route) => false,
-                    );
-                  },
-                  child: const Text(
-                    'Done',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
                 ),
               ),
             ],

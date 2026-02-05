@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:country_state_city_picker/country_state_city_picker.dart';
 import '../constants/app_colors.dart';
 import '../services/api_service.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/address_model.dart';
 import '../models/api_response.dart';
+import '../widgets/india_country_state_city_picker.dart';
 
 class AddressScreen extends StatefulWidget {
   const AddressScreen({super.key});
@@ -29,6 +29,15 @@ class _AddressScreenState extends State<AddressScreen> {
   String? _selectedCountry;
   String? _selectedState;
   String? _selectedCity;
+
+  String? _normalizeCountry(String? raw) {
+    if (raw == null) return null;
+    final withoutFlags = raw.replaceAll(
+      RegExp(r'[\u{1F1E6}-\u{1F1FF}]', unicode: true),
+      '',
+    );
+    return withoutFlags.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
 
   @override
   void initState() {
@@ -175,7 +184,7 @@ class _AddressScreenState extends State<AddressScreen> {
     _address1Controller.clear();
     _address2Controller.clear();
     _pincodeController.clear();
-    _selectedCountry = null;
+    _selectedCountry = 'India';
     _selectedState = null;
     _selectedCity = null;
   }
@@ -186,7 +195,7 @@ class _AddressScreenState extends State<AddressScreen> {
     _address1Controller.text = address.addressLine1;
     _address2Controller.text = address.addressLine2;
     _pincodeController.text = address.pincode;
-    _selectedCountry = address.country;
+    _selectedCountry = _normalizeCountry(address.country);
     _selectedState = address.state;
     _selectedCity = address.city;
     setState(() {
@@ -311,7 +320,7 @@ class _AddressScreenState extends State<AddressScreen> {
           _buildStaticRow(Icons.location_city_outlined, "Address Line 2", address.addressLine2),
           _buildStaticRow(Icons.map_outlined, "City", address.city),
           _buildStaticRow(Icons.landscape_outlined, "State", address.state),
-          _buildStaticRow(Icons.public_outlined, "Country", address.country),
+          _buildStaticRow(Icons.public_outlined, "Country", _normalizeCountry(address.country) ?? address.country),
           _buildStaticRow(Icons.pin_outlined, "Pincode", address.pincode),
 
           const SizedBox(height: 10),
@@ -359,10 +368,14 @@ class _AddressScreenState extends State<AddressScreen> {
           _buildInput("Address Line 2", _address2Controller),
           
           const Text("Select Location", style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black54)),
-          SelectState(
-            onCountryChanged: (value) => setState(() => _selectedCountry = value),
-            onStateChanged: (value) => setState(() => _selectedState = value),
-            onCityChanged: (value) => setState(() => _selectedCity = value),
+          IndiaCountryStateCityPicker(
+            key: ValueKey<String>('location_${_editingIndex ?? 'new'}_${_selectedCountry ?? ''}_${_selectedState ?? ''}_${_selectedCity ?? ''}'),
+            initialCountry: _selectedCountry ?? 'India',
+            initialState: _selectedState,
+            initialCity: _selectedCity,
+            onCountryChanged: (value) => setState(() => _selectedCountry = _normalizeCountry(value)),
+            onStateChanged: (value) => setState(() => _selectedState = value.trim().isEmpty ? null : value),
+            onCityChanged: (value) => setState(() => _selectedCity = value.trim().isEmpty ? null : value),
           ),
           
           const SizedBox(height: 15),

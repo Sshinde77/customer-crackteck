@@ -594,6 +594,59 @@ class ApiService {
   }
 
   // ========================================
+  // Buy Product API
+  // ========================================
+
+  Future<ApiResponse> buyProduct({
+    required int productId,
+    required int roleId,
+    required int quantity,
+    required int customerId,
+  }) async {
+    try {
+      final url = Uri.parse('${ApiConstants.product_buy}/$productId').replace(
+        queryParameters: {
+          'role_id': roleId.toString(),
+          'quantity': quantity.toString(),
+          'customer_id': customerId.toString(),
+        },
+      );
+
+      debugPrint('🔵 API Request: POST $url');
+
+      final response = await _performAuthenticatedPost(url, body: {});
+
+      debugPrint('🟡 API Response Status: ${response.statusCode}');
+      debugPrint('🟡 API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+        return ApiResponse(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Product purchased successfully',
+          data: jsonResponse['data'],
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to buy product'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('🔴 Unexpected Error in buyProduct: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  // ========================================
   // Product Categories API
   // ========================================
 

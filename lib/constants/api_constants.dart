@@ -14,8 +14,6 @@ class ApiConstants {
   static const String signup = '$baseUrl/signup';
   static const String logout = '$baseUrl/logout';
   static const String productlist = '$baseUrl/product';
-  // Single product detail endpoint: GET $baseUrl/product/{id}?role_id=...
-  static const String productdetail = '$baseUrl/product';
   static const String profile = '$baseUrl/profile';
   static const String addresses = '$baseUrl/addresses';
   static const String address = '$baseUrl/address';
@@ -33,6 +31,9 @@ class ApiConstants {
   static const String amcPlans = '$baseUrl/amc-plans';
   static const String amcPlanDetails = '$baseUrl/amc-plan-details';
   static const String product_category = '$baseUrl/product/categories';
+    static const String productdetail = '$baseUrl/product';
+  static const String product_buy = '$baseUrl/buy-product';
+
 
 
 
