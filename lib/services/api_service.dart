@@ -545,6 +545,55 @@ class ApiService {
   }
 
   // ========================================
+  // Single Product API
+  // ========================================
+
+  Future<ApiResponse<ProductData>> getProductDetail({
+    required int productId,
+    required int roleId,
+  }) async {
+    try {
+      final url = Uri.parse('${ApiConstants.productdetail}/$productId').replace(
+        queryParameters: {'role_id': roleId.toString()},
+      );
+
+      final response = await _performAuthenticatedGet(url);
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+        final Map<String, dynamic> payload =
+            jsonResponse['data'] is Map<String, dynamic>
+                ? jsonResponse['data'] as Map<String, dynamic>
+                : jsonResponse;
+
+        // API can return {"product": {...}} (and sometimes wrapped in {"data": {...}}).
+        final Map<String, dynamic> productJson =
+            payload['product'] is Map<String, dynamic> ? payload['product'] as Map<String, dynamic> : payload;
+
+        return ApiResponse<ProductData>(
+          success: true,
+          message: 'Product fetched successfully',
+          data: ProductData.fromJson(productJson),
+        );
+      }
+
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to fetch product'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('🔴 Unexpected Error in getProductDetail: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  // ========================================
   // Product Categories API
   // ========================================
 

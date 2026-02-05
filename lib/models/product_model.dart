@@ -23,6 +23,8 @@ class ProductData {
   final String? ecommerceShortDescription;
   final String? ecommerceFullDescription;
   final String? ecommerceTechnicalSpecification;
+  final int? minOrderQty;
+  final int? maxOrderQty;
   final String? ecommerceStatus;
   final String? createdAt;
   final String? updatedAt;
@@ -42,6 +44,8 @@ class ProductData {
     this.ecommerceShortDescription,
     this.ecommerceFullDescription,
     this.ecommerceTechnicalSpecification,
+    this.minOrderQty,
+    this.maxOrderQty,
     this.ecommerceStatus,
     this.createdAt,
     this.updatedAt,
@@ -118,9 +122,12 @@ class ProductData {
       metaDescription: json['meta_description'],
       metaKeywords: json['meta_keywords'],
       metaProductUrlSlug: json['meta_product_url_slug'],
-      ecommerceShortDescription: json['ecommerce_short_description'],
-      ecommerceFullDescription: json['ecommerce_full_description'],
-      ecommerceTechnicalSpecification: json['ecommerce_technical_specification'],
+      // List API uses ecommerce_* keys; single-product API uses *_description keys.
+      ecommerceShortDescription: json['ecommerce_short_description'] ?? json['short_description'],
+      ecommerceFullDescription: json['ecommerce_full_description'] ?? json['full_description'],
+      ecommerceTechnicalSpecification: json['ecommerce_technical_specification'] ?? json['technical_specification'],
+      minOrderQty: tryParseInt(json['min_order_qty']),
+      maxOrderQty: tryParseInt(json['max_order_qty']),
       ecommerceStatus: json['ecommerce_status'],
       createdAt: json['created_at'],
       updatedAt: json['updated_at'],

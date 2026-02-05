@@ -14,6 +14,8 @@ class ApiConstants {
   static const String signup = '$baseUrl/signup';
   static const String logout = '$baseUrl/logout';
   static const String productlist = '$baseUrl/product';
+  // Single product detail endpoint: GET $baseUrl/product/{id}?role_id=...
+  static const String productdetail = '$baseUrl/product';
   static const String profile = '$baseUrl/profile';
   static const String addresses = '$baseUrl/addresses';
   static const String address = '$baseUrl/address';
