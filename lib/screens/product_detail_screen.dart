@@ -164,7 +164,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const PaymentScreen()),
+      MaterialPageRoute(
+        builder: (_) => PaymentScreen(
+          product: _product,
+          quantity: _quantity,
+          unitPrice: unitPrice,
+        ),
+      ),
     );
   }
 
