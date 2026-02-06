@@ -11,7 +11,7 @@ import 'payment_screen.dart';
 import 'service_detail_screen.dart';
 
 class ProductFormModel {
-  String? selectedPcType;
+  final TextEditingController typeController = TextEditingController();
   final TextEditingController nameController = TextEditingController();
   final TextEditingController modelNoController = TextEditingController();
   final TextEditingController purchaseDateController = TextEditingController();
@@ -20,6 +20,7 @@ class ProductFormModel {
   final List<File> selectedImages = [];
 
   void dispose() {
+    typeController.dispose();
     nameController.dispose();
     modelNoController.dispose();
     purchaseDateController.dispose();
@@ -28,7 +29,7 @@ class ProductFormModel {
   }
 
   bool get isValid {
-    return selectedPcType != null &&
+    return typeController.text.trim().isNotEmpty &&
         nameController.text.trim().isNotEmpty &&
         brandController.text.trim().isNotEmpty &&
         descriptionController.text.trim().isNotEmpty;
@@ -172,7 +173,7 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
       final List<Map<String, dynamic>> productData = _products.map((p) {
         return {
           'name': p.nameController.text.trim(),
-          'type': p.selectedPcType ?? '',
+          'type': p.typeController.text.trim(),
           'model_no': p.modelNoController.text.trim(),
           if (serviceTypeId != null) 'service_type_id': serviceTypeId,
           'purchase_date': p.purchaseDateController.text.trim(),
@@ -369,7 +370,7 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
                     }),
 
                     const SizedBox(height: 32),
-                        _buildLabel('Service Address'),
+                    _buildLabel('Service Address'),
                     _buildAddressSection(),
                     const SizedBox(height: 16),
 
@@ -429,7 +430,8 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
                 icon: const Icon(Icons.delete_outline, color: Colors.red),
                 onPressed: () {
                   setState(() {
-                    _products.removeAt(index);
+                    final removed = _products.removeAt(index);
+                    removed.dispose();
                   });
                 },
               ),
@@ -437,39 +439,39 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
           ),
           const SizedBox(height: 16),
         ],
-        // PC Type
-        _buildLabel('PC Type'),
-        DropdownButtonFormField<String>(
-          value: product.selectedPcType,
-          decoration: _inputDecoration('Select'),
-          items: ['Windows', 'Mac', 'Linux'].map((type) {
-            return DropdownMenuItem(value: type, child: Text(type));
-          }).toList(),
-          onChanged: _isLoading
-              ? null
-              : (val) {
-                  setState(() {
-                    product.selectedPcType = val;
-                  });
-                },
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.green),
-        ),
-        const SizedBox(height: 16),
-
-        _buildLabel('Name'),
+        _buildLabel('Product Name'),
         TextFormField(
           controller: product.nameController,
           enabled: !_isLoading,
-          decoration: _inputDecoration('Name'),
+          decoration: _inputDecoration('Enter product name'),
           onChanged: (val) => setState(() {}),
         ),
         const SizedBox(height: 16),
 
-        _buildLabel('Model No'),
+        _buildLabel('Product Type'),
+        TextFormField(
+          controller: product.typeController,
+          enabled: !_isLoading,
+          decoration: _inputDecoration('Enter product type'),
+          onChanged: (val) => setState(() {}),
+        ),
+        const SizedBox(height: 16),
+
+        _buildLabel('Product Brand'),
+        TextFormField(
+          controller: product.brandController,
+          enabled: !_isLoading,
+          decoration: _inputDecoration('Enter brand'),
+          onChanged: (val) => setState(() {}),
+        ),
+        const SizedBox(height: 16),
+
+        _buildLabel('Model Number'),
         TextFormField(
           controller: product.modelNoController,
           enabled: !_isLoading,
-          decoration: _inputDecoration('Enter Model No'),
+          decoration: _inputDecoration('Enter model number'),
+          onChanged: (val) => setState(() {}),
         ),
         const SizedBox(height: 16),
 
@@ -485,15 +487,6 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
         ),
         const SizedBox(height: 16),
 
-        _buildLabel('Brand'),
-        TextFormField(
-          controller: product.brandController,
-          enabled: !_isLoading,
-          decoration: _inputDecoration('Enter Brand'),
-          onChanged: (val) => setState(() {}),
-        ),
-        const SizedBox(height: 16),
-
         _buildLabel('Description'),
         TextFormField(
           controller: product.descriptionController,
@@ -504,7 +497,7 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
         ),
         const SizedBox(height: 16),
 
-        // Add Photos
+        _buildLabel('Images'),
         InkWell(
           onTap: _isLoading ? null : () => _pickImage(product),
           child: Container(

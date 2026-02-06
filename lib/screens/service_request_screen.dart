@@ -14,7 +14,7 @@ import 'service_detail_screen.dart';
 
 class ServiceProductFormModel {
   QuickService? selectedQuickService;
-  String? selectedDeviceType;
+  final TextEditingController typeController = TextEditingController();
   final TextEditingController nameController = TextEditingController();
   final TextEditingController modelNoController = TextEditingController();
   final TextEditingController purchaseDateController = TextEditingController();
@@ -23,6 +23,7 @@ class ServiceProductFormModel {
   final List<File> selectedImages = [];
 
   void dispose() {
+    typeController.dispose();
     nameController.dispose();
     modelNoController.dispose();
     purchaseDateController.dispose();
@@ -32,7 +33,7 @@ class ServiceProductFormModel {
 
   bool get isValid {
     return selectedQuickService != null &&
-        selectedDeviceType != null &&
+        typeController.text.trim().isNotEmpty &&
         nameController.text.trim().isNotEmpty &&
         selectedImages.isNotEmpty;
   }
@@ -57,7 +58,6 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   final _formKey = GlobalKey<FormState>();
   final List<ServiceProductFormModel> _products = [ServiceProductFormModel()];
   final ImagePicker _picker = ImagePicker();
-  final List<String> _deviceTypes = ['mac', 'linux', 'windows'];
   bool _isLoading = false;
 
   static const int _addAddressDropdownValue = -1;
@@ -237,7 +237,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       final List<Map<String, dynamic>> productData = _products.map((p) {
         return {
           'name': p.nameController.text.trim(),
-          'type': p.selectedDeviceType ?? '',
+          'type': p.typeController.text.trim(),
           'model_no': p.modelNoController.text.trim(),
           'sku': p.selectedQuickService?.itemCode ?? '', // Mapping item code from selected service
           'service_type_id': p.selectedQuickService?.id,
@@ -612,30 +612,35 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
           const SizedBox(height: 16),
         ],
 
-        _buildLabel('Type'),
-        DropdownButtonFormField<String>(
-          value: product.selectedDeviceType,
-          items: _deviceTypes.map((type) {
-            return DropdownMenuItem(value: type, child: Text(type));
-          }).toList(),
-          onChanged: _isLoading ? null : (value) => setState(() => product.selectedDeviceType = value),
-          decoration: _inputDecoration('Select Type'),
-        ),
-        const SizedBox(height: 16),
-
-        _buildLabel('Name'),
+        _buildLabel('Product Name'),
         TextFormField(
           controller: product.nameController,
           enabled: !_isLoading,
-          decoration: _inputDecoration('Name'),
+          decoration: _inputDecoration('Enter product name'),
         ),
         const SizedBox(height: 16),
 
-        _buildLabel('Model No'),
+        _buildLabel('Product Type'),
+        TextFormField(
+          controller: product.typeController,
+          enabled: !_isLoading,
+          decoration: _inputDecoration('Enter product type'),
+        ),
+        const SizedBox(height: 16),
+
+        _buildLabel('Product Brand'),
+        TextFormField(
+          controller: product.brandController,
+          enabled: !_isLoading,
+          decoration: _inputDecoration('Enter brand'),
+        ),
+        const SizedBox(height: 16),
+
+        _buildLabel('Model Number'),
         TextFormField(
           controller: product.modelNoController,
           enabled: !_isLoading,
-          decoration: _inputDecoration('Enter Model No'),
+          decoration: _inputDecoration('Enter model number'),
         ),
         const SizedBox(height: 16),
 
@@ -648,14 +653,6 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
           decoration: _inputDecoration('Select Purchase Date').copyWith(
             suffixIcon: const Icon(Icons.calendar_today, color: AppColors.primary),
           ),
-        ),
-        const SizedBox(height: 16),
-
-        _buildLabel('Brand'),
-        TextFormField(
-          controller: product.brandController,
-          enabled: !_isLoading,
-          decoration: _inputDecoration('Enter Brand'),
         ),
         const SizedBox(height: 16),
 
