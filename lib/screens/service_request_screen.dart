@@ -4,9 +4,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
 import '../constants/core/secure_storage_service.dart';
+import '../models/address_model.dart';
 import '../models/quick_service_model.dart';
 import '../provider/quick_service_provider.dart';
 import '../services/api_service.dart';
+import 'address_screen.dart';
 import 'payment_screen.dart';
 import 'service_detail_screen.dart';
 
@@ -58,10 +60,16 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   final List<String> _deviceTypes = ['mac', 'linux', 'windows'];
   bool _isLoading = false;
 
+  static const int _addAddressDropdownValue = -1;
+  bool _isAddressLoading = false;
+  List<AddressModel> _addresses = [];
+  int? _selectedAddressId;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchAddresses();
       context.read<QuickServiceProvider>().fetchQuickServices(
             serviceType: _getServiceTypeFromTitle(),
           );
@@ -183,6 +191,34 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
 
     if (!allValid || !_formKey.currentState!.validate()) return;
 
+    if (_isAddressLoading) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please wait while we load your addresses.')),
+        );
+      }
+      return;
+    }
+
+    if (_addresses.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please add an address to continue.')),
+        );
+      }
+      await _goToAddressScreen();
+      return;
+    }
+
+    if (_selectedAddressId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select an address.')),
+        );
+      }
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -217,6 +253,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         customerId: customerId,
         roleId: roleId,
         serviceType: _getServiceTypeFromTitle(),
+        customerAddressId: _selectedAddressId!,
         products: productData,
       );
 
@@ -281,6 +318,8 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                  
+
                     // Add Product Button Aligned Right
                     Align(
                       alignment: Alignment.centerRight,
@@ -302,6 +341,10 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                       return _buildProductForm(entry.value, entry.key);
                     }),
 
+                     const SizedBox(height: 16),
+                      _buildLabel('Service Address'),
+                    _buildAddressSection(),
+                   
                     const SizedBox(height: 32),
 
                     SizedBox(
@@ -337,6 +380,175 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _fetchAddresses() async {
+    if (_isAddressLoading) return;
+    setState(() {
+      _isAddressLoading = true;
+    });
+
+    try {
+      final userId = await SecureStorageService.getUserId();
+      final roleId = await SecureStorageService.getRoleId();
+
+      if (userId == null || roleId == null) {
+        setState(() {
+          _addresses = [];
+          _selectedAddressId = null;
+        });
+        return;
+      }
+
+      final response = await ApiService.instance.getAddresses(userId: userId, roleId: roleId);
+
+      if (!mounted) return;
+
+      if (response.success && response.data != null) {
+        final fetched = response.data!.where((a) => a.id != null).toList();
+
+        int? nextSelectedId = _selectedAddressId;
+        final ids = fetched.map((e) => e.id).toSet();
+
+        if (nextSelectedId == null || !ids.contains(nextSelectedId)) {
+          final primary = fetched.where((a) => a.isDefault).toList();
+          nextSelectedId = (primary.isNotEmpty ? primary.first.id : (fetched.isNotEmpty ? fetched.first.id : null));
+        }
+
+        setState(() {
+          _addresses = fetched;
+          _selectedAddressId = nextSelectedId;
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(response.message ?? 'Failed to load addresses')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load addresses: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAddressLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _goToAddressScreen() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AddressScreen()),
+    );
+    if (!mounted) return;
+    await _fetchAddresses();
+  }
+
+  String _formatAddress(AddressModel address) {
+    final branch = (address.branchName ?? '').trim();
+    final title = branch.isEmpty ? 'Address' : branch;
+    final line1 = address.addressLine1.trim();
+    final line2 = address.addressLine2.trim();
+    final city = address.city.trim();
+    final state = address.state.trim();
+
+    final parts = <String>[
+      if (line1.isNotEmpty) line1,
+      if (line2.isNotEmpty) line2,
+      if (city.isNotEmpty) city,
+      if (state.isNotEmpty) state,
+    ];
+
+    if (parts.isEmpty) return title;
+    return '$title - ${parts.join(', ')}';
+  }
+
+  Widget _buildAddressSection() {
+    if (_isAddressLoading) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: const [
+            SizedBox(
+              height: 18,
+              width: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 12),
+            Text('Loading addresses...'),
+          ],
+        ),
+      );
+    }
+
+    if (_addresses.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          border: Border.all(color: Colors.grey.shade200),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            const Expanded(child: Text('No address found. Please add one to continue.')),
+            const SizedBox(width: 12),
+            OutlinedButton.icon(
+              onPressed: _isLoading ? null : _goToAddressScreen,
+              icon: const Icon(Icons.add_location_alt_outlined),
+              label: const Text('Add Address'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final dropdownItems = <DropdownMenuItem<int>>[
+      ..._addresses.map((address) {
+        return DropdownMenuItem<int>(
+          value: address.id,
+          child: Text(
+            _formatAddress(address),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        );
+      }),
+      const DropdownMenuItem<int>(
+        value: _addAddressDropdownValue,
+        child: Text('Add Address'),
+      ),
+    ];
+
+    return DropdownButtonFormField<int>(
+      value: _selectedAddressId,
+      isExpanded: true,
+      items: dropdownItems,
+      onChanged: _isLoading
+          ? null
+          : (value) async {
+              if (value == _addAddressDropdownValue) {
+                setState(() => _selectedAddressId = null);
+                await _goToAddressScreen();
+                return;
+              }
+              setState(() => _selectedAddressId = value);
+            },
+      validator: (value) {
+        if (_addresses.isEmpty) return null;
+        if (value == null) return 'Please select an address';
+        if (value == _addAddressDropdownValue) return 'Please select an address';
+        return null;
+      },
+      decoration: _inputDecoration('Select Address'),
     );
   }
 

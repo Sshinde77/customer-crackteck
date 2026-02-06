@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/material.dart';
 
 import '../constants/core/secure_storage_service.dart';
 import '../models/product_model.dart';

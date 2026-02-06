@@ -1413,6 +1413,7 @@ class ApiService {
     required String serviceType,
     required List<Map<String, dynamic>> products,
     int? amcPlanId,
+    int? customerAddressId,
   }) async {
     try {
       debugPrint('🔵 API Request: POST ${ApiConstants.submitQuickService}');
@@ -1429,6 +1430,9 @@ class ApiService {
       request.fields['customer_id'] = customerId.toString();
       request.fields['role_id'] = roleId.toString();
       request.fields['service_type'] = serviceType;
+      if (customerAddressId != null) {
+        request.fields['customer_address_id'] = customerAddressId.toString();
+      }
       if (amcPlanId != null) {
         request.fields['amc_plan_id'] = amcPlanId.toString();
       }
