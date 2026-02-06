@@ -1,11 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
-import '../constants/api_constants.dart';
+
 import '../constants/app_colors.dart';
 import '../constants/core/secure_storage_service.dart';
+import '../services/api_service.dart';
 
 class EditDocumentScreen extends StatefulWidget {
   final String title;
@@ -35,7 +36,9 @@ class _EditDocumentScreenState extends State<EditDocumentScreen> {
   @override
   void initState() {
     super.initState();
-    _numberController = TextEditingController(text: widget.initialNumber == 'Not provided' ? '' : widget.initialNumber);
+    _numberController = TextEditingController(
+      text: widget.initialNumber.trim() == 'Not provided' ? '' : widget.initialNumber,
+    );
   }
 
   @override
@@ -58,7 +61,7 @@ class _EditDocumentScreenState extends State<EditDocumentScreen> {
   }
 
   Future<void> _handleSave() async {
-    if (_numberController.text.isEmpty) {
+    if (_numberController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Please enter ${widget.label}')),
       );
@@ -70,86 +73,45 @@ class _EditDocumentScreenState extends State<EditDocumentScreen> {
     try {
       final userId = await SecureStorageService.getUserId();
       final roleId = await SecureStorageService.getRoleId();
-      final token = await SecureStorageService.getAccessToken();
+      if (userId == null || roleId == null) {
+        throw Exception('Missing user/role. Please login again.');
+      }
 
       bool isAadhar = widget.title.toLowerCase().contains('aadhar');
-      
-      Uri url;
-      if (isAadhar) {
-        final String id = widget.documentId?.toString() ?? '6'; 
-        url = Uri.parse("${ApiConstants.aadharCard}/$id");
-      } else {
-        // Based on the new Postman screenshot, if updating a PAN card, 
-        // the URL should include the ID: /customer-pan-card/{id}
-        if (widget.documentId != null) {
-          url = Uri.parse("${ApiConstants.panCard}/${widget.documentId}");
-        } else {
-          url = Uri.parse(ApiConstants.panCard);
-        }
+
+      final api = ApiService.instance;
+      final result = isAadhar
+          ? await api.uploadAadhar(
+              userId: userId,
+              roleId: roleId,
+              aadharNumber: _numberController.text.trim(),
+              frontImage: _frontImage,
+              backImage: _backImage,
+              documentId: widget.documentId,
+            )
+          : await api.uploadPan(
+              userId: userId,
+              roleId: roleId,
+              panNumber: _numberController.text.trim(),
+              frontImage: _frontImage,
+              backImage: _backImage,
+              documentId: widget.documentId,
+            );
+
+      if (!result.success) {
+        throw Exception(result.message ?? 'Failed to save document');
       }
 
-      final request = http.MultipartRequest('POST', url);
-      
-      request.headers.addAll({
-        'Accept': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      });
-
-      request.fields['user_id'] = userId?.toString() ?? '';
-      request.fields['role_id'] = roleId?.toString() ?? '';
-
-      if (isAadhar) {
-        request.fields['aadhar_number'] = _numberController.text;
-        request.fields['_method'] = 'PUT';
-        if (_frontImage != null) {
-          request.files.add(await http.MultipartFile.fromPath('aadhar_front_path', _frontImage!.path));
-        }
-        if (_backImage != null) {
-          request.files.add(await http.MultipartFile.fromPath('aadhar_back_path', _backImage!.path));
-        }
-      } else {
-        // PAN fields as per the new Postman screenshot
-        request.fields['pan_number'] = _numberController.text;
-        
-        // Add _method: PUT if we are updating an existing record
-        if (widget.documentId != null) {
-          request.fields['_method'] = 'PUT';
-        }
-        
-        if (_frontImage != null) {
-          request.files.add(await http.MultipartFile.fromPath('pan_card_front_path', _frontImage!.path));
-        }
-        if (_backImage != null) {
-          request.files.add(await http.MultipartFile.fromPath('pan_card_back_path', _backImage!.path));
-        }
-      }
-
-      debugPrint('Saving ${isAadhar ? "Aadhar" : "PAN"} to: $url');
-      debugPrint('Fields: ${request.fields}');
-      
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
-      final response = await http.Response.fromStream(streamedResponse);
-
-      debugPrint('Save Status: ${response.statusCode}');
-      debugPrint('Save Body: ${response.body}');
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${isAadhar ? "Aadhar" : "PAN"} updated successfully')),
-          );
-          Navigator.pop(context, true);
-        }
-      } else {
-        final errorData = jsonDecode(response.body);
-        final errorMsg = errorData['message'] ?? 'Failed to update document';
-        throw Exception(errorMsg);
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message ?? '${isAadhar ? "Aadhar" : "PAN"} saved')),
+      );
+      Navigator.pop(context, true);
     } catch (e) {
       debugPrint('Error saving document: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}')),
         );
       }
     } finally {

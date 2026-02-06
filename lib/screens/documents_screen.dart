@@ -66,6 +66,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
           final aadhar = provider.aadharCard;
           final pan = provider.panCard;
+          final bool hasAadhar = aadhar?.id != null || (aadhar?.aadharNumber ?? '').trim().isNotEmpty;
+          final bool hasPan = pan?.id != null || (pan?.panNumber ?? '').trim().isNotEmpty;
 
           return RefreshIndicator(
             onRefresh: provider.fetchAllDocuments,
@@ -77,26 +79,28 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                 children: [
                   _buildDocumentSection(
                     label: 'Aadhar no.',
-                    maskedValue: aadhar?.aadharNumber ?? 'Not Available',
-                    frontUrl: aadhar?.aadharFrontPath != null 
-                        ? "$imageBaseUrl${aadhar!.aadharFrontPath}" 
+                    maskedValue: hasAadhar ? (aadhar?.aadharNumber ?? 'Not Available') : 'Not Added',
+                    frontUrl: aadhar?.aadharFrontPath != null
+                        ? "$imageBaseUrl${aadhar!.aadharFrontPath}"
                         : null,
-                    backUrl: aadhar?.aadharBackPath != null 
-                        ? "$imageBaseUrl${aadhar!.aadharBackPath}" 
+                    backUrl: aadhar?.aadharBackPath != null
+                        ? "$imageBaseUrl${aadhar!.aadharBackPath}"
                         : null,
-                    onEdit: () => _navigateToEdit(true, aadhar?.aadharNumber ?? '', aadhar?.id),
+                    actionText: hasAadhar ? 'Edit' : 'Add',
+                    onAction: () => _navigateToEdit(true, aadhar?.aadharNumber ?? '', aadhar?.id),
                   ),
                   const SizedBox(height: 30),
                   _buildDocumentSection(
                     label: 'PAN no.',
-                    maskedValue: pan?.panNumber ?? 'Not Available',
-                    frontUrl: pan?.panCardFrontPath != null 
-                        ? "$imageBaseUrl${pan!.panCardFrontPath}" 
+                    maskedValue: hasPan ? (pan?.panNumber ?? 'Not Available') : 'Not Added',
+                    frontUrl: pan?.panCardFrontPath != null
+                        ? "$imageBaseUrl${pan!.panCardFrontPath}"
                         : null,
-                    backUrl: pan?.panCardBackPath != null 
-                        ? "$imageBaseUrl${pan!.panCardBackPath}" 
+                    backUrl: pan?.panCardBackPath != null
+                        ? "$imageBaseUrl${pan!.panCardBackPath}"
                         : null,
-                    onEdit: () => _navigateToEdit(false, pan?.panNumber ?? '', pan?.id),
+                    actionText: hasPan ? 'Edit' : 'Add',
+                    onAction: () => _navigateToEdit(false, pan?.panNumber ?? '', pan?.id),
                   ),
                 ],
               ),
@@ -112,8 +116,13 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     required String maskedValue,
     String? frontUrl,
     String? backUrl,
-    required VoidCallback onEdit,
+    required String actionText,
+    required VoidCallback onAction,
   }) {
+    final isAdd = actionText.toLowerCase() == 'add';
+    final Color actionColor = isAdd ? AppColors.primary : Colors.red;
+    final IconData actionIcon = isAdd ? Icons.add : Icons.edit;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -162,12 +171,12 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         Align(
           alignment: Alignment.centerRight,
           child: TextButton.icon(
-            onPressed: onEdit,
-            icon: const Text(
-              'Edit',
-              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            onPressed: onAction,
+            icon: Text(
+              actionText,
+              style: TextStyle(color: actionColor, fontWeight: FontWeight.bold),
             ),
-            label: const Icon(Icons.edit, color: Colors.red, size: 18),
+            label: Icon(actionIcon, color: actionColor, size: 18),
           ),
         ),
       ],
