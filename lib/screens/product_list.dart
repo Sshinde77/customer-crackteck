@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../models/product_category_model.dart';
 import '../models/product_model.dart';
 import 'product_detail_screen.dart';
 
@@ -21,10 +22,102 @@ class _ProductScreenState extends State<ProductScreen> {
   List<ProductData> _filteredProducts = [];
   final TextEditingController _searchController = TextEditingController();
 
+  static const int _allCategoriesValue = -1;
+  bool _isLoadingCategories = true;
+  String? _categoryError;
+  List<ProductCategory> _categories = [];
+  int _selectedCategoryId = _allCategoriesValue;
+  String? _selectedCategorySlug;
+  String? _selectedCategoryName;
+
   @override
   void initState() {
     super.initState();
+    _selectedCategoryId = widget.initialCategoryId ?? _allCategoriesValue;
+    _selectedCategorySlug = widget.initialCategorySlug?.trim();
+    _selectedCategoryName = widget.initialCategory?.trim();
+    _fetchCategories();
     _fetchProducts();
+  }
+
+  Future<void> _fetchCategories() async {
+    setState(() {
+      _isLoadingCategories = true;
+      _categoryError = null;
+    });
+
+    try {
+      final response = await ApiService.instance.getProductCategories(roleId: 4);
+
+      if (!mounted) return;
+
+      if (response.success && response.data != null) {
+        final categories = response.data!;
+        final ids = categories.where((c) => c.id != null).map((c) => c.id).toSet();
+
+        int selectedId = _selectedCategoryId;
+        String? selectedSlug = _selectedCategorySlug;
+        String? selectedName = _selectedCategoryName;
+
+        if (selectedId == _allCategoriesValue) {
+          final slugFilter = (widget.initialCategorySlug ?? '').trim();
+          final nameFilter = (widget.initialCategory ?? '').trim();
+
+          ProductCategory? matched;
+          if (slugFilter.isNotEmpty) {
+            matched = categories.where((c) => (c.slug ?? '').toLowerCase() == slugFilter.toLowerCase()).cast<ProductCategory?>().firstWhere(
+                  (c) => c != null,
+                  orElse: () => null,
+                );
+          }
+          if (matched == null && nameFilter.isNotEmpty) {
+            matched = categories
+                .where((c) => (c.name ?? '').toLowerCase().contains(nameFilter.toLowerCase()))
+                .cast<ProductCategory?>()
+                .firstWhere((c) => c != null, orElse: () => null);
+          }
+
+          if (matched?.id != null) {
+            selectedId = matched!.id!;
+            selectedSlug = matched.slug;
+            selectedName = matched.name;
+          }
+        } else if (!ids.contains(selectedId)) {
+          selectedId = _allCategoriesValue;
+          selectedSlug = null;
+          selectedName = null;
+        } else {
+          final matched = categories.where((c) => c.id == selectedId).cast<ProductCategory?>().firstWhere(
+                (c) => c != null,
+                orElse: () => null,
+              );
+          selectedSlug = matched?.slug;
+          selectedName = matched?.name;
+        }
+
+        setState(() {
+          _categories = categories;
+          _isLoadingCategories = false;
+          _selectedCategoryId = selectedId;
+          _selectedCategorySlug = selectedSlug;
+          _selectedCategoryName = selectedName;
+        });
+
+        _applyFilters();
+        return;
+      }
+
+      setState(() {
+        _categoryError = response.message ?? 'Failed to load categories';
+        _isLoadingCategories = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _categoryError = 'An unexpected error occurred';
+        _isLoadingCategories = false;
+      });
+    }
   }
 
   Future<void> _fetchProducts() async {
@@ -62,39 +155,167 @@ class _ProductScreenState extends State<ProductScreen> {
     setState(() {
       _filteredProducts = _products.where((p) {
         final nameMatches = (p.warehouseProduct?.productName ?? '').toLowerCase().contains(query);
-        final categoryIdFilter = widget.initialCategoryId;
-        final categoryNameFilter = widget.initialCategory?.trim();
-        final categorySlugFilter = widget.initialCategorySlug?.trim();
+        final int? categoryIdFilter = _selectedCategoryId == _allCategoriesValue ? null : _selectedCategoryId;
+        final categoryNameFilter = _selectedCategoryName?.trim();
+        final categorySlugFilter = _selectedCategorySlug?.trim();
         final bool hasNameFilter = categoryNameFilter != null && categoryNameFilter.isNotEmpty;
         final bool hasSlugFilter = categorySlugFilter != null && categorySlugFilter.isNotEmpty;
         if (categoryIdFilter == null && !hasNameFilter && !hasSlugFilter) {
           return nameMatches;
         }
 
+        final parentCategory = p.warehouseProduct?.parentCategorie;
+        final int? productCategoryId = parentCategory?.id ?? p.warehouseProduct?.parentCategoryId ?? p.categoryId;
+        final String productCategorySlug =
+            (parentCategory?.slug ?? p.categorySlug ?? '').toLowerCase();
+        final String productCategoryName =
+            (parentCategory?.name ?? p.categoryName ?? '').toLowerCase();
+
         bool categoryMatches = true;
         if (categoryIdFilter != null) {
-          if (p.categoryId != null) {
-            categoryMatches = p.categoryId == categoryIdFilter;
+          if (productCategoryId != null) {
+            categoryMatches = productCategoryId == categoryIdFilter;
           } else if (hasSlugFilter) {
-            final productCategorySlug = (p.categorySlug ?? '').toLowerCase();
             categoryMatches = productCategorySlug == categorySlugFilter.toLowerCase();
           } else if (hasNameFilter) {
-            final productCategory = (p.categoryName ?? '').toLowerCase();
-            categoryMatches = productCategory.contains(categoryNameFilter.toLowerCase());
+            categoryMatches = productCategoryName.contains(categoryNameFilter.toLowerCase());
           } else {
             categoryMatches = false;
           }
         } else if (hasSlugFilter) {
-          final productCategorySlug = (p.categorySlug ?? '').toLowerCase();
           categoryMatches = productCategorySlug == categorySlugFilter.toLowerCase();
         } else if (hasNameFilter) {
-          final productCategory = (p.categoryName ?? '').toLowerCase();
-          categoryMatches = productCategory.contains(categoryNameFilter.toLowerCase());
+          categoryMatches = productCategoryName.contains(categoryNameFilter.toLowerCase());
         }
 
         return nameMatches && categoryMatches;
       }).toList();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  String _currentTitle() {
+    if (_selectedCategoryId != _allCategoriesValue) {
+      final name = (_selectedCategoryName ?? '').trim();
+      if (name.isNotEmpty) return name;
+    }
+    final initial = (widget.initialCategory ?? '').trim();
+    if (initial.isNotEmpty) return initial;
+    return 'Product';
+  }
+
+  Widget _buildCategoryFilter() {
+    final container = Container(
+      height: 46,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.category_outlined, color: Colors.grey),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _isLoadingCategories
+                ? Row(
+                    children: const [
+                      SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 10),
+                      Text('Loading categories...'),
+                    ],
+                  )
+                : _categoryError != null
+                    ? Text(
+                        'Categories unavailable',
+                        style: TextStyle(color: Colors.grey.shade600),
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    : DropdownButtonHideUnderline(
+                        child: DropdownButton<int>(
+                          value: _selectedCategoryId,
+                          isExpanded: true,
+                          items: [
+                            const DropdownMenuItem<int>(
+                              value: _allCategoriesValue,
+                              child: Text('All Categories'),
+                            ),
+                            ..._categories.where((c) => c.id != null).map((c) {
+                              return DropdownMenuItem<int>(
+                                value: c.id!,
+                                child: Text(
+                                  c.name ?? 'Unnamed',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }),
+                          ],
+                          onChanged: (value) {
+                            if (value == null) return;
+                            if (value == _selectedCategoryId) return;
+
+                            if (value == _allCategoriesValue) {
+                              setState(() {
+                                _selectedCategoryId = _allCategoriesValue;
+                                _selectedCategorySlug = null;
+                                _selectedCategoryName = null;
+                              });
+                              _applyFilters();
+                              return;
+                            }
+
+                            final matched = _categories.where((c) => c.id == value).cast<ProductCategory?>().firstWhere(
+                                  (c) => c != null,
+                                  orElse: () => null,
+                                );
+
+                            setState(() {
+                              _selectedCategoryId = value;
+                              _selectedCategorySlug = matched?.slug;
+                              _selectedCategoryName = matched?.name;
+                            });
+                            _applyFilters();
+                          },
+                        ),
+                      ),
+          ),
+          if (_categoryError != null)
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.grey),
+              onPressed: _fetchCategories,
+              tooltip: 'Retry',
+            ),
+          if (_categoryError == null && !_isLoadingCategories && _selectedCategoryId != _allCategoriesValue)
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.grey),
+              onPressed: () {
+                setState(() {
+                  _selectedCategoryId = _allCategoriesValue;
+                  _selectedCategorySlug = null;
+                  _selectedCategoryName = null;
+                });
+                _applyFilters();
+              },
+              tooltip: 'Clear',
+            ),
+        ],
+      ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: container,
+    );
   }
 
   @override
@@ -109,7 +330,7 @@ class _ProductScreenState extends State<ProductScreen> {
           elevation: 0,
 
           title: Text(
-            widget.initialCategory ?? 'Product',
+            _currentTitle(),
             style: const TextStyle(color: Colors.white),
           ),
         ),
@@ -147,6 +368,9 @@ class _ProductScreenState extends State<ProductScreen> {
                 ),
               ),
             ),
+
+            /// CATEGORY FILTER
+            _buildCategoryFilter(),
 
             /// PRODUCT GRID
             Expanded(
@@ -260,4 +484,3 @@ class _ProductScreenState extends State<ProductScreen> {
     );
   }
 }
-

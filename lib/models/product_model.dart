@@ -147,6 +147,8 @@ class WarehouseProduct {
   final String? sku;
   final String? modelNo;
   final String? serialNo;
+  final int? parentCategoryId;
+  final ParentCategorie? parentCategorie;
   final String? shortDescription;
   final String? fullDescription;
   final String? technicalSpecification;
@@ -168,6 +170,8 @@ class WarehouseProduct {
     this.sku,
     this.modelNo,
     this.serialNo,
+    this.parentCategoryId,
+    this.parentCategorie,
     this.shortDescription,
     this.fullDescription,
     this.technicalSpecification,
@@ -183,6 +187,17 @@ class WarehouseProduct {
   });
 
   factory WarehouseProduct.fromJson(Map<String, dynamic> json) {
+    final Map<String, dynamic>? parentCategoryJson =
+        json['parent_categorie'] is Map<String, dynamic> ? json['parent_categorie'] as Map<String, dynamic> : null;
+
+    int? tryParseInt(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      if (value is String) return int.tryParse(value);
+      return null;
+    }
+
     return WarehouseProduct(
       id: json['id'],
       vendorName: json['vendor_name'],
@@ -191,6 +206,8 @@ class WarehouseProduct {
       sku: json['sku'],
       modelNo: json['model_no'],
       serialNo: json['serial_no'],
+      parentCategoryId: tryParseInt(json['parent_category_id']),
+      parentCategorie: parentCategoryJson != null ? ParentCategorie.fromJson(parentCategoryJson) : null,
       shortDescription: json['short_description'],
       fullDescription: json['full_description'],
       technicalSpecification: json['technical_specification'],
@@ -205,6 +222,30 @@ class WarehouseProduct {
       additionalProductImages: json['additional_product_images'] != null
           ? List<String>.from(json['additional_product_images'])
           : null,
+    );
+  }
+}
+
+class ParentCategorie {
+  final int? id;
+  final String? name;
+  final String? slug;
+
+  ParentCategorie({this.id, this.name, this.slug});
+
+  factory ParentCategorie.fromJson(Map<String, dynamic> json) {
+    int? tryParseInt(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      if (value is String) return int.tryParse(value);
+      return null;
+    }
+
+    return ParentCategorie(
+      id: tryParseInt(json['id']),
+      name: json['name'],
+      slug: json['slug'],
     );
   }
 }
