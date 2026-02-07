@@ -20,6 +20,7 @@ import '../models/banner_model.dart';
 import '../models/quick_service_model.dart';
 import '../models/product_category_model.dart';
 import '../models/order_model.dart';
+import '../models/service_request_list_model.dart';
 
 /// API Service for handling HTTP requests
 class ApiService {
@@ -643,6 +644,228 @@ class ApiService {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
       debugPrint('🔴 Unexpected Error in buyProduct: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  // ========================================
+  // Service Request List API
+  // ========================================
+
+  Future<ApiResponse<List<ServiceRequestListItem>>> getAllServiceRequests({
+    required int roleId,
+    required int customerId,
+  }) async {
+    try {
+      debugPrint(
+        'ðŸ”µ API Request: GET ${ApiConstants.service_request_list}?role_id=$roleId&customer_id=$customerId',
+      );
+
+      final url = Uri.parse(ApiConstants.service_request_list).replace(
+        queryParameters: {
+          'role_id': roleId.toString(),
+          'customer_id': customerId.toString(),
+        },
+      );
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+        final dynamic dataRoot = jsonResponse['data'];
+        final Map<String, dynamic> payload =
+            dataRoot is Map<String, dynamic> ? dataRoot : jsonResponse;
+
+        dynamic listNode = payload['service_requests'] ??
+            payload['serviceRequests'] ??
+            payload['requests'] ??
+            payload['service_request'] ??
+            payload['all_service_requests'] ??
+            payload['allServiceRequests'];
+
+        if (listNode == null && payload['data'] is List) {
+          listNode = payload['data'];
+        }
+        if (listNode == null && dataRoot is List) {
+          listNode = dataRoot;
+        }
+
+        final items = listNode is List
+            ? listNode
+                .whereType<Map>()
+                .map((e) => ServiceRequestListItem.fromJson(Map<String, dynamic>.from(e)))
+                .toList()
+            : <ServiceRequestListItem>[];
+
+        return ApiResponse<List<ServiceRequestListItem>>(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Service requests fetched successfully',
+          data: items,
+        );
+      }
+
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to fetch service requests'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('ðŸ”´ Unexpected Error in getAllServiceRequests: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  // ========================================
+  // Service Request Detail API
+  // ========================================
+
+  Future<ApiResponse<Map<String, dynamic>>> getServiceRequestDetails({
+    required int requestId,
+    required int roleId,
+    required int customerId,
+  }) async {
+    try {
+      final url = Uri.parse(
+        '${ApiConstants.service_request_details}/$requestId',
+      ).replace(
+        queryParameters: {
+          'role_id': roleId.toString(),
+          'customer_id': customerId.toString(),
+        },
+      );
+
+      debugPrint('API Request: GET $url');
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+        final dynamic dataRoot = jsonResponse['data'];
+        final Map<String, dynamic> payload =
+            dataRoot is Map<String, dynamic> ? dataRoot : jsonResponse;
+
+        final dynamic detailNode = payload['service_request'] ??
+            payload['serviceRequest'] ??
+            payload['request'] ??
+            payload['details'] ??
+            payload['service_details'] ??
+            payload['serviceDetail'] ??
+            payload['service'];
+
+        final Map<String, dynamic> details = detailNode is Map<String, dynamic>
+            ? detailNode
+            : detailNode is Map
+                ? Map<String, dynamic>.from(detailNode)
+                : payload;
+
+        return ApiResponse<Map<String, dynamic>>(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Service request details fetched successfully',
+          data: details,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch service request details'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in getServiceRequestDetails: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  Future<ApiResponse<List<Map<String, dynamic>>>> getServiceRequestProductDiagnostics({
+    required int requestId,
+    required int serviceProductId,
+    required int roleId,
+    required int customerId,
+  }) async {
+    try {
+      final url = Uri.parse(
+        '${ApiConstants.service_request_product_diagnostics}/$requestId/$serviceProductId',
+      ).replace(
+        queryParameters: {
+          'role_id': roleId.toString(),
+          'customer_id': customerId.toString(),
+        },
+      );
+
+      debugPrint('API Request: GET $url');
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+        final dynamic dataRoot = jsonResponse['data'];
+        final Map<String, dynamic> payload =
+            dataRoot is Map<String, dynamic> ? dataRoot : jsonResponse;
+
+        dynamic listNode = payload['product_diagnostics'] ??
+            payload['productDiagnostics'] ??
+            payload['diagnostics'] ??
+            payload['items'];
+
+        if (listNode == null && payload['data'] is List) {
+          listNode = payload['data'];
+        }
+        if (listNode == null && dataRoot is List) {
+          listNode = dataRoot;
+        }
+
+        final items = listNode is List
+            ? listNode
+                .whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .toList()
+            : <Map<String, dynamic>>[];
+
+        return ApiResponse<List<Map<String, dynamic>>>(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Product diagnostics fetched successfully',
+          data: items,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<List<Map<String, dynamic>>>(
+        success: false,
+        message: jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch product diagnostics'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in getServiceRequestProductDiagnostics: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }

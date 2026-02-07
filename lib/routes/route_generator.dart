@@ -145,8 +145,11 @@ class RouteGenerator {
         );
 
       case AppRoutes.serviceRequestDetails:
+        final args = settings.arguments as Map<String, dynamic>?;
         return MaterialPageRoute(
-          builder: (_) => const ServiceRequestDetailsScreen(),
+          builder: (_) => ServiceRequestDetailsScreen(
+            requestData: args ?? const {},
+          ),
           settings: settings,
         );
 

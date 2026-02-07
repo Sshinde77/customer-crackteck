@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
+import '../constants/core/secure_storage_service.dart';
+import '../models/service_request_list_model.dart';
 import '../routes/app_routes.dart';
+import '../services/api_service.dart';
 
 class MyServiceRequestScreen extends StatefulWidget {
   const MyServiceRequestScreen({super.key});
@@ -11,9 +14,67 @@ class MyServiceRequestScreen extends StatefulWidget {
 
 class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
   int selectedTab = 0; // 0 for Done, 1 for Pending
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<ServiceRequestListItem> _requests = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchRequests();
+  }
+
+  Future<void> _fetchRequests() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final customerId = await SecureStorageService.getUserId();
+      final roleId = await SecureStorageService.getRoleId();
+
+      if (customerId == null || roleId == null) {
+        setState(() {
+          _errorMessage = 'User session expired. Please login again.';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final response = await ApiService.instance.getAllServiceRequests(
+        roleId: roleId,
+        customerId: customerId,
+      );
+
+      if (!mounted) return;
+
+      if (response.success && response.data != null) {
+        setState(() {
+          _requests = response.data!;
+          _isLoading = false;
+        });
+        return;
+      }
+
+      setState(() {
+        _errorMessage = response.message ?? 'Failed to load service requests';
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'An unexpected error occurred';
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final requestsToShow =
+        _requests.where((r) => selectedTab == 0 ? r.isDone : !r.isDone).toList();
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -34,13 +95,45 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
           const SizedBox(height: 20),
           _buildToggleTabs(),
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: 3,
-              itemBuilder: (context, index) {
-                return _buildRequestCard(selectedTab == 0);
-              },
-            ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _errorMessage != null
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+                            const SizedBox(height: 10),
+                            ElevatedButton(
+                              onPressed: _fetchRequests,
+                              child: const Text('Retry'),
+                            )
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _fetchRequests,
+                        child: requestsToShow.isEmpty
+                            ? ListView(
+                                padding: const EdgeInsets.all(16),
+                                children: [
+                                  Center(
+                                    child: Text(
+                                      selectedTab == 0
+                                          ? 'No done requests found'
+                                          : 'No pending requests found',
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.all(16),
+                                itemCount: requestsToShow.length,
+                                itemBuilder: (context, index) {
+                                  return _buildRequestCard(requestsToShow[index]);
+                                },
+                              ),
+                      ),
           ),
         ],
       ),
@@ -109,10 +202,15 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
     );
   }
 
-  Widget _buildRequestCard(bool isDone) {
+  Widget _buildRequestCard(ServiceRequestListItem request) {
+    final isDone = request.isDone;
     return GestureDetector(
       onTap: () {
-        Navigator.pushNamed(context, AppRoutes.serviceRequestDetails);
+        Navigator.pushNamed(
+          context,
+          AppRoutes.serviceRequestDetails,
+          arguments: request.raw,
+        );
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
@@ -132,20 +230,22 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Office CCTV Installation',
-              style: TextStyle(
+            Text(
+              request.displayServiceType,
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: AppColors.primary,
               ),
             ),
             const Divider(height: 24),
-            _buildInfoRow('Name', 'Darron Kulikowski'),
-            _buildInfoRow('Service ID', '#UORD658858DYE'),
-            _buildInfoRow('Amount (USD)', '₹ 2,500'),
-            _buildInfoRow('Transaction Date', 'Dec 24, 2024\n07:24 PM'),
-            _buildInfoRow('Status', isDone ? 'Completed' : (selectedTab == 1 && (1 == 1) ? 'Transferred' : 'Pending')), // Example logic for variety
+            _buildInfoRow('Service Type', request.displayServiceType),
+            _buildInfoRow('Request ID', request.displayRequestId),
+            _buildInfoRow(
+              'Request Date',
+              _formatRequestDate(request.displayRequestDate),
+            ),
+            _buildInfoRow('Status', request.displayStatus),
             if (isDone) ...[
               const SizedBox(height: 16),
               SizedBox(
@@ -168,6 +268,40 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
         ),
       ),
     );
+  }
+
+  String _formatRequestDate(String value) {
+    final raw = value.trim();
+    if (raw.isEmpty || raw == '-') return '-';
+
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return raw;
+
+    const months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+
+    final month = months[parsed.month - 1];
+    final day = parsed.day.toString().padLeft(2, '0');
+    final date = '$month $day, ${parsed.year}';
+
+    int hour = parsed.hour % 12;
+    if (hour == 0) hour = 12;
+    final minute = parsed.minute.toString().padLeft(2, '0');
+    final meridiem = parsed.hour >= 12 ? 'PM' : 'AM';
+
+    return '$date $hour:$minute $meridiem';
   }
 
   Widget _buildInfoRow(String label, String value) {
@@ -200,3 +334,4 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
     );
   }
 }
+
