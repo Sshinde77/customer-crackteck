@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../constants/core/secure_storage_service.dart';
+import '../models/address_model.dart';
 import '../models/product_model.dart';
 import '../routes/app_routes.dart';
 import '../services/api_service.dart';
+import 'address_screen.dart';
 
 class PaymentScreen extends StatefulWidget {
   final ProductData? product;
@@ -24,10 +26,24 @@ class PaymentScreen extends StatefulWidget {
 }
 
 class _PaymentScreenState extends State<PaymentScreen> {
+  static const int _addAddressDropdownValue = -1;
   int selectedIndex = -1;
   bool _isSubmitting = false;
+  bool _isAddressLoading = false;
+  List<AddressModel> _addresses = [];
+  int? _selectedAddressId;
 
   static const String _imageBaseUrl = 'https://crackteck.co.in/';
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.product != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _fetchAddresses();
+      });
+    }
+  }
 
   String _normalizeImageUrl(String raw) {
     final trimmed = raw.trim();
@@ -102,6 +118,28 @@ class _PaymentScreenState extends State<PaymentScreen> {
       return;
     }
 
+    if (_isAddressLoading) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait while addresses are loading.')),
+      );
+      return;
+    }
+
+    if (_addresses.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add an address to continue.')),
+      );
+      await _goToAddressScreen();
+      return;
+    }
+
+    if (_selectedAddressId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a delivery address.')),
+      );
+      return;
+    }
+
     final productId = widget.product?.id;
     if (productId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -134,6 +172,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         roleId: roleId,
         quantity: quantity,
         customerId: customerId,
+        shippingAddressId: _selectedAddressId!,
       );
 
       if (!mounted) return;
@@ -161,6 +200,177 @@ class _PaymentScreenState extends State<PaymentScreen> {
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  Future<void> _fetchAddresses() async {
+    if (_isAddressLoading) return;
+    setState(() {
+      _isAddressLoading = true;
+    });
+
+    try {
+      final userId = await SecureStorageService.getUserId();
+      final roleId = await SecureStorageService.getRoleId();
+
+      if (userId == null || roleId == null) {
+        if (!mounted) return;
+        setState(() {
+          _addresses = [];
+          _selectedAddressId = null;
+        });
+        return;
+      }
+
+      final response = await ApiService.instance.getAddresses(
+        userId: userId,
+        roleId: roleId,
+      );
+
+      if (!mounted) return;
+
+      if (response.success && response.data != null) {
+        final fetched = response.data!.where((a) => a.id != null).toList();
+
+        int? nextSelectedId = _selectedAddressId;
+        final ids = fetched.map((e) => e.id).toSet();
+        if (nextSelectedId == null || !ids.contains(nextSelectedId)) {
+          final primary = fetched.where((a) => a.isDefault).toList();
+          nextSelectedId = primary.isNotEmpty
+              ? primary.first.id
+              : (fetched.isNotEmpty ? fetched.first.id : null);
+        }
+
+        setState(() {
+          _addresses = fetched;
+          _selectedAddressId = nextSelectedId;
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(response.message ?? 'Failed to load addresses')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load addresses: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAddressLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _goToAddressScreen() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AddressScreen()),
+    );
+    if (!mounted) return;
+    await _fetchAddresses();
+  }
+
+  String _formatAddress(AddressModel address) {
+    final branch = (address.branchName ?? '').trim();
+    final title = branch.isEmpty ? 'Address' : branch;
+    final parts = <String>[
+      if (address.addressLine1.trim().isNotEmpty) address.addressLine1.trim(),
+      if (address.addressLine2.trim().isNotEmpty) address.addressLine2.trim(),
+      if (address.city.trim().isNotEmpty) address.city.trim(),
+      if (address.state.trim().isNotEmpty) address.state.trim(),
+    ];
+    if (parts.isEmpty) return title;
+    return '$title - ${parts.join(', ')}';
+  }
+
+  Widget _buildAddressSection() {
+    if (_isAddressLoading) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.black12),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: const [
+            SizedBox(
+              height: 18,
+              width: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 12),
+            Text('Loading addresses...'),
+          ],
+        ),
+      );
+    }
+
+    if (_addresses.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          border: Border.all(color: Colors.black12),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            const Expanded(child: Text('No address found. Please add one.')),
+            const SizedBox(width: 12),
+            OutlinedButton.icon(
+              onPressed: _isSubmitting ? null : _goToAddressScreen,
+              icon: const Icon(Icons.add_location_alt_outlined),
+              label: const Text('Add Address'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final dropdownItems = <DropdownMenuItem<int>>[
+      ..._addresses.map((address) {
+        return DropdownMenuItem<int>(
+          value: address.id,
+          child: Text(
+            _formatAddress(address),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        );
+      }),
+      const DropdownMenuItem<int>(
+        value: _addAddressDropdownValue,
+        child: Text('Add Address'),
+      ),
+    ];
+
+    return DropdownButtonFormField<int>(
+      value: _selectedAddressId,
+      isExpanded: true,
+      items: dropdownItems,
+      onChanged: _isSubmitting
+          ? null
+          : (value) async {
+              if (value == _addAddressDropdownValue) {
+                setState(() => _selectedAddressId = null);
+                await _goToAddressScreen();
+                return;
+              }
+              setState(() => _selectedAddressId = value);
+            },
+      decoration: InputDecoration(
+        hintText: 'Select Address',
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
   }
 
   @override
@@ -260,6 +470,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Delivery Address',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildAddressSection(),
                 const SizedBox(height: 20),
               ],
 

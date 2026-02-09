@@ -604,6 +604,7 @@ class ApiService {
     required int roleId,
     required int quantity,
     required int customerId,
+    required int shippingAddressId,
   }) async {
     try {
       final url = Uri.parse('${ApiConstants.product_buy}/$productId').replace(
@@ -611,12 +612,16 @@ class ApiService {
           'role_id': roleId.toString(),
           'quantity': quantity.toString(),
           'customer_id': customerId.toString(),
+          'shipping_address_id': shippingAddressId.toString(),
         },
       );
 
       debugPrint('🔵 API Request: POST $url');
 
-      final response = await _performAuthenticatedPost(url, body: {});
+      final response = await _performAuthenticatedPost(
+        url,
+        body: {'shipping_address_id': shippingAddressId},
+      );
 
       debugPrint('🟡 API Response Status: ${response.statusCode}');
       debugPrint('🟡 API Response Body: ${response.body}');
