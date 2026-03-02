@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
 import '../constants/core/secure_storage_service.dart';
@@ -8,6 +10,7 @@ import '../models/address_model.dart';
 import '../models/quick_service_model.dart';
 import '../provider/quick_service_provider.dart';
 import '../services/api_service.dart';
+import '../services/image_capture_service.dart';
 import 'address_screen.dart';
 import 'payment_screen.dart';
 import 'service_detail_screen.dart';
@@ -55,10 +58,15 @@ class ServiceRequestScreen extends StatefulWidget {
 }
 
 class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
+  static const int _maxImagesPerProduct = 10;
+  static const int _maxTotalImages = 20;
+  static const int _maxImageBytesPerProduct = 20 * 1024 * 1024;
+
   final _formKey = GlobalKey<FormState>();
   final List<ServiceProductFormModel> _products = [ServiceProductFormModel()];
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
+  bool _isPickingImage = false;
 
   static const int _addAddressDropdownValue = -1;
   bool _isAddressLoading = false;
@@ -69,8 +77,9 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       _fetchAddresses();
-      context.read<QuickServiceProvider>().fetchQuickServices(
+      context.read<QuickServiceProvider>().fetchRequestServices(
             serviceType: _getServiceTypeFromTitle(),
           );
     });
@@ -94,25 +103,73 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   }
 
   Future<void> _pickImage(ServiceProductFormModel product, ImageSource source) async {
+    if (_isPickingImage || _isLoading) return;
+    if (_totalImagesCount() >= _maxTotalImages) {
+      _showSnackBar('Maximum $_maxTotalImages images allowed in one request.');
+      return;
+    }
+    if (product.selectedImages.length >= _maxImagesPerProduct) {
+      _showSnackBar('Maximum $_maxImagesPerProduct images allowed per product.');
+      return;
+    }
+
+    setState(() => _isPickingImage = true);
+
     try {
-      final XFile? image = await _picker.pickImage(
+      final result = await ImageCaptureService.pickAndCompressImage(
         source: source,
-        imageQuality: 80,
+        picker: _picker,
+        maxBytes: 4 * 1024 * 1024,
       );
-      if (image != null) {
-        setState(() {
-          product.selectedImages.add(File(image.path));
-        });
+
+      if (!mounted) return;
+      if (result.cancelled) return;
+
+      if (result.shouldOpenSettings) {
+        await _showPermissionDialog(
+          source == ImageSource.camera ? 'Camera' : 'Photos',
+        );
+        return;
       }
-    } catch (e) {
-      debugPrint('Error picking image: $e');
+
+      if (result.file == null) {
+        _showSnackBar(result.message ?? 'Unable to capture/select image.');
+        return;
+      }
+
+      final File compressedImage = result.file!;
+      final int projectedBytes =
+          _currentImagesBytes(product) + ImageCaptureService.safeLength(compressedImage);
+
+      if (projectedBytes > _maxImageBytesPerProduct) {
+        _showSnackBar(
+          'Selected images are too large. Please remove some images or use smaller files.',
+        );
+        await ImageCaptureService.tryDelete(compressedImage);
+        return;
+      }
+
+      setState(() {
+        product.selectedImages.add(compressedImage);
+      });
+    } catch (_) {
+      if (mounted) {
+        _showSnackBar('Failed to add image. Please try again.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isPickingImage = false);
+      }
     }
   }
 
   void _removeImage(ServiceProductFormModel product, int index) {
+    if (index < 0 || index >= product.selectedImages.length) return;
+    final File removedImage = product.selectedImages[index];
     setState(() {
       product.selectedImages.removeAt(index);
     });
+    unawaited(ImageCaptureService.tryDelete(removedImage));
   }
 
   void _showImageSourceActionSheet(BuildContext context, ServiceProductFormModel product) {
@@ -150,13 +207,11 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       firstDate: DateTime(2000),
       lastDate: DateTime(2101),
     );
-    if (picked != null) {
-      setState(() {
-        // Formatting to YYYY-MM-DD as seen in Postman screenshot
-        product.purchaseDateController.text =
-            "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
-      });
-    }
+    if (!mounted || picked == null) return;
+    setState(() {
+      product.purchaseDateController.text =
+          "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+    });
   }
 
   void _addProduct() {
@@ -168,10 +223,18 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   void _removeProduct(int index) {
     if (_products.length > 1) {
       setState(() {
-        _products[index].dispose();
-        _products.removeAt(index);
+        final removedProduct = _products.removeAt(index);
+        _disposeProduct(removedProduct);
       });
     }
+  }
+
+  void _disposeProduct(ServiceProductFormModel product) {
+    for (final image in product.selectedImages) {
+      unawaited(ImageCaptureService.tryDelete(image));
+    }
+    product.selectedImages.clear();
+    product.dispose();
   }
 
   Future<void> _submitRequest() async {
@@ -274,10 +337,10 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
           );
         }
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          const SnackBar(content: Text('Failed to submit request. Please try again.')),
         );
       }
     } finally {
@@ -288,7 +351,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   @override
   void dispose() {
     for (var product in _products) {
-      product.dispose();
+      _disposeProduct(product);
     }
     super.dispose();
   }
@@ -385,6 +448,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
 
   Future<void> _fetchAddresses() async {
     if (_isAddressLoading) return;
+    if (!mounted) return;
     setState(() {
       _isAddressLoading = true;
     });
@@ -394,6 +458,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       final roleId = await SecureStorageService.getRoleId();
 
       if (userId == null || roleId == null) {
+        if (!mounted) return;
         setState(() {
           _addresses = [];
           _selectedAddressId = null;
@@ -425,10 +490,10 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
           SnackBar(content: Text(response.message ?? 'Failed to load addresses')),
         );
       }
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load addresses: $e')),
+        const SnackBar(content: Text('Failed to load addresses. Please try again.')),
       );
     } finally {
       if (mounted) {
@@ -576,7 +641,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         _buildLabel('Service Type'),
         Consumer<QuickServiceProvider>(
           builder: (context, provider, child) {
-            if (provider.isLoading) {
+            if (provider.isRequestLoading) {
               return const Center(
                   child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 20),
@@ -584,15 +649,15 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
               ));
             }
 
-            if (provider.quickServices.isEmpty) {
+            if (provider.requestServices.isEmpty) {
               return const Center(child: Text('No services available'));
             }
 
             return DropdownButtonFormField<QuickService>(
-              value: provider.quickServices.contains(product.selectedQuickService) ? product.selectedQuickService : null,
+              value: provider.requestServices.contains(product.selectedQuickService) ? product.selectedQuickService : null,
               hint: const Text('Select Service Type'),
               isExpanded: true,
-              items: provider.quickServices.map((service) {
+              items: provider.requestServices.map((service) {
                 return DropdownMenuItem<QuickService>(
                     value: service,
                     child: Text(
@@ -667,7 +732,9 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
 
         _buildLabel('Images'),
         InkWell(
-          onTap: _isLoading ? null : () => _showImageSourceActionSheet(context, product),
+          onTap: (_isLoading || _isPickingImage)
+              ? null
+              : () => _showImageSourceActionSheet(context, product),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
@@ -701,11 +768,20 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                       margin: const EdgeInsets.only(right: 12),
                       width: 100,
                       height: 100,
+                      clipBehavior: Clip.antiAlias,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(10),
-                        image: DecorationImage(
-                          image: FileImage(product.selectedImages[imgIndex]),
-                          fit: BoxFit.cover,
+                        color: Colors.grey.shade100,
+                      ),
+                      child: Image.file(
+                        product.selectedImages[imgIndex],
+                        fit: BoxFit.cover,
+                        cacheWidth: 400,
+                        cacheHeight: 400,
+                        filterQuality: FilterQuality.low,
+                        errorBuilder: (context, error, stackTrace) => const Icon(
+                          Icons.broken_image,
+                          color: Colors.grey,
                         ),
                       ),
                     ),
@@ -847,6 +923,56 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: AppColors.primary),
       ),
+    );
+  }
+
+  int _currentImagesBytes(ServiceProductFormModel product) {
+    return product.selectedImages.fold<int>(
+      0,
+      (sum, file) => sum + ImageCaptureService.safeLength(file),
+    );
+  }
+
+  int _totalImagesCount() {
+    return _products.fold<int>(
+      0,
+      (sum, product) => sum + product.selectedImages.length,
+    );
+  }
+
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<void> _showPermissionDialog(String permissionName) async {
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Permission Required'),
+          content: Text(
+            '$permissionName permission is required to continue. You can enable it from app settings.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+                await openAppSettings();
+              },
+              child: const Text('Open Settings'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

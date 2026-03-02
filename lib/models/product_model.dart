@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class ProductModel {
   final List<ProductData>? products;
 
@@ -160,7 +162,7 @@ class WarehouseProduct {
   final int? stockQuantity;
   final String? stockStatus;
   final String? mainProductImage;
-  final List<String>? additionalProductImages;
+  final List<String> additionalProductImages;
 
   WarehouseProduct({
     this.id,
@@ -183,7 +185,7 @@ class WarehouseProduct {
     this.stockQuantity,
     this.stockStatus,
     this.mainProductImage,
-    this.additionalProductImages,
+    this.additionalProductImages = const [],
   });
 
   factory WarehouseProduct.fromJson(Map<String, dynamic> json) {
@@ -196,6 +198,38 @@ class WarehouseProduct {
       if (value is num) return value.toInt();
       if (value is String) return int.tryParse(value);
       return null;
+    }
+
+    List<String> parseStringList(dynamic value) {
+      if (value == null) return const [];
+
+      if (value is List) {
+        return value
+            .map((item) => item?.toString().trim() ?? '')
+            .where((item) => item.isNotEmpty)
+            .toList(growable: false);
+      }
+
+      if (value is String) {
+        final raw = value.trim();
+        if (raw.isEmpty) return const [];
+
+        try {
+          final decoded = jsonDecode(raw);
+          if (decoded is List) {
+            return decoded
+                .map((item) => item?.toString().trim() ?? '')
+                .where((item) => item.isNotEmpty)
+                .toList(growable: false);
+          }
+        } catch (_) {
+          // Keep fallback behavior for non-JSON single string payloads.
+        }
+
+        return [raw];
+      }
+
+      return const [];
     }
 
     return WarehouseProduct(
@@ -219,9 +253,7 @@ class WarehouseProduct {
       stockQuantity: json['stock_quantity'],
       stockStatus: json['stock_status'],
       mainProductImage: json['main_product_image'],
-      additionalProductImages: json['additional_product_images'] != null
-          ? List<String>.from(json['additional_product_images'])
-          : null,
+      additionalProductImages: parseStringList(json['additional_product_images']),
     );
   }
 }

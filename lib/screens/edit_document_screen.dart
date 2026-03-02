@@ -1,11 +1,14 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../constants/app_colors.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../services/api_service.dart';
+import '../services/image_capture_service.dart';
 
 class EditDocumentScreen extends StatefulWidget {
   final String title;
@@ -31,6 +34,7 @@ class _EditDocumentScreenState extends State<EditDocumentScreen> {
   File? _backImage;
   final ImagePicker _picker = ImagePicker();
   bool _isSaving = false;
+  bool _isPickingImage = false;
 
   @override
   void initState() {
@@ -42,20 +46,55 @@ class _EditDocumentScreenState extends State<EditDocumentScreen> {
 
   @override
   void dispose() {
+    unawaited(ImageCaptureService.tryDelete(_frontImage));
+    unawaited(ImageCaptureService.tryDelete(_backImage));
     _numberController.dispose();
     super.dispose();
   }
 
   Future<void> _pickImage(bool isFront) async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
+    if (_isSaving || _isPickingImage) return;
+    setState(() => _isPickingImage = true);
+
+    try {
+      final result = await ImageCaptureService.pickAndCompressImage(
+        source: ImageSource.gallery,
+        picker: _picker,
+        maxBytes: 2 * 1024 * 1024,
+      );
+
+      if (!mounted) return;
+      if (result.cancelled) return;
+
+      if (result.shouldOpenSettings) {
+        await _showPermissionDialog('Photos');
+        return;
+      }
+
+      if (result.file == null) {
+        _showSnackBar(result.message ?? 'Unable to select image.');
+        return;
+      }
+
+      final File? previousImage = isFront ? _frontImage : _backImage;
       setState(() {
         if (isFront) {
-          _frontImage = File(image.path);
+          _frontImage = result.file;
         } else {
-          _backImage = File(image.path);
+          _backImage = result.file;
         }
       });
+      if (previousImage != null) {
+        await ImageCaptureService.tryDelete(previousImage);
+      }
+    } catch (_) {
+      if (mounted) {
+        _showSnackBar('Failed to select image. Please try again.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isPickingImage = false);
+      }
     }
   }
 
@@ -107,7 +146,6 @@ class _EditDocumentScreenState extends State<EditDocumentScreen> {
       );
       Navigator.pop(context, true);
     } catch (e) {
-      debugPrint('Error saving document: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}')),
@@ -167,7 +205,7 @@ class _EditDocumentScreenState extends State<EditDocumentScreen> {
                     _buildUploadBox(
                       title: "${widget.title} Front Image",
                       image: _frontImage,
-                      onTap: () => _pickImage(true),
+                      onTap: (_isSaving || _isPickingImage) ? null : () => _pickImage(true),
                     ),
                     
                     const SizedBox(height: 16),
@@ -175,7 +213,7 @@ class _EditDocumentScreenState extends State<EditDocumentScreen> {
                     _buildUploadBox(
                       title: "${widget.title} Back Image",
                       image: _backImage,
-                      onTap: () => _pickImage(false),
+                      onTap: (_isSaving || _isPickingImage) ? null : () => _pickImage(false),
                     ),
                   ],
                 ),
@@ -218,7 +256,7 @@ class _EditDocumentScreenState extends State<EditDocumentScreen> {
     );
   }
 
-  Widget _buildUploadBox({required String title, File? image, required VoidCallback onTap}) {
+  Widget _buildUploadBox({required String title, File? image, required VoidCallback? onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -231,7 +269,16 @@ class _EditDocumentScreenState extends State<EditDocumentScreen> {
         child: image != null
             ? ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: Image.file(image, fit: BoxFit.cover),
+                child: Image.file(
+                  image,
+                  fit: BoxFit.cover,
+                  cacheWidth: 600,
+                  cacheHeight: 600,
+                  filterQuality: FilterQuality.low,
+                  errorBuilder: (context, error, stackTrace) => const Center(
+                    child: Icon(Icons.broken_image, color: Colors.grey),
+                  ),
+                ),
               )
             : Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -264,6 +311,42 @@ class _EditDocumentScreenState extends State<EditDocumentScreen> {
                 ],
               ),
       ),
+    );
+  }
+
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<void> _showPermissionDialog(String permissionName) async {
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Permission Required'),
+          content: Text(
+            '$permissionName permission is required to continue. You can enable it from app settings.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+                await openAppSettings();
+              },
+              child: const Text('Open Settings'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

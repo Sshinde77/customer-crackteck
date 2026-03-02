@@ -35,15 +35,18 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       context.read<BannerProvider>().fetchBanners().then((_) {
+        if (!mounted) return;
         _startAutoSlide();
       });
-      context.read<QuickServiceProvider>().fetchQuickServices();
+      context.read<QuickServiceProvider>().fetchHomeQuickServices();
       _fetchProductCategories();
     });
   }
 
   Future<void> _fetchProductCategories() async {
+    if (!mounted) return;
     setState(() {
       _isLoadingCategories = true;
       _categoryError = null;
@@ -51,6 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       final response = await ApiService.instance.getProductCategories(roleId: 4);
+      if (!mounted) return;
       if (response.success && response.data != null) {
         setState(() {
           _categories = response.data!;
@@ -62,7 +66,8 @@ class _HomeScreenState extends State<HomeScreen> {
           _isLoadingCategories = false;
         });
       }
-    } catch (e) {
+    } catch (_) {
+      if (!mounted) return;
       setState(() {
         _categoryError = 'An unexpected error occurred';
         _isLoadingCategories = false;
@@ -115,35 +120,76 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
 
                     /// 🔹 QUICK SERVICE
-                    _sectionTitle('Quick Service'),
-                    SizedBox(
-                      height: 250,
-                      child: Consumer<QuickServiceProvider>(
-                        builder: (context, provider, child) {
-                          if (provider.isLoading) {
-                            return const Center(child: CircularProgressIndicator());
-                          }
-
-                          if (provider.quickServices.isEmpty) {
-                            return const Center(child: Text('No quick services available'));
-                          }
-
-                          return ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: provider.quickServices.length,
-                            itemBuilder: (context, index) {
-                              final service = provider.quickServices[index];
-                              return _QuickServiceCard(
-                                title: service.serviceName ?? 'N/A',
-                                // Using generic assets since API doesn't provide images
-                                image: index % 2 == 0 ? 'assests/computer.png' : 'assests/laptop.png',
-                                serviceData: service,
-                              );
-                            },
+                    Consumer<QuickServiceProvider>(
+                      builder: (context, provider, child) {
+                        if (provider.isHomeLoading) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _sectionTitle('Quick Service'),
+                              SizedBox(
+                                height: 160,
+                                child: Center(child: CircularProgressIndicator()),
+                              ),
+                            ],
                           );
-                        },
-                      ),
+                        }
+
+                        if (provider.fixedQuickService == null) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _sectionTitle('Quick Service'),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                child: Text(
+                                  provider.homeErrorMessage ?? 'No quick services available',
+                                  style: const TextStyle(color: Colors.red),
+                                ),
+                              ),
+                            ],
+                          );
+                        }
+
+                        final fixedQuickService = provider.fixedQuickService!;
+                        final otherServices = provider.otherHomeQuickServices;
+                        final quickServicesForHome = <QuickService>[
+                          fixedQuickService,
+                          ...otherServices,
+                        ];
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _sectionTitle('Quick Service'),
+                            SizedBox(
+                              height: 250,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                itemCount: quickServicesForHome.length,
+                                itemBuilder: (context, index) {
+                                  final service = quickServicesForHome[index];
+                                  final isFixed = index == 0;
+                                  final imagePath =
+                                      isFixed ? 'assests/computer.png' : 'assests/laptop.png';
+
+                                  return _QuickServiceCard(
+                                    title: service.serviceName ?? 'N/A',
+                                    image: imagePath,
+                                    serviceData: service,
+                                    onTap: () => _openQuickServiceDetails(
+                                      service,
+                                      imagePath: imagePath,
+                                      updateSelection: !isFixed,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
 
                     /// 🔹 QUICK ADD
@@ -346,6 +392,26 @@ class _HomeScreenState extends State<HomeScreen> {
     return visible;
   }
 
+  void _openQuickServiceDetails(
+    QuickService service, {
+    required String imagePath,
+    bool updateSelection = false,
+  }) {
+    if (updateSelection) {
+      context.read<QuickServiceProvider>().setSelectedServiceForNavigation(service);
+    }
+
+    Navigator.pushNamed(
+      context,
+      AppRoutes.quickServiceDetails,
+      arguments: {
+        'title': service.serviceName ?? 'N/A',
+        'image': imagePath,
+        'serviceData': service,
+      },
+    );
+  }
+
   Widget _header() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -498,31 +564,38 @@ class _QuickServiceCard extends StatelessWidget {
   final String title;
   final String image;
   final QuickService? serviceData;
+  final double width;
+  final EdgeInsetsGeometry margin;
+  final VoidCallback? onTap;
 
   const _QuickServiceCard({
     required this.title,
     required this.image,
     this.serviceData,
+    this.width = 180,
+    this.margin = const EdgeInsets.only(right: 16),
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {
-        Navigator.pushNamed(
-          context,
-          AppRoutes.quickServiceDetails,
-          arguments: {
-            'title': title,
-            'image': image,
-            'serviceData': serviceData,
+      onTap: onTap ??
+          () {
+            Navigator.pushNamed(
+              context,
+              AppRoutes.quickServiceDetails,
+              arguments: {
+                'title': title,
+                'image': image,
+                'serviceData': serviceData,
+              },
+            );
           },
-        );
-      },
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        width: 180,
-        margin: const EdgeInsets.only(right: 16),
+        width: width,
+        margin: margin,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.grey.shade200),
@@ -561,7 +634,7 @@ class _QuickServiceCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    serviceData?.diagnosisList?.join(', ') ?? 'Visit charge of Rs 159 waived in final bill; spare part/repair cost extra.',
+                    serviceData?.diagnosisList?.join(', ') ?? 'No diagnosis available',
                     style: TextStyle(
                       color: Colors.grey.shade600,
                       fontSize: 10,

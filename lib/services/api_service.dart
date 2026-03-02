@@ -38,7 +38,7 @@ class ApiService {
     if (_looksLikeHtml(trimmed)) {
       debugPrint(
         '🔴 HTML response detected instead of JSON. Body preview: '
-            '${trimmed.length > 120 ? trimmed.substring(0, 120) : trimmed}',
+        '${trimmed.length > 120 ? trimmed.substring(0, 120) : trimmed}',
       );
       return {
         'message': 'Server returned HTML instead of JSON',
@@ -71,9 +71,9 @@ class ApiService {
   // Helper: token persistence
   // ---------------------------
   Future<void> _persistTokensFromData(
-      dynamic data, {
-        required int roleId,
-      }) async {
+    dynamic data, {
+    required int roleId,
+  }) async {
     if (data == null) {
       return;
     }
@@ -157,10 +157,10 @@ class ApiService {
 
       final response = await http
           .post(
-        Uri.parse(ApiConstants.login),
-        headers: _headers,
-        body: jsonEncode({'role_id': roleId, 'phone_number': phoneNumber}),
-      )
+            Uri.parse(ApiConstants.login),
+            headers: _headers,
+            body: jsonEncode({'role_id': roleId, 'phone_number': phoneNumber}),
+          )
           .timeout(ApiConstants.requestTimeout);
 
       debugPrint('🟡 API Response Status: ${response.statusCode}');
@@ -194,7 +194,7 @@ class ApiService {
       return ApiResponse(
         success: false,
         message:
-        jsonResponse['message'] ??
+            jsonResponse['message'] ??
             (isHtml
                 ? 'Server returned HTML instead of JSON'
                 : 'Server error: ${response.statusCode}'),
@@ -241,14 +241,14 @@ class ApiService {
 
       final response = await http
           .post(
-        Uri.parse(ApiConstants.verifyOtp),
-        headers: _headers,
-        body: jsonEncode({
-          'role_id': roleId,
-          'phone_number': phoneNumber,
-          'otp': otp,
-        }),
-      )
+            Uri.parse(ApiConstants.verifyOtp),
+            headers: _headers,
+            body: jsonEncode({
+              'role_id': roleId,
+              'phone_number': phoneNumber,
+              'otp': otp,
+            }),
+          )
           .timeout(ApiConstants.requestTimeout);
 
       debugPrint('🟡 API Response Status: ${response.statusCode}');
@@ -284,7 +284,7 @@ class ApiService {
       return ApiResponse(
         success: false,
         message:
-        jsonResponse['message'] ??
+            jsonResponse['message'] ??
             (isHtml
                 ? 'Server returned HTML instead of JSON'
                 : 'Server error: ${response.statusCode}'),
@@ -342,11 +342,11 @@ class ApiService {
 
       final response = await http
           .post(
-        uri,
-        headers: headers,
-        // Keep body for backward compatibility; backend primarily reads query.
-        body: jsonEncode({'role_id': roleId}),
-      )
+            uri,
+            headers: headers,
+            // Keep body for backward compatibility; backend primarily reads query.
+            body: jsonEncode({'role_id': roleId}),
+          )
           .timeout(ApiConstants.requestTimeout);
 
       debugPrint('🟡 API Response Status: ${response.statusCode}');
@@ -370,7 +370,7 @@ class ApiService {
       return ApiResponse(
         success: false,
         message:
-        jsonResponse['message'] ??
+            jsonResponse['message'] ??
             (isHtml
                 ? 'Server returned HTML instead of JSON'
                 : 'Token refresh failed'),
@@ -396,18 +396,21 @@ class ApiService {
   }
 
   /// Signup / Register
-  Future<ApiResponse> signup({
-    required Map<String, String> fields,
-  }) async {
+  Future<ApiResponse> signup({required Map<String, String> fields}) async {
     try {
       debugPrint('🔵 API Request: POST ${ApiConstants.signup}');
       debugPrint('🔵 Request Fields: $fields');
 
-      final request = http.MultipartRequest('POST', Uri.parse(ApiConstants.signup));
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse(ApiConstants.signup),
+      );
       request.headers.addAll({'Accept': 'application/json'});
       request.fields.addAll(fields);
 
-      final streamedResponse = await request.send().timeout(ApiConstants.requestTimeout);
+      final streamedResponse = await request.send().timeout(
+        ApiConstants.requestTimeout,
+      );
       final response = await http.Response.fromStream(streamedResponse);
 
       debugPrint('🟡 API Response Status: ${response.statusCode}');
@@ -416,7 +419,8 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         return ApiResponse(
           success: jsonResponse['success'] ?? true,
           message: jsonResponse['message'] ?? 'Signup successful',
@@ -427,7 +431,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Signup failed'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Signup failed'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -475,7 +481,8 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         return ApiResponse(
           success: jsonResponse['success'] ?? true,
           message: jsonResponse['message'] ?? 'Logged out',
@@ -486,7 +493,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Logout failed'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Logout failed'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -505,25 +514,28 @@ class ApiService {
 
   Future<ApiResponse<ProductModel>> getProducts({required int roleId}) async {
     try {
-      debugPrint('🔵 API Request: GET ${ApiConstants.productlist}?role_id=$roleId');
-      
-      final url = Uri.parse(ApiConstants.productlist).replace(
-        queryParameters: {'role_id': roleId.toString()},
+      debugPrint(
+        '🔵 API Request: GET ${ApiConstants.productlist}?role_id=$roleId',
       );
-      
+
+      final url = Uri.parse(
+        ApiConstants.productlist,
+      ).replace(queryParameters: {'role_id': roleId.toString()});
+
       final response = await _performAuthenticatedGet(url);
-      
+
       debugPrint('🟡 API Response Status: ${response.statusCode}');
       debugPrint('🟡 API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         final Map<String, dynamic> payload =
             jsonResponse['data'] is Map<String, dynamic>
-                ? jsonResponse['data'] as Map<String, dynamic>
-                : jsonResponse;
+            ? jsonResponse['data'] as Map<String, dynamic>
+            : jsonResponse;
         return ApiResponse<ProductModel>(
           success: true,
           message: 'Products fetched successfully',
@@ -533,7 +545,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to fetch products'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch products'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -555,23 +569,26 @@ class ApiService {
     required int roleId,
   }) async {
     try {
-      final url = Uri.parse('${ApiConstants.productdetail}/$productId').replace(
-        queryParameters: {'role_id': roleId.toString()},
-      );
+      final url = Uri.parse(
+        '${ApiConstants.productdetail}/$productId',
+      ).replace(queryParameters: {'role_id': roleId.toString()});
 
       final response = await _performAuthenticatedGet(url);
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         final Map<String, dynamic> payload =
             jsonResponse['data'] is Map<String, dynamic>
-                ? jsonResponse['data'] as Map<String, dynamic>
-                : jsonResponse;
+            ? jsonResponse['data'] as Map<String, dynamic>
+            : jsonResponse;
 
         // API can return {"product": {...}} (and sometimes wrapped in {"data": {...}}).
         final Map<String, dynamic> productJson =
-            payload['product'] is Map<String, dynamic> ? payload['product'] as Map<String, dynamic> : payload;
+            payload['product'] is Map<String, dynamic>
+            ? payload['product'] as Map<String, dynamic>
+            : payload;
 
         return ApiResponse<ProductData>(
           success: true,
@@ -582,7 +599,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to fetch product'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch product'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -629,7 +648,8 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         return ApiResponse(
           success: jsonResponse['success'] ?? true,
           message: jsonResponse['message'] ?? 'Product purchased successfully',
@@ -640,7 +660,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to buy product'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to buy product'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -681,12 +703,15 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         final dynamic dataRoot = jsonResponse['data'];
-        final Map<String, dynamic> payload =
-            dataRoot is Map<String, dynamic> ? dataRoot : jsonResponse;
+        final Map<String, dynamic> payload = dataRoot is Map<String, dynamic>
+            ? dataRoot
+            : jsonResponse;
 
-        dynamic listNode = payload['service_requests'] ??
+        dynamic listNode =
+            payload['service_requests'] ??
             payload['serviceRequests'] ??
             payload['requests'] ??
             payload['service_request'] ??
@@ -702,21 +727,31 @@ class ApiService {
 
         final items = listNode is List
             ? listNode
-                .whereType<Map>()
-                .map((e) => ServiceRequestListItem.fromJson(Map<String, dynamic>.from(e)))
-                .toList()
+                  .whereType<Map>()
+                  .map(
+                    (e) => ServiceRequestListItem.fromJson(
+                      Map<String, dynamic>.from(e),
+                    ),
+                  )
+                  .toList()
             : <ServiceRequestListItem>[];
 
         return ApiResponse<List<ServiceRequestListItem>>(
           success: jsonResponse['success'] ?? true,
-          message: jsonResponse['message'] ?? 'Service requests fetched successfully',
+          message:
+              jsonResponse['message'] ??
+              'Service requests fetched successfully',
           data: items,
         );
       }
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to fetch service requests'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml
+                ? 'Server returned HTML'
+                : 'Failed to fetch service requests'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -739,14 +774,15 @@ class ApiService {
     required int customerId,
   }) async {
     try {
-      final url = Uri.parse(
-        '${ApiConstants.service_request_details}/$requestId',
-      ).replace(
-        queryParameters: {
-          'role_id': roleId.toString(),
-          'customer_id': customerId.toString(),
-        },
-      );
+      final url =
+          Uri.parse(
+            '${ApiConstants.service_request_details}/$requestId',
+          ).replace(
+            queryParameters: {
+              'role_id': roleId.toString(),
+              'customer_id': customerId.toString(),
+            },
+          );
 
       debugPrint('API Request: GET $url');
 
@@ -758,12 +794,15 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         final dynamic dataRoot = jsonResponse['data'];
-        final Map<String, dynamic> payload =
-            dataRoot is Map<String, dynamic> ? dataRoot : jsonResponse;
+        final Map<String, dynamic> payload = dataRoot is Map<String, dynamic>
+            ? dataRoot
+            : jsonResponse;
 
-        final dynamic detailNode = payload['service_request'] ??
+        final dynamic detailNode =
+            payload['service_request'] ??
             payload['serviceRequest'] ??
             payload['request'] ??
             payload['details'] ??
@@ -774,12 +813,14 @@ class ApiService {
         final Map<String, dynamic> details = detailNode is Map<String, dynamic>
             ? detailNode
             : detailNode is Map
-                ? Map<String, dynamic>.from(detailNode)
-                : payload;
+            ? Map<String, dynamic>.from(detailNode)
+            : payload;
 
         return ApiResponse<Map<String, dynamic>>(
           success: jsonResponse['success'] ?? true,
-          message: jsonResponse['message'] ?? 'Service request details fetched successfully',
+          message:
+              jsonResponse['message'] ??
+              'Service request details fetched successfully',
           data: details,
           errors: jsonResponse['errors'],
         );
@@ -787,8 +828,11 @@ class ApiService {
 
       return ApiResponse<Map<String, dynamic>>(
         success: false,
-        message: jsonResponse['message'] ??
-            (isHtml ? 'Server returned HTML' : 'Failed to fetch service request details'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml
+                ? 'Server returned HTML'
+                : 'Failed to fetch service request details'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -801,21 +845,23 @@ class ApiService {
     }
   }
 
-  Future<ApiResponse<List<Map<String, dynamic>>>> getServiceRequestProductDiagnostics({
+  Future<ApiResponse<Map<String, dynamic>>>
+  getServiceRequestProductDiagnostics({
     required int requestId,
     required int serviceProductId,
     required int roleId,
     required int customerId,
   }) async {
     try {
-      final url = Uri.parse(
-        '${ApiConstants.service_request_product_diagnostics}/$requestId/$serviceProductId',
-      ).replace(
-        queryParameters: {
-          'role_id': roleId.toString(),
-          'customer_id': customerId.toString(),
-        },
-      );
+      final url =
+          Uri.parse(
+            '${ApiConstants.service_request_product_diagnostics}/$requestId/$serviceProductId',
+          ).replace(
+            queryParameters: {
+              'role_id': roleId.toString(),
+              'customer_id': customerId.toString(),
+            },
+          );
 
       debugPrint('API Request: GET $url');
 
@@ -827,42 +873,48 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         final dynamic dataRoot = jsonResponse['data'];
-        final Map<String, dynamic> payload =
-            dataRoot is Map<String, dynamic> ? dataRoot : jsonResponse;
+        Map<String, dynamic> payload;
 
-        dynamic listNode = payload['product_diagnostics'] ??
-            payload['productDiagnostics'] ??
+        if (dataRoot is Map<String, dynamic>) {
+          payload = Map<String, dynamic>.from(dataRoot);
+        } else if (dataRoot is Map) {
+          payload = Map<String, dynamic>.from(dataRoot);
+        } else if (dataRoot is List) {
+          payload = <String, dynamic>{'diagnoses': dataRoot};
+        } else {
+          payload = Map<String, dynamic>.from(jsonResponse);
+        }
+
+        final dynamic normalizedDiagnoses =
+            payload['diagnoses'] ??
+            payload['diagnosis_list'] ??
             payload['diagnostics'] ??
-            payload['items'];
+            payload['product_diagnostics'];
 
-        if (listNode == null && payload['data'] is List) {
-          listNode = payload['data'];
-        }
-        if (listNode == null && dataRoot is List) {
-          listNode = dataRoot;
-        }
+        payload['diagnoses'] = normalizedDiagnoses is List
+            ? normalizedDiagnoses
+            : <dynamic>[];
 
-        final items = listNode is List
-            ? listNode
-                .whereType<Map>()
-                .map((e) => Map<String, dynamic>.from(e))
-                .toList()
-            : <Map<String, dynamic>>[];
-
-        return ApiResponse<List<Map<String, dynamic>>>(
+        return ApiResponse<Map<String, dynamic>>(
           success: jsonResponse['success'] ?? true,
-          message: jsonResponse['message'] ?? 'Product diagnostics fetched successfully',
-          data: items,
+          message:
+              jsonResponse['message'] ??
+              'Product diagnostics fetched successfully',
+          data: payload,
           errors: jsonResponse['errors'],
         );
       }
 
-      return ApiResponse<List<Map<String, dynamic>>>(
+      return ApiResponse<Map<String, dynamic>>(
         success: false,
-        message: jsonResponse['message'] ??
-            (isHtml ? 'Server returned HTML' : 'Failed to fetch product diagnostics'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml
+                ? 'Server returned HTML'
+                : 'Failed to fetch product diagnostics'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -871,6 +923,87 @@ class ApiService {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
       debugPrint('Unexpected Error in getServiceRequestProductDiagnostics: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> submitServiceRequestPartApproval({
+    required int requestId,
+    required int roleId,
+    required int customerId,
+    required String action,
+    int? partId,
+    required int productId,
+  }) async {
+    try {
+      final queryParameters = <String, String>{
+        'role_id': roleId.toString(),
+        'customer_id': customerId.toString(),
+        'service_request_id': requestId.toString(),
+        'product_id': productId.toString(),
+        'action': action,
+      };
+
+      if (partId != null) {
+        queryParameters['part_id'] = partId.toString();
+      }
+
+      final body = <String, dynamic>{
+        'role_id': roleId,
+        'customer_id': customerId,
+        'service_request_id': requestId,
+        'product_id': productId,
+        'action': action,
+      };
+
+      if (partId != null) {
+        body['part_id'] = partId;
+      }
+
+      final url = Uri.parse(
+        ApiConstants.service_request_approval,
+      ).replace(queryParameters: queryParameters);
+
+      debugPrint('API Request: POST $url');
+      debugPrint('API Request Body: $body');
+
+      final response = await _performAuthenticatedPost(url, body: body);
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final dynamic data = jsonResponse['data'];
+        return ApiResponse<Map<String, dynamic>>(
+          success: jsonResponse['success'] ?? true,
+          message:
+              jsonResponse['message'] ?? 'Part status updated successfully',
+          data: data is Map<String, dynamic>
+              ? data
+              : (data is Map
+                    ? Map<String, dynamic>.from(data)
+                    : <String, dynamic>{}),
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to update part status'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in submitServiceRequestPartApproval: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -903,10 +1036,12 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         final dynamic dataRoot = jsonResponse['data'];
-        final Map<String, dynamic> payload =
-            dataRoot is Map<String, dynamic> ? dataRoot : jsonResponse;
+        final Map<String, dynamic> payload = dataRoot is Map<String, dynamic>
+            ? dataRoot
+            : jsonResponse;
 
         dynamic ordersNode = payload['orders'];
         if (ordersNode == null && payload['data'] is Map<String, dynamic>) {
@@ -918,9 +1053,9 @@ class ApiService {
 
         final orders = ordersNode is List
             ? ordersNode
-                .whereType<Map>()
-                .map((e) => OrderModel.fromJson(Map<String, dynamic>.from(e)))
-                .toList()
+                  .whereType<Map>()
+                  .map((e) => OrderModel.fromJson(Map<String, dynamic>.from(e)))
+                  .toList()
             : <OrderModel>[];
 
         return ApiResponse<List<OrderModel>>(
@@ -933,7 +1068,8 @@ class ApiService {
 
       return ApiResponse<List<OrderModel>>(
         success: false,
-        message: jsonResponse['message'] ??
+        message:
+            jsonResponse['message'] ??
             (isHtml ? 'Server returned HTML' : 'Failed to fetch orders'),
         errors: jsonResponse['errors'],
       );
@@ -968,9 +1104,9 @@ class ApiService {
 
       final orders = response.data ?? <OrderModel>[];
       final OrderModel? selectedOrder = orders.cast<OrderModel?>().firstWhere(
-            (order) => order?.id == orderId,
-            orElse: () => null,
-          );
+        (order) => order?.id == orderId,
+        orElse: () => null,
+      );
 
       if (selectedOrder == null) {
         return ApiResponse<OrderModel>(
@@ -994,13 +1130,17 @@ class ApiService {
   // Product Categories API
   // ========================================
 
-  Future<ApiResponse<List<ProductCategory>>> getProductCategories({required int roleId}) async {
+  Future<ApiResponse<List<ProductCategory>>> getProductCategories({
+    required int roleId,
+  }) async {
     try {
-      debugPrint('ðŸ”µ API Request: GET ${ApiConstants.product_category}?role_id=$roleId');
-
-      final url = Uri.parse(ApiConstants.product_category).replace(
-        queryParameters: {'role_id': roleId.toString()},
+      debugPrint(
+        'ðŸ”µ API Request: GET ${ApiConstants.product_category}?role_id=$roleId',
       );
+
+      final url = Uri.parse(
+        ApiConstants.product_category,
+      ).replace(queryParameters: {'role_id': roleId.toString()});
 
       final response = await _performAuthenticatedGet(url);
 
@@ -1010,11 +1150,12 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         final Map<String, dynamic> payload =
             jsonResponse['data'] is Map<String, dynamic>
-                ? jsonResponse['data'] as Map<String, dynamic>
-                : jsonResponse;
+            ? jsonResponse['data'] as Map<String, dynamic>
+            : jsonResponse;
         final categories = ProductCategoryResponse.fromJson(payload).categories;
         return ApiResponse<List<ProductCategory>>(
           success: true,
@@ -1025,7 +1166,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to fetch categories'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch categories'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -1042,9 +1185,14 @@ class ApiService {
   // Profile API
   // ========================================
 
-  Future<ApiResponse<UserModel>> getProfile({required int userId, required int roleId}) async {
+  Future<ApiResponse<UserModel>> getProfile({
+    required int userId,
+    required int roleId,
+  }) async {
     try {
-      debugPrint('🔵 API Request: GET ${ApiConstants.profile}?user_id=$userId&role_id=$roleId');
+      debugPrint(
+        '🔵 API Request: GET ${ApiConstants.profile}?user_id=$userId&role_id=$roleId',
+      );
 
       final url = Uri.parse(ApiConstants.profile).replace(
         queryParameters: {
@@ -1061,7 +1209,8 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         return ApiResponse<UserModel>(
           success: true,
           message: 'Profile fetched successfully',
@@ -1071,7 +1220,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to fetch profile'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch profile'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -1117,7 +1268,8 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         return ApiResponse(
           success: jsonResponse['success'] ?? true,
           message: jsonResponse['message'] ?? 'Profile updated successfully',
@@ -1127,7 +1279,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to update profile'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to update profile'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -1144,9 +1298,14 @@ class ApiService {
   // Address API
   // ========================================
 
-  Future<ApiResponse<List<AddressModel>>> getAddresses({required int userId, required int roleId}) async {
+  Future<ApiResponse<List<AddressModel>>> getAddresses({
+    required int userId,
+    required int roleId,
+  }) async {
     try {
-      debugPrint('🔵 API Request: GET ${ApiConstants.addresses}?user_id=$userId&role_id=$roleId');
+      debugPrint(
+        '🔵 API Request: GET ${ApiConstants.addresses}?user_id=$userId&role_id=$roleId',
+      );
 
       final url = Uri.parse(ApiConstants.addresses).replace(
         queryParameters: {
@@ -1163,7 +1322,8 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         final List<dynamic> addressList = jsonResponse['addresses'] ?? [];
         return ApiResponse<List<AddressModel>>(
           success: true,
@@ -1174,7 +1334,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to fetch addresses'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch addresses'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -1201,7 +1363,7 @@ class ApiService {
   }) async {
     try {
       debugPrint('🔵 API Request: POST ${ApiConstants.address}');
-      
+
       final url = Uri.parse(ApiConstants.address).replace(
         queryParameters: {
           'user_id': userId.toString(),
@@ -1226,7 +1388,8 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         return ApiResponse<AddressModel>(
           success: true,
           message: jsonResponse['message'] ?? 'Address stored successfully',
@@ -1236,7 +1399,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to store address'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to store address'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -1291,7 +1456,8 @@ class ApiService {
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
-      if (!isHtml && (response.statusCode == 200 || response.statusCode == 201)) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
         return ApiResponse(
           success: jsonResponse['success'] ?? true,
           message: jsonResponse['message'] ?? 'Address updated successfully',
@@ -1301,7 +1467,9 @@ class ApiService {
 
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? (isHtml ? 'Server returned HTML' : 'Failed to update address'),
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to update address'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -1318,7 +1486,10 @@ class ApiService {
   // Document API
   // ========================================
 
-  Future<ApiResponse<AadharCard>> getAadharDetails({required int userId, required int roleId}) async {
+  Future<ApiResponse<AadharCard>> getAadharDetails({
+    required int userId,
+    required int roleId,
+  }) async {
     try {
       final url = Uri.parse(ApiConstants.aadharCard).replace(
         queryParameters: {
@@ -1337,13 +1508,19 @@ class ApiService {
           data: AadharCardResponse.fromJson(jsonResponse).aadharCard,
         );
       }
-      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to fetch Aadhar');
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to fetch Aadhar',
+      );
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
     }
   }
 
-  Future<ApiResponse<PanCard>> getPanDetails({required int userId, required int roleId}) async {
+  Future<ApiResponse<PanCard>> getPanDetails({
+    required int userId,
+    required int roleId,
+  }) async {
     try {
       final url = Uri.parse(ApiConstants.panCard).replace(
         queryParameters: {
@@ -1362,7 +1539,10 @@ class ApiService {
           data: PanCardResponse.fromJson(jsonResponse).panCard,
         );
       }
-      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to fetch PAN');
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to fetch PAN',
+      );
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
     }
@@ -1395,26 +1575,41 @@ class ApiService {
       request.fields['user_id'] = userId.toString();
       request.fields['role_id'] = roleId.toString();
       request.fields['aadhar_number'] = aadharNumber;
-      
+
       if (documentId != null) {
         request.fields['_method'] = 'PUT';
       }
 
       if (frontImage != null) {
-        request.files.add(await http.MultipartFile.fromPath('aadhar_front_path', frontImage.path));
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'aadhar_front_path',
+            frontImage.path,
+          ),
+        );
       }
       if (backImage != null) {
-        request.files.add(await http.MultipartFile.fromPath('aadhar_back_path', backImage.path));
+        request.files.add(
+          await http.MultipartFile.fromPath('aadhar_back_path', backImage.path),
+        );
       }
 
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 60),
+      );
       final response = await http.Response.fromStream(streamedResponse);
       final jsonResponse = _safeJsonDecode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResponse(success: true, message: jsonResponse['message'] ?? 'Aadhar saved');
+        return ApiResponse(
+          success: true,
+          message: jsonResponse['message'] ?? 'Aadhar saved',
+        );
       }
-      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to save Aadhar');
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to save Aadhar',
+      );
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
     }
@@ -1447,26 +1642,44 @@ class ApiService {
       request.fields['user_id'] = userId.toString();
       request.fields['role_id'] = roleId.toString();
       request.fields['pan_number'] = panNumber;
-      
+
       if (documentId != null) {
         request.fields['_method'] = 'PUT';
       }
 
       if (frontImage != null) {
-        request.files.add(await http.MultipartFile.fromPath('pan_card_front_path', frontImage.path));
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'pan_card_front_path',
+            frontImage.path,
+          ),
+        );
       }
       if (backImage != null) {
-        request.files.add(await http.MultipartFile.fromPath('pan_card_back_path', backImage.path));
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'pan_card_back_path',
+            backImage.path,
+          ),
+        );
       }
 
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 60),
+      );
       final response = await http.Response.fromStream(streamedResponse);
       final jsonResponse = _safeJsonDecode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResponse(success: true, message: jsonResponse['message'] ?? 'PAN saved');
+        return ApiResponse(
+          success: true,
+          message: jsonResponse['message'] ?? 'PAN saved',
+        );
       }
-      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to save PAN');
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to save PAN',
+      );
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
     }
@@ -1476,7 +1689,10 @@ class ApiService {
   // Company API
   // ========================================
 
-  Future<ApiResponse<CompanyDetails>> getCompanyDetails({required int userId, required int roleId}) async {
+  Future<ApiResponse<CompanyDetails>> getCompanyDetails({
+    required int userId,
+    required int roleId,
+  }) async {
     try {
       final url = Uri.parse(ApiConstants.company).replace(
         queryParameters: {
@@ -1495,7 +1711,10 @@ class ApiService {
           data: CompanyDetailsResponse.fromJson(jsonResponse).companyDetails,
         );
       }
-      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to fetch company details');
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to fetch company details',
+      );
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
     }
@@ -1531,13 +1750,13 @@ class ApiService {
             'gst_no': gstNo,
           },
         );
-        
+
         final response = await _performAuthenticatedPutRequest(url);
         final jsonResponse = _safeJsonDecode(response.body);
 
         if (response.statusCode == 200 || response.statusCode == 201) {
           return ApiResponse(
-            success: true, 
+            success: true,
             message: jsonResponse['message'] ?? 'Company details updated',
             data: jsonResponse['company_details'],
           );
@@ -1563,14 +1782,17 @@ class ApiService {
 
         if (response.statusCode == 200 || response.statusCode == 201) {
           return ApiResponse(
-            success: true, 
+            success: true,
             message: jsonResponse['message'] ?? 'Company details saved',
             data: jsonResponse['company_details'],
           );
         }
       }
-      
-      return ApiResponse(success: false, message: 'Failed to save company details');
+
+      return ApiResponse(
+        success: false,
+        message: 'Failed to save company details',
+      );
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
     }
@@ -1580,13 +1802,13 @@ class ApiService {
   // Banners API
   // ========================================
 
-  Future<ApiResponse<List<BannerModel>>> getBanners({required int roleId}) async {
+  Future<ApiResponse<List<BannerModel>>> getBanners({
+    required int roleId,
+  }) async {
     try {
-      final url = Uri.parse(ApiConstants.banners).replace(
-        queryParameters: {
-          'role_id': roleId.toString(),
-        },
-      );
+      final url = Uri.parse(
+        ApiConstants.banners,
+      ).replace(queryParameters: {'role_id': roleId.toString()});
 
       final response = await _performAuthenticatedGet(url);
       final jsonResponse = _safeJsonDecode(response.body);
@@ -1599,7 +1821,10 @@ class ApiService {
           data: bannerList.map((e) => BannerModel.fromJson(e)).toList(),
         );
       }
-      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to fetch banners');
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to fetch banners',
+      );
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
     }
@@ -1609,13 +1834,13 @@ class ApiService {
   // Quick Services API
   // ========================================
 
-  Future<ApiResponse<List<QuickService>>> getQuickServices({required int roleId}) async {
+  Future<ApiResponse<List<QuickService>>> getQuickServices({
+    required int roleId,
+  }) async {
     try {
-      final url = Uri.parse(ApiConstants.quickservices).replace(
-        queryParameters: {
-          'role_id': roleId.toString(),
-        },
-      );
+      final url = Uri.parse(
+        ApiConstants.quickservices,
+      ).replace(queryParameters: {'role_id': roleId.toString()});
 
       final response = await _performAuthenticatedGet(url);
       final jsonResponse = _safeJsonDecode(response.body);
@@ -1628,7 +1853,10 @@ class ApiService {
           data: serviceList.map((e) => QuickService.fromJson(e)).toList(),
         );
       }
-      return ApiResponse(success: false, message: jsonResponse['message'] ?? 'Failed to fetch quick services');
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ?? 'Failed to fetch quick services',
+      );
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
     }
@@ -1645,7 +1873,7 @@ class ApiService {
   }) async {
     try {
       debugPrint('🔵 API Request: POST ${ApiConstants.submitQuickService}');
-      
+
       final url = Uri.parse(ApiConstants.submitQuickService);
       final request = http.MultipartRequest('POST', url);
       final token = await SecureStorageService.getAccessToken();
@@ -1667,14 +1895,22 @@ class ApiService {
 
       for (int i = 0; i < products.length; i++) {
         final product = products[i];
-        request.fields['products[$i][name]'] = (product['name'] ?? '').toString();
-        request.fields['products[$i][type]'] = (product['type'] ?? '').toString();
-        request.fields['products[$i][model_no]'] = (product['model_no'] ?? '').toString();
-        request.fields['products[$i][sku]'] = (product['sku'] ?? '').toString(); // Optional
-        request.fields['products[$i][hsn]'] = (product['hsn'] ?? '').toString(); // Optional
-        request.fields['products[$i][purchase_date]'] = (product['purchase_date'] ?? '').toString();
-        request.fields['products[$i][brand]'] = (product['brand'] ?? '').toString();
-        request.fields['products[$i][description]'] = (product['description'] ?? '').toString();
+        request.fields['products[$i][name]'] = (product['name'] ?? '')
+            .toString();
+        request.fields['products[$i][type]'] = (product['type'] ?? '')
+            .toString();
+        request.fields['products[$i][model_no]'] = (product['model_no'] ?? '')
+            .toString();
+        request.fields['products[$i][sku]'] = (product['sku'] ?? '')
+            .toString(); // Optional
+        request.fields['products[$i][hsn]'] = (product['hsn'] ?? '')
+            .toString(); // Optional
+        request.fields['products[$i][purchase_date]'] =
+            (product['purchase_date'] ?? '').toString();
+        request.fields['products[$i][brand]'] = (product['brand'] ?? '')
+            .toString();
+        request.fields['products[$i][description]'] =
+            (product['description'] ?? '').toString();
         if (product['service_type_id'] != null) {
           request.fields['products[$i][service_type_id]'] =
               product['service_type_id'].toString();
@@ -1684,10 +1920,12 @@ class ApiService {
         if (product['images'] != null && product['images'] is List<File>) {
           final List<File> images = product['images'];
           for (var img in images) {
-            request.files.add(await http.MultipartFile.fromPath(
-              'products[$i][images][]',
-              img.path,
-            ));
+            request.files.add(
+              await http.MultipartFile.fromPath(
+                'products[$i][images][]',
+                img.path,
+              ),
+            );
           }
         }
       }
@@ -1698,9 +1936,11 @@ class ApiService {
         'Quick Service files: ${request.files.map((f) => '${f.field}:${f.filename}').toList()}',
       );
 
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 60),
+      );
       final response = await http.Response.fromStream(streamedResponse);
-      
+
       debugPrint('🟡 API Response Status: ${response.statusCode}');
       debugPrint('🟡 API Response Body: ${response.body}');
 
@@ -1956,7 +2196,7 @@ class ApiService {
       return ApiResponse(
         success: false,
         message:
-        jsonResponse['message'] ??
+            jsonResponse['message'] ??
             (isHtml ? 'Server returned HTML' : 'Failed to fetch AMC plans'),
         errors: jsonResponse['errors'],
       );
@@ -2002,16 +2242,14 @@ class ApiService {
         return ApiResponse<AmcPlanDetailResponse>(
           success: true,
           message: 'AMC plan details fetched successfully',
-          data: AmcPlanDetailResponse.fromJson(
-            {'data': detailPayload},
-          ),
+          data: AmcPlanDetailResponse.fromJson({'data': detailPayload}),
         );
       }
 
       return ApiResponse(
         success: false,
         message:
-        jsonResponse['message'] ??
+            jsonResponse['message'] ??
             (isHtml
                 ? 'Server returned HTML'
                 : 'Failed to fetch AMC plan details'),
@@ -2052,7 +2290,7 @@ class ApiService {
     if (_looksLikeHtml(response.body)) {
       debugPrint(
         '🔴 HTML login page detected from ${response.request?.url}. '
-            'Treating as unauthorized.',
+        'Treating as unauthorized.',
       );
       return true;
     }
@@ -2119,7 +2357,10 @@ class ApiService {
     }
   }
 
-  static Future<http.Response> _performAuthenticatedPut(Uri url, {required Map<String, dynamic> body}) async {
+  static Future<http.Response> _performAuthenticatedPut(
+    Uri url, {
+    required Map<String, dynamic> body,
+  }) async {
     int retryCount = 0;
     while (true) {
       final accessToken = await SecureStorageService.getAccessToken();
@@ -2187,7 +2428,10 @@ class ApiService {
     }
   }
 
-  static Future<http.Response> _performAuthenticatedPost(Uri url, {required Map<String, dynamic> body}) async {
+  static Future<http.Response> _performAuthenticatedPost(
+    Uri url, {
+    required Map<String, dynamic> body,
+  }) async {
     int retryCount = 0;
     while (true) {
       final accessToken = await SecureStorageService.getAccessToken();
@@ -2221,5 +2465,4 @@ class ApiService {
       // Token refreshed successfully, loop will retry with new token.
     }
   }
-
 }

@@ -13,11 +13,14 @@ class WorkProgressTrackerScreen extends StatefulWidget {
 }
 
 class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
+  static const String _imageBaseUrl = 'https://crackteck.co.in/';
   bool _didReadArgs = false;
   bool _isLoading = true;
   String? _errorMessage;
   Map<String, dynamic> _args = const {};
   List<_DiagnosisGroup> _groups = const [];
+  final Set<String> _completedPartActionKeys = <String>{};
+  String? _activePartActionKey;
 
   @override
   void didChangeDependencies() {
@@ -54,6 +57,27 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
     return null;
   }
 
+  String _pickFirstText(List<dynamic> values, {String fallback = ''}) {
+    for (final value in values) {
+      final text = _toText(value);
+      if (text.isNotEmpty) return text;
+    }
+    return fallback;
+  }
+
+  String _resolveImageUrl(dynamic value) {
+    final raw = _toText(value);
+    if (raw.isEmpty) return '';
+    final normalized = raw.replaceAll('\\', '/');
+    if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+      return normalized;
+    }
+    if (normalized.startsWith('/')) {
+      return '$_imageBaseUrl${normalized.substring(1)}';
+    }
+    return '$_imageBaseUrl$normalized';
+  }
+
   int? _resolveRequestId() {
     final detail = _toMap(_args['serviceDetail']) ?? const <String, dynamic>{};
     return _tryInt(_args['requestId']) ??
@@ -67,16 +91,17 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
     final rawProduct =
         _toMap(_args['serviceProductRaw']) ?? const <String, dynamic>{};
     return _tryInt(_args['serviceProductId']) ??
-        _tryInt(_args['productId']) ??
-        _tryInt(_args['product_id']) ??
+        _tryInt(_args['service_product_id']) ??
+        _tryInt(_args['service_request_product_id']) ??
+        _tryInt(rawProduct['serviceProductId']) ??
         _tryInt(rawProduct['service_product_id']) ??
         _tryInt(rawProduct['service_request_product_id']) ??
         _tryInt(rawProduct['request_product_id']) ??
-        _tryInt(rawProduct['product_id']) ??
         _tryInt(rawProduct['id']);
   }
 
   Future<void> _fetchDiagnostics() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -89,7 +114,7 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
       if (requestId == null || serviceProductId == null) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Request id or product id is missing.';
+          _errorMessage = 'Request id or service product id is missing.';
         });
         return;
       }
@@ -98,6 +123,7 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
       final customerId = await SecureStorageService.getUserId();
 
       if (roleId == null || customerId == null) {
+        if (!mounted) return;
         setState(() {
           _isLoading = false;
           _errorMessage = 'Session expired. Please login again.';
@@ -105,13 +131,13 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
         return;
       }
 
-      final response =
-          await ApiService.instance.getServiceRequestProductDiagnostics(
-        requestId: requestId,
-        serviceProductId: serviceProductId,
-        roleId: roleId,
-        customerId: customerId,
-      );
+      final response = await ApiService.instance
+          .getServiceRequestProductDiagnostics(
+            requestId: requestId,
+            serviceProductId: serviceProductId,
+            roleId: roleId,
+            customerId: customerId,
+          );
 
       if (!mounted) return;
 
@@ -137,46 +163,317 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
     }
   }
 
-  List<_DiagnosisGroup> _parseGroups(List<Map<String, dynamic>> items) {
+  List<_DiagnosisGroup> _parseGroups(Map<String, dynamic> payload) {
     final defaultProductName = _toText(_args['productName']);
-    final groups = <_DiagnosisGroup>[];
+    final root = _toMap(payload['data']) ?? payload;
+    final productMap = _toMap(root['product']) ?? const <String, dynamic>{};
+    final productName = _toText(productMap['name']).isNotEmpty
+        ? _toText(productMap['name'])
+        : (defaultProductName.isNotEmpty ? defaultProductName : 'Product');
+    final productId = _tryInt(productMap['id']) ?? _tryInt(_args['productId']);
 
-    for (final item in items) {
-      final productName = _toText(item['product_name']).isNotEmpty
-          ? _toText(item['product_name'])
-          : (defaultProductName.isNotEmpty ? defaultProductName : 'Product');
+    final diagnosesNode = root['diagnoses'];
+    final diagnosisItems = <_DiagnosisItem>[];
 
-      final diagnosticsNode = item['diagnostics'];
-      final diagnostics = <String>[];
+    if (diagnosesNode is List) {
+      for (final diagnosisEntry in diagnosesNode) {
+        final diagnosisMap = _toMap(diagnosisEntry);
+        if (diagnosisMap == null) continue;
 
-      if (diagnosticsNode is List) {
-        for (final entry in diagnosticsNode) {
-          final text = _toText(entry is Map ? entry['diagnosis'] ?? entry['name'] : entry);
-          if (text.isNotEmpty) diagnostics.add(text);
+        final diagnosisListNode = diagnosisMap['diagnosis_list'];
+        if (diagnosisListNode is List) {
+          for (final rawItem in diagnosisListNode) {
+            final itemMap = _toMap(rawItem);
+            final diagnosisName = _toText(
+              itemMap?['name'] ??
+                  itemMap?['diagnosis'] ??
+                  itemMap?['title'] ??
+                  rawItem,
+            );
+            if (diagnosisName.isNotEmpty) {
+              final isWorking =
+                  _toText(
+                    itemMap?['status'] ??
+                        diagnosisMap['status'] ??
+                        itemMap?['diagnosis_status'] ??
+                        diagnosisMap['diagnosis_status'],
+                  ).toLowerCase() ==
+                  'working';
+              diagnosisItems.add(
+                _DiagnosisItem(
+                  title: diagnosisName,
+                  isWorking: isWorking,
+                  partSection: _resolvePartSection(
+                    diagnosisMap: diagnosisMap,
+                    itemMap: itemMap,
+                    fallbackTitle: diagnosisName,
+                  ),
+                ),
+              );
+            }
+          }
+        } else {
+          final directDiagnosisName = _toText(
+            diagnosisMap['name'] ?? diagnosisMap['diagnosis'],
+          );
+          if (directDiagnosisName.isNotEmpty) {
+            final isWorking =
+                _toText(
+                  diagnosisMap['status'] ?? diagnosisMap['diagnosis_status'],
+                ).toLowerCase() ==
+                'working';
+            diagnosisItems.add(
+              _DiagnosisItem(
+                title: directDiagnosisName,
+                isWorking: isWorking,
+                partSection: _resolvePartSection(
+                  diagnosisMap: diagnosisMap,
+                  itemMap: null,
+                  fallbackTitle: directDiagnosisName,
+                ),
+              ),
+            );
+          }
         }
-      } else {
-        final single = _toText(diagnosticsNode);
-        if (single.isNotEmpty) diagnostics.add(single);
       }
-
-      groups.add(
-        _DiagnosisGroup(
-          productId: _tryInt(item['product_id']),
-          productName: productName,
-          diagnostics: diagnostics,
-        ),
-      );
     }
 
-    if (groups.isNotEmpty) return groups;
+    if (diagnosisItems.isNotEmpty || productMap.isNotEmpty) {
+      return [
+        _DiagnosisGroup(
+          productId: productId,
+          productName: productName,
+          diagnostics: diagnosisItems,
+        ),
+      ];
+    }
 
     return [
       _DiagnosisGroup(
-        productId: _tryInt(_args['productId']),
-        productName: defaultProductName.isEmpty ? 'Product' : defaultProductName,
+        productId: productId,
+        productName: productName,
         diagnostics: const [],
       ),
     ];
+  }
+
+  _DiagnosisPartSection? _resolvePartSection({
+    required Map<String, dynamic> diagnosisMap,
+    required Map<String, dynamic>? itemMap,
+    required String fallbackTitle,
+  }) {
+    final rawStatus = _toText(
+      itemMap?['status'] ??
+          diagnosisMap['status'] ??
+          itemMap?['diagnosis_status'] ??
+          diagnosisMap['diagnosis_status'],
+    ).toLowerCase();
+    final rawPartStatus = _toText(
+      itemMap?['part_status'] ??
+          itemMap?['partStatus'] ??
+          diagnosisMap['part_status'] ??
+          diagnosisMap['partStatus'],
+    ).toLowerCase();
+
+    final isPartFlow =
+        rawStatus == 'stock_in_hand' || rawStatus == 'request_part';
+    final shouldShow =
+        isPartFlow &&
+        (rawPartStatus == 'admin_approved' ||
+            rawPartStatus == 'customer_approved' ||
+            rawPartStatus == 'customer_rejected');
+
+    if (!shouldShow) return null;
+
+    final source = itemMap ?? diagnosisMap;
+    final productData =
+        _toMap(source['product_data']) ?? const <String, dynamic>{};
+    final rawPrice = _pickFirstText([
+      productData['final_price'],
+      source['final_price'],
+      source['part_price'],
+      source['price'],
+      source['amount'],
+      source['selling_price'],
+    ]);
+    final formattedPrice = rawPrice.isEmpty
+        ? ''
+        : (rawPrice.toLowerCase().contains('rs') ||
+              rawPrice.toLowerCase().contains('inr') ||
+              rawPrice.contains('\u20B9'))
+        ? rawPrice
+        : 'Rs $rawPrice';
+
+    return _DiagnosisPartSection(
+      title: _pickFirstText([
+        productData['product_name'],
+        source['product_name'],
+        source['part_name'],
+        source['spare_part_name'],
+        source['part_title'],
+        source['name'],
+        source['title'],
+      ], fallback: fallbackTitle),
+      priceText: formattedPrice,
+      quantityText: _pickFirstText([
+        source['quantity'],
+        source['qty'],
+        source['part_qty'],
+        productData['quantity'],
+        diagnosisMap['quantity'],
+      ], fallback: '1'),
+      imageUrl: _resolveImageUrl(
+        _pickFirstText([
+          productData['main_product_image'],
+          source['main_product_image'],
+          source['part_image'],
+          source['part_image_url'],
+          source['image'],
+          source['image_url'],
+          _args['imageUrl'],
+        ]),
+      ),
+      requestId:
+          _tryInt(source['request_id']) ??
+          _tryInt(source['service_request_id']) ??
+          _resolveRequestId(),
+      serviceProductId:
+          _tryInt(source['service_product_id']) ??
+          _tryInt(source['service_request_product_id']) ??
+          _tryInt(source['request_product_id']) ??
+          _resolveServiceProductId(),
+      diagnosisId:
+          _tryInt(source['diagnosis_id']) ??
+          _tryInt(source['service_diagnosis_id']) ??
+          _tryInt(diagnosisMap['diagnosis_id']) ??
+          _tryInt(diagnosisMap['service_diagnosis_id']) ??
+          _tryInt(itemMap?['id']) ??
+          _tryInt(diagnosisMap['id']),
+      partId:
+          _tryInt(source['part_id']) ??
+          _tryInt(source['spare_part_id']) ??
+          _tryInt(source['warehouse_product_id']),
+      productId:
+          _tryInt(source['product_id']) ??
+          _tryInt(diagnosisMap['product_id']) ??
+          _tryInt(_args['productId']) ??
+          _resolveServiceProductId() ??
+          _tryInt(productData['product_id']) ??
+          _tryInt(productData['id']),
+      canTakeAction: rawPartStatus == 'admin_approved',
+    );
+  }
+
+  String _partActionKey(_DiagnosisPartSection section) {
+    return [
+      section.requestId?.toString() ??
+          _resolveRequestId()?.toString() ??
+          'no_request',
+      section.serviceProductId?.toString() ??
+          _resolveServiceProductId()?.toString() ??
+          'no_service_product',
+      section.diagnosisId?.toString() ?? 'no_diagnosis',
+      section.partId?.toString() ?? 'no_part',
+      section.title.toLowerCase(),
+    ].join('|');
+  }
+
+  Future<void> _submitPartAction({
+    required _DiagnosisPartSection section,
+    required String partStatus,
+  }) async {
+    final key = _partActionKey(section);
+    if (_activePartActionKey != null) return;
+
+    final requestId = section.requestId ?? _resolveRequestId();
+    final serviceProductId =
+        section.serviceProductId ?? _resolveServiceProductId();
+    final productId = section.productId ?? serviceProductId;
+    final partId = section.partId;
+
+    if (requestId == null || serviceProductId == null || productId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Request id or product id is missing.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (partId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Part id is missing.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final roleId = await SecureStorageService.getRoleId();
+    final customerId = await SecureStorageService.getUserId();
+
+    if (roleId == null || customerId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Session expired. Please login again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _activePartActionKey = key;
+    });
+
+    try {
+      final response = await ApiService.instance
+          .submitServiceRequestPartApproval(
+            requestId: requestId,
+            roleId: roleId,
+            customerId: customerId,
+            action: partStatus,
+            partId: partId,
+            productId: productId,
+          );
+
+      if (!mounted) return;
+      setState(() {
+        _activePartActionKey = null;
+        if (response.success) {
+          _completedPartActionKeys.add(key);
+        }
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            response.message ??
+                (response.success
+                    ? 'Part status updated successfully'
+                    : 'Failed to update part status'),
+          ),
+          backgroundColor: response.success ? Colors.green : Colors.red,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _activePartActionKey = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to update part status.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -199,37 +496,37 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          _errorMessage!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.red),
-                        ),
-                        const SizedBox(height: 12),
-                        ElevatedButton(
-                          onPressed: _fetchDiagnostics,
-                          child: const Text('Retry'),
-                        ),
-                      ],
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.red),
                     ),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _fetchDiagnostics,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      _buildExecutiveCard(),
-                      const SizedBox(height: 24),
-                      ..._groups.map(_buildDiagnosisGroup),
-                    ],
-                  ),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _fetchDiagnostics,
+                      child: const Text('Retry'),
+                    ),
+                  ],
                 ),
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _fetchDiagnostics,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _buildExecutiveCard(),
+                  const SizedBox(height: 24),
+                  ..._groups.map(_buildDiagnosisGroup),
+                ],
+              ),
+            ),
     );
   }
 
@@ -243,10 +540,18 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
       ),
       child: Row(
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             radius: 30,
-            backgroundImage: NetworkImage(
-              'https://img.freepik.com/free-photo/young-bearded-man-with-striped-shirt_273609-5677.jpg',
+            backgroundColor: Colors.grey.shade200,
+            child: ClipOval(
+              child: Image.network(
+                'https://img.freepik.com/free-photo/young-bearded-man-with-striped-shirt_273609-5677.jpg',
+                width: 60,
+                height: 60,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) =>
+                    const Icon(Icons.person, color: Colors.grey),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -304,7 +609,7 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
             final index = entry.key;
             final item = entry.value;
             return _buildTimelineItem(
-              title: item,
+              item: item,
               isLast: index == group.diagnostics.length - 1,
             );
           }),
@@ -314,7 +619,7 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
   }
 
   Widget _buildTimelineItem({
-    required String title,
+    required _DiagnosisItem item,
     required bool isLast,
   }) {
     return IntrinsicHeight(
@@ -323,9 +628,9 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
         children: [
           Column(
             children: [
-              const Icon(
-                Icons.check_circle_outline,
-                color: Colors.green,
+              Icon(
+                item.isWorking ? Icons.check_circle_outline : Icons.close,
+                color: item.isWorking ? Colors.green : Colors.red,
                 size: 20,
               ),
               if (!isLast)
@@ -346,7 +651,7 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    title,
+                    item.title,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
@@ -354,6 +659,10 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
                   ),
                   const SizedBox(height: 8),
                   _buildSmallImage(),
+                  if (item.partSection != null) ...[
+                    const SizedBox(height: 10),
+                    _buildPartApprovalSection(item.partSection!),
+                  ],
                 ],
               ),
             ),
@@ -363,8 +672,160 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
     );
   }
 
+  Widget _buildPartApprovalSection(_DiagnosisPartSection section) {
+    final key = _partActionKey(section);
+    final isSubmitting = _activePartActionKey == key;
+    final hasActionCompleted = _completedPartActionKeys.contains(key);
+    final showActionButtons = section.canTakeAction && !hasActionCompleted;
+
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: section.imageUrl.isEmpty
+                    ? const Icon(Icons.image_outlined, color: Colors.grey)
+                    : ClipRRect(
+                        borderRadius: BorderRadius.circular(9),
+                        child: Image.network(
+                          section.imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.broken_image_outlined,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      section.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (section.priceText.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        section.priceText,
+                        style: const TextStyle(
+                          fontSize: 21,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2E7D32),
+                        ),
+                      ),
+                    ],
+                    const Text(
+                      'Incl. Shipping & all Taxes',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Qty: ${section.quantityText}',
+                      style: const TextStyle(
+                        color: Color(0xFF2E7D32),
+                        fontSize: 24,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (showActionButtons) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () => _submitPartAction(
+                          section: section,
+                          partStatus: 'customer_rejected',
+                        ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.grey.shade300),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text(
+                          'Reject',
+                          style: TextStyle(color: Colors.red, fontSize: 24),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () => _submitPartAction(
+                          section: section,
+                          partStatus: 'customer_approved',
+                        ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.grey.shade300),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text(
+                          'Approve',
+                          style: TextStyle(
+                            color: Color(0xFF1B5E20),
+                            fontSize: 24,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _buildSmallImage() {
-    final imageUrl = _toText(_args['imageUrl']);
+    final imageUrl = _resolveImageUrl(_args['imageUrl']);
     return Container(
       width: 56,
       height: 56,
@@ -387,11 +848,49 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
 class _DiagnosisGroup {
   final int? productId;
   final String productName;
-  final List<String> diagnostics;
+  final List<_DiagnosisItem> diagnostics;
 
   const _DiagnosisGroup({
     this.productId,
     required this.productName,
     required this.diagnostics,
+  });
+}
+
+class _DiagnosisItem {
+  final String title;
+  final bool isWorking;
+  final _DiagnosisPartSection? partSection;
+
+  const _DiagnosisItem({
+    required this.title,
+    required this.isWorking,
+    required this.partSection,
+  });
+}
+
+class _DiagnosisPartSection {
+  final String title;
+  final String priceText;
+  final String quantityText;
+  final String imageUrl;
+  final int? requestId;
+  final int? serviceProductId;
+  final int? diagnosisId;
+  final int? partId;
+  final int? productId;
+  final bool canTakeAction;
+
+  const _DiagnosisPartSection({
+    required this.title,
+    required this.priceText,
+    required this.quantityText,
+    required this.imageUrl,
+    this.requestId,
+    this.serviceProductId,
+    this.diagnosisId,
+    this.partId,
+    this.productId,
+    required this.canTakeAction,
   });
 }

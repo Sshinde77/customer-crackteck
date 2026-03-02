@@ -1,5 +1,6 @@
 import 'package:customer_cracktreck/routes/app_routes.dart';
 import 'package:customer_cracktreck/routes/route_generator.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'constants/app_strings.dart';
@@ -12,6 +13,11 @@ import 'provider/amc_plan_provider.dart';
 
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (kReleaseMode) {
+    debugPrint = (String? message, {int? wrapWidth}) {};
+  }
+
   runApp(
     MultiProvider(
       providers: [
