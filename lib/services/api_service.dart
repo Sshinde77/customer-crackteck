@@ -1008,6 +1008,80 @@ class ApiService {
     }
   }
 
+  Future<ApiResponse<Map<String, dynamic>>> submitServiceRequestPickupApproval({
+    required int requestId,
+    required int roleId,
+    required int customerId,
+    required String action,
+    required int productId,
+  }) async {
+    try {
+      final queryParameters = <String, String>{
+        'role_id': roleId.toString(),
+        'customer_id': customerId.toString(),
+        'service_request_id': requestId.toString(),
+        'product_id': productId.toString(),
+        'action': action,
+      };
+
+      final body = <String, dynamic>{
+        'role_id': roleId,
+        'customer_id': customerId,
+        'service_request_id': requestId,
+        'product_id': productId,
+        'action': action,
+      };
+
+      final url = Uri.parse(
+        ApiConstants.service_request_pickup_approval,
+      ).replace(queryParameters: queryParameters);
+
+      debugPrint('API Request: POST $url');
+      debugPrint('API Request Body: $body');
+
+      final response = await _performAuthenticatedPost(url, body: body);
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final dynamic data = jsonResponse['data'];
+        return ApiResponse<Map<String, dynamic>>(
+          success: jsonResponse['success'] ?? true,
+          message:
+              jsonResponse['message'] ?? 'Pickup status updated successfully',
+          data: data is Map<String, dynamic>
+              ? data
+              : (data is Map
+                    ? Map<String, dynamic>.from(data)
+                    : <String, dynamic>{}),
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message:
+            jsonResponse['message'] ??
+            (isHtml
+                ? 'Server returned HTML'
+                : 'Failed to update pickup status'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in submitServiceRequestPickupApproval: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
   // ========================================
   // Order List API
   // ========================================

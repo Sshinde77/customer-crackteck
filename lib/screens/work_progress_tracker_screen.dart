@@ -589,7 +589,7 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
 
     try {
       final response = await ApiService.instance
-          .submitServiceRequestPartApproval(
+          .submitServiceRequestPickupApproval(
             requestId: requestId,
             roleId: roleId,
             customerId: customerId,
