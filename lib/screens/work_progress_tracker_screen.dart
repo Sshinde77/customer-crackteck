@@ -20,7 +20,9 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
   Map<String, dynamic> _args = const {};
   List<_DiagnosisGroup> _groups = const [];
   final Set<String> _completedPartActionKeys = <String>{};
+  final Set<String> _completedPickingActionKeys = <String>{};
   String? _activePartActionKey;
+  String? _activePickingActionKey;
 
   @override
   void didChangeDependencies() {
@@ -208,6 +210,11 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
                     itemMap: itemMap,
                     fallbackTitle: diagnosisName,
                   ),
+                  pickingSection: _resolvePickingSection(
+                    diagnosisMap: diagnosisMap,
+                    itemMap: itemMap,
+                    fallbackTitle: diagnosisName,
+                  ),
                 ),
               );
             }
@@ -227,6 +234,11 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
                 title: directDiagnosisName,
                 isWorking: isWorking,
                 partSection: _resolvePartSection(
+                  diagnosisMap: diagnosisMap,
+                  itemMap: null,
+                  fallbackTitle: directDiagnosisName,
+                ),
+                pickingSection: _resolvePickingSection(
                   diagnosisMap: diagnosisMap,
                   itemMap: null,
                   fallbackTitle: directDiagnosisName,
@@ -364,6 +376,50 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
     );
   }
 
+  _DiagnosisPickingSection? _resolvePickingSection({
+    required Map<String, dynamic> diagnosisMap,
+    required Map<String, dynamic>? itemMap,
+    required String fallbackTitle,
+  }) {
+    final rawStatus = _toText(
+      itemMap?['status'] ??
+          diagnosisMap['status'] ??
+          itemMap?['diagnosis_status'] ??
+          diagnosisMap['diagnosis_status'],
+    ).toLowerCase();
+
+    if (rawStatus != 'picking') return null;
+
+    final source = itemMap ?? diagnosisMap;
+    final productData =
+        _toMap(source['product_data']) ?? const <String, dynamic>{};
+
+    return _DiagnosisPickingSection(
+      title: _pickFirstText([
+        productData['product_name'],
+        source['product_name'],
+        source['name'],
+        source['title'],
+      ], fallback: fallbackTitle),
+      requestId:
+          _tryInt(source['request_id']) ??
+          _tryInt(source['service_request_id']) ??
+          _resolveRequestId(),
+      serviceProductId:
+          _tryInt(source['service_product_id']) ??
+          _tryInt(source['service_request_product_id']) ??
+          _tryInt(source['request_product_id']) ??
+          _resolveServiceProductId(),
+      productId:
+          _tryInt(source['product_id']) ??
+          _tryInt(diagnosisMap['product_id']) ??
+          _tryInt(_args['productId']) ??
+          _resolveServiceProductId() ??
+          _tryInt(productData['product_id']) ??
+          _tryInt(productData['id']),
+    );
+  }
+
   String _partActionKey(_DiagnosisPartSection section) {
     return [
       section.requestId?.toString() ??
@@ -470,6 +526,104 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to update part status.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  String _pickingActionKey(_DiagnosisPickingSection section) {
+    return [
+      section.requestId?.toString() ??
+          _resolveRequestId()?.toString() ??
+          'no_request',
+      section.serviceProductId?.toString() ??
+          _resolveServiceProductId()?.toString() ??
+          'no_service_product',
+      section.productId?.toString() ?? 'no_product',
+      section.title.toLowerCase(),
+    ].join('|');
+  }
+
+  Future<void> _submitPickingAction({
+    required _DiagnosisPickingSection section,
+    required String action,
+  }) async {
+    final key = _pickingActionKey(section);
+    if (_activePickingActionKey != null) return;
+
+    final requestId = section.requestId ?? _resolveRequestId();
+    final serviceProductId =
+        section.serviceProductId ?? _resolveServiceProductId();
+    final productId = section.productId ?? serviceProductId;
+
+    if (requestId == null || serviceProductId == null || productId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Request id or product id is missing.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final roleId = await SecureStorageService.getRoleId();
+    final customerId = await SecureStorageService.getUserId();
+
+    if (roleId == null || customerId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Session expired. Please login again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _activePickingActionKey = key;
+    });
+
+    try {
+      final response = await ApiService.instance
+          .submitServiceRequestPartApproval(
+            requestId: requestId,
+            roleId: roleId,
+            customerId: customerId,
+            action: action,
+            productId: productId,
+          );
+
+      if (!mounted) return;
+      setState(() {
+        _activePickingActionKey = null;
+        if (response.success) {
+          _completedPickingActionKeys.add(key);
+        }
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            response.message ??
+                (response.success
+                    ? 'Product picking status updated successfully'
+                    : 'Failed to update product picking status'),
+          ),
+          backgroundColor: response.success ? Colors.green : Colors.red,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _activePickingActionKey = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to update product picking status.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -659,6 +813,10 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
                   ),
                   const SizedBox(height: 8),
                   _buildSmallImage(),
+                  if (item.pickingSection != null) ...[
+                    const SizedBox(height: 10),
+                    _buildPickingApprovalSection(item.pickingSection!),
+                  ],
                   if (item.partSection != null) ...[
                     const SizedBox(height: 10),
                     _buildPartApprovalSection(item.partSection!),
@@ -666,6 +824,114 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPickingApprovalSection(_DiagnosisPickingSection section) {
+    final key = _pickingActionKey(section);
+    final isSubmitting = _activePickingActionKey == key;
+    final hasActionCompleted = _completedPickingActionKeys.contains(key);
+
+    if (hasActionCompleted) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.green.shade50,
+          border: Border.all(color: Colors.green.shade200),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Text(
+          'Picking decision submitted.',
+          style: TextStyle(
+            color: Color(0xFF1B5E20),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8E1),
+        border: Border.all(color: const Color(0xFFFFE082)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Product Status: Picking',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF5D4037),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () => _submitPickingAction(
+                          section: section,
+                          action: 'customer_rejected',
+                        ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.red.shade200),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text(
+                          'Reject',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () => _submitPickingAction(
+                          section: section,
+                          action: 'customer_approved',
+                        ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Approve',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -860,12 +1126,28 @@ class _DiagnosisGroup {
 class _DiagnosisItem {
   final String title;
   final bool isWorking;
+  final _DiagnosisPickingSection? pickingSection;
   final _DiagnosisPartSection? partSection;
 
   const _DiagnosisItem({
     required this.title,
     required this.isWorking,
+    required this.pickingSection,
     required this.partSection,
+  });
+}
+
+class _DiagnosisPickingSection {
+  final String title;
+  final int? requestId;
+  final int? serviceProductId;
+  final int? productId;
+
+  const _DiagnosisPickingSection({
+    required this.title,
+    this.requestId,
+    this.serviceProductId,
+    this.productId,
   });
 }
 
