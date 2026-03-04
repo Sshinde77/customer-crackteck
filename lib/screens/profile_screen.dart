@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/user_model.dart';
 import '../models/api_response.dart';
+import 'invoice_list_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -208,6 +209,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     'Quotation',
                     onTap: () {
                       Navigator.pushNamed(context, AppRoutes.quotation);
+                    },
+                  ),
+                  _buildProfileOption(
+                    Icons.description_outlined,
+                    'Invoice',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const InvoiceListScreen(),
+                        ),
+                      );
                     },
                   ),
                   _buildProfileOption(

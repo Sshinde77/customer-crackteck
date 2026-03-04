@@ -368,47 +368,8 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
                       ),
                       child: _ProductCard(
                         product: quotation.products[index],
-                        currency: quotation.currency,
                       ),
                     ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            _sectionCard(
-              title: 'Price Summary',
-              icon: Icons.price_check_outlined,
-              child: Column(
-                children: [
-                  _summaryRow(
-                    label: 'Subtotal',
-                    value: _formatMoney(quotation.subtotal, quotation.currency),
-                  ),
-                  const SizedBox(height: 8),
-                  _summaryRow(
-                    label: 'Discount',
-                    value:
-                        '- ${_formatMoney(quotation.discountAmount, quotation.currency)}',
-                    valueColor: Colors.red.shade700,
-                  ),
-                  const SizedBox(height: 8),
-                  _summaryRow(
-                    label: 'Tax',
-                    value: _formatMoney(quotation.taxAmount, quotation.currency),
-                  ),
-                  const SizedBox(height: 10),
-                  const Divider(height: 1),
-                  const SizedBox(height: 10),
-                  _summaryRow(
-                    label: 'Total Amount',
-                    value: _formatMoney(quotation.totalAmount, quotation.currency),
-                    isBold: true,
-                  ),
-                  const SizedBox(height: 8),
-                  _summaryRow(
-                    label: 'Currency',
-                    value: quotation.currency.toUpperCase(),
-                  ),
                 ],
               ),
             ),
@@ -537,35 +498,6 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
     );
   }
 
-  Widget _summaryRow({
-    required String label,
-    required String value,
-    bool isBold = false,
-    Color? valueColor,
-  }) {
-    return Row(
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            color: const Color(0xFF667085),
-            fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
-          ),
-        ),
-        const Spacer(),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 14,
-            color: valueColor ?? const Color(0xFF101828),
-            fontWeight: isBold ? FontWeight.w700 : FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _twoColFields(
     BuildContext context, {
     required List<_InfoFieldData> fields,
@@ -684,11 +616,9 @@ class _InfoField extends StatelessWidget {
 class _ProductCard extends StatelessWidget {
   const _ProductCard({
     required this.product,
-    required this.currency,
   });
 
   final QuotationProductLine product;
-  final String currency;
 
   @override
   Widget build(BuildContext context) {
@@ -724,39 +654,9 @@ class _ProductCard extends StatelessWidget {
               value: product.brand,
             ),
             _InfoFieldData(
-              icon: Icons.category_outlined,
-              label: 'Type',
-              value: product.type,
-            ),
-            _InfoFieldData(
-              icon: Icons.tag_outlined,
-              label: 'HSN',
-              value: product.hsn,
-            ),
-            _InfoFieldData(
               icon: Icons.format_list_numbered_outlined,
               label: 'Quantity',
               value: _formatNumber(product.quantity),
-            ),
-            _InfoFieldData(
-              icon: Icons.price_change_outlined,
-              label: 'Unit Price',
-              value: _formatMoney(product.unitPrice, currency),
-            ),
-            _InfoFieldData(
-              icon: Icons.percent_outlined,
-              label: 'Discount',
-              value: _formatMoney(product.discountPerUnit, currency),
-            ),
-            _InfoFieldData(
-              icon: Icons.account_balance_outlined,
-              label: 'Tax Rate',
-              value: '${_formatNumber(product.taxRate)}%',
-            ),
-            _InfoFieldData(
-              icon: Icons.payments_outlined,
-              label: 'Line Total',
-              value: _formatMoney(product.lineTotal, currency),
             ),
           ];
 

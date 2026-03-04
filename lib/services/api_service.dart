@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -324,7 +324,9 @@ class ApiService {
   }) async {
     try {
       debugPrint('ðŸ”µ API Request: POST ${ApiConstants.refreshToken}');
-      debugPrint('ðŸ”µ Request Query: {"user_id": $userId, "role_id": $roleId}');
+      debugPrint(
+        'ðŸ”µ Request Query: {"user_id": $userId, "role_id": $roleId}',
+      );
 
       final currentAccessToken = await SecureStorageService.getAccessToken();
       final headers = Map<String, String>.from(_headers)
@@ -847,6 +849,304 @@ class ApiService {
     }
   }
 
+  Future<ApiResponse<List<Map<String, dynamic>>>> getInvoiceList({
+    required int roleId,
+    required int userId,
+  }) async {
+    try {
+      final url = Uri.parse(ApiConstants.invoice_list).replace(
+        queryParameters: {
+          'role_id': roleId.toString(),
+          'user_id': userId.toString(),
+        },
+      );
+
+      debugPrint('API Request: GET $url');
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final dynamic dataRoot = jsonResponse['data'];
+        final Map<String, dynamic> payload = dataRoot is Map<String, dynamic>
+            ? dataRoot
+            : jsonResponse;
+
+        dynamic listNode =
+            payload['invoices'] ??
+            payload['invoice_list'] ??
+            payload['quotation_invoices'] ??
+            payload['quotationInvoices'] ??
+            payload['items'];
+
+        if (listNode == null && payload['data'] is List) {
+          listNode = payload['data'];
+        }
+        if (listNode == null && dataRoot is List) {
+          listNode = dataRoot;
+        }
+
+        final items = listNode is List
+            ? listNode
+                  .whereType<Map>()
+                  .map((e) => Map<String, dynamic>.from(e))
+                  .toList()
+            : <Map<String, dynamic>>[];
+
+        return ApiResponse<List<Map<String, dynamic>>>(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Invoices fetched successfully',
+          data: items,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<List<Map<String, dynamic>>>(
+        success: false,
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch invoices'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in getInvoiceList: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> getInvoiceDetail({
+    required int quoteId,
+    required int roleId,
+    required int userId,
+  }) async {
+    try {
+      final url =
+          Uri.parse(
+            _resolveInvoiceEndpoint(ApiConstants.invoice_detail, quoteId),
+          ).replace(
+            queryParameters: {
+              'role_id': roleId.toString(),
+              'user_id': userId.toString(),
+            },
+          );
+
+      debugPrint('API Request: GET $url');
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (isHtml) {
+        return ApiResponse<Map<String, dynamic>>(
+          success: false,
+          message: 'Server returned HTML',
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      final dynamic dataRoot = jsonResponse['data'];
+      final Map<String, dynamic> payload = dataRoot is Map<String, dynamic>
+          ? dataRoot
+          : dataRoot is Map
+          ? Map<String, dynamic>.from(dataRoot)
+          : jsonResponse;
+
+      dynamic detailNode =
+          payload['invoice'] ??
+          payload['invoice_detail'] ??
+          payload['invoice_details'] ??
+          payload['quotation_invoice'] ??
+          payload['quotationInvoice'] ??
+          payload['service_request_invoice'] ??
+          payload['serviceRequestInvoice'] ??
+          payload['data'];
+
+      Map<String, dynamic>? detail;
+
+      if (detailNode is Map<String, dynamic>) {
+        detail = Map<String, dynamic>.from(detailNode);
+      } else if (detailNode is Map) {
+        detail = Map<String, dynamic>.from(detailNode);
+      } else if (detailNode is List &&
+          detailNode.isNotEmpty &&
+          detailNode.first is Map) {
+        detail = Map<String, dynamic>.from(detailNode.first as Map);
+      }
+
+      final bool payloadLooksLikeInvoice =
+          payload.containsKey('invoice_number') ||
+          payload.containsKey('invoice_date') ||
+          payload.containsKey('grand_total') ||
+          payload.containsKey('quote_id');
+
+      if (detail == null && payloadLooksLikeInvoice) {
+        detail = payload;
+      }
+
+      if (detail != null) {
+        if (!detail.containsKey('items')) {
+          final dynamic itemsNode =
+              payload['items'] ??
+              payload['invoice_items'] ??
+              payload['products'] ??
+              payload['quotation_products'];
+          if (itemsNode is List) {
+            detail['items'] = itemsNode;
+          }
+        }
+
+        if (!detail.containsKey('quote_details') &&
+            payload['quote_details'] is Map) {
+          detail['quote_details'] = payload['quote_details'];
+        }
+
+        if (!detail.containsKey('lead_details') &&
+            payload['lead_details'] is Map) {
+          final dynamic quoteDetails = detail['quote_details'];
+          if (quoteDetails is Map) {
+            quoteDetails['lead_details'] = payload['lead_details'];
+            detail['quote_details'] = quoteDetails;
+          } else {
+            detail['quote_details'] = {'lead_details': payload['lead_details']};
+          }
+        }
+
+        return ApiResponse<Map<String, dynamic>>(
+          success: true,
+          message: jsonResponse['message']?.toString() ?? 'Invoice loaded',
+          data: detail,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message:
+            jsonResponse['message']?.toString() ??
+            'Failed to fetch invoice details',
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in getInvoiceDetail: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> approveInvoice({
+    required int invoiceId,
+    required int roleId,
+    required int userId,
+  }) async {
+    return _submitInvoiceAction(
+      endpointTemplate: ApiConstants.invoice_accept,
+      invoiceId: invoiceId,
+      roleId: roleId,
+      userId: userId,
+      actionLabel: 'approve',
+    );
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> rejectInvoice({
+    required int invoiceId,
+    required int roleId,
+    required int userId,
+  }) async {
+    return _submitInvoiceAction(
+      endpointTemplate: ApiConstants.invoice_reject,
+      invoiceId: invoiceId,
+      roleId: roleId,
+      userId: userId,
+      actionLabel: 'reject',
+    );
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> _submitInvoiceAction({
+    required String endpointTemplate,
+    required int invoiceId,
+    required int roleId,
+    required int userId,
+    required String actionLabel,
+  }) async {
+    try {
+      final url =
+          Uri.parse(
+            _resolveInvoiceEndpoint(endpointTemplate, invoiceId),
+          ).replace(
+            queryParameters: {
+              'user_id': userId.toString(),
+              'role_id': roleId.toString(),
+            },
+          );
+
+      debugPrint('API Request: POST $url');
+
+      final response = await _performAuthenticatedPost(url, body: {});
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final dynamic dataRoot = jsonResponse['data'];
+        final Map<String, dynamic> payload = dataRoot is Map<String, dynamic>
+            ? dataRoot
+            : dataRoot is Map
+            ? Map<String, dynamic>.from(dataRoot)
+            : <String, dynamic>{};
+
+        return ApiResponse<Map<String, dynamic>>(
+          success: jsonResponse['success'] ?? true,
+          message: _stringifyMessage(
+            jsonResponse['message'],
+            fallback:
+                'Invoice ${actionLabel == 'approve' ? 'approved' : 'rejected'} successfully',
+          ),
+          data: payload,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: _stringifyMessage(
+          jsonResponse['message'],
+          fallback: isHtml
+              ? 'Server returned HTML'
+              : 'Failed to $actionLabel invoice',
+        ),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in ${actionLabel}Invoice: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
   Future<ApiResponse<Map<String, dynamic>>> getQuotationDetail({
     required int quotationId,
     required int roleId,
@@ -988,14 +1288,15 @@ class ApiService {
     required String actionLabel,
   }) async {
     try {
-      final url = Uri.parse(
-        _resolveQuotationActionEndpoint(endpointTemplate, quotationId),
-      ).replace(
-        queryParameters: {
-          'user_id': userId.toString(),
-          'role_id': roleId.toString(),
-        },
-      );
+      final url =
+          Uri.parse(
+            _resolveQuotationActionEndpoint(endpointTemplate, quotationId),
+          ).replace(
+            queryParameters: {
+              'user_id': userId.toString(),
+              'role_id': roleId.toString(),
+            },
+          );
 
       debugPrint('API Request: POST $url');
 
@@ -1032,10 +1333,9 @@ class ApiService {
         success: false,
         message: _stringifyMessage(
           jsonResponse['message'],
-          fallback:
-              isHtml
-                  ? 'Server returned HTML'
-                  : 'Failed to $actionLabel quotation',
+          fallback: isHtml
+              ? 'Server returned HTML'
+              : 'Failed to $actionLabel quotation',
         ),
         errors: jsonResponse['errors'],
       );
@@ -1058,6 +1358,24 @@ class ApiService {
       );
     }
     return '$template/$quotationId';
+  }
+
+  String _resolveInvoiceEndpoint(String template, int id) {
+    if (template.contains('{quote_id}')) {
+      final bool hasSlashBeforePlaceholder = template.contains('/{quote_id}');
+      return template.replaceAll(
+        '{quote_id}',
+        hasSlashBeforePlaceholder ? id.toString() : '/$id',
+      );
+    }
+    if (template.contains('{id}')) {
+      final bool hasSlashBeforePlaceholder = template.contains('/{id}');
+      return template.replaceAll(
+        '{id}',
+        hasSlashBeforePlaceholder ? id.toString() : '/$id',
+      );
+    }
+    return '$template/$id';
   }
 
   String _stringifyMessage(dynamic message, {required String fallback}) {
@@ -2874,4 +3192,3 @@ class ApiService {
     }
   }
 }
-
