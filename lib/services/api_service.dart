@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -37,7 +37,7 @@ class ApiService {
     // Detect HTML responses (e.g. when the backend redirects to a login page)
     if (_looksLikeHtml(trimmed)) {
       debugPrint(
-        '🔴 HTML response detected instead of JSON. Body preview: '
+        'ðŸ”´ HTML response detected instead of JSON. Body preview: '
         '${trimmed.length > 120 ? trimmed.substring(0, 120) : trimmed}',
       );
       return {
@@ -150,9 +150,9 @@ class ApiService {
     required String phoneNumber,
   }) async {
     try {
-      debugPrint('🔵 API Request: POST ${ApiConstants.login}');
+      debugPrint('ðŸ”µ API Request: POST ${ApiConstants.login}');
       debugPrint(
-        '🔵 Request Body: {"role_id": $roleId, "phone_number": "$phoneNumber"}',
+        'ðŸ”µ Request Body: {"role_id": $roleId, "phone_number": "$phoneNumber"}',
       );
 
       final response = await http
@@ -163,8 +163,8 @@ class ApiService {
           )
           .timeout(ApiConstants.requestTimeout);
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
@@ -201,28 +201,28 @@ class ApiService {
         errors: jsonResponse['errors'],
       );
     } on HandshakeException catch (e) {
-      debugPrint('🔴 SSL Handshake Error: $e');
+      debugPrint('ðŸ”´ SSL Handshake Error: $e');
       return ApiResponse(success: false, message: 'SSL error: ${e.message}');
     } on SocketException catch (e) {
-      debugPrint('🔴 No Internet / DNS Error: $e');
+      debugPrint('ðŸ”´ No Internet / DNS Error: $e');
       return ApiResponse(
         success: false,
         message: 'No internet connection. Please check your network.',
       );
     } on http.ClientException catch (e) {
-      debugPrint('🔴 ClientException: $e');
+      debugPrint('ðŸ”´ ClientException: $e');
       return ApiResponse(
         success: false,
         message: 'Request failed: ${e.message}',
       );
     } on TimeoutException catch (e) {
-      debugPrint('🔴 Timeout: $e');
+      debugPrint('ðŸ”´ Timeout: $e');
       return ApiResponse(
         success: false,
         message: 'Request timeout. Please try again.',
       );
     } catch (e) {
-      debugPrint('🔴 Unexpected Error: $e');
+      debugPrint('ðŸ”´ Unexpected Error: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -234,9 +234,9 @@ class ApiService {
     required String otp,
   }) async {
     try {
-      debugPrint('🔵 API Request: POST ${ApiConstants.verifyOtp}');
+      debugPrint('ðŸ”µ API Request: POST ${ApiConstants.verifyOtp}');
       debugPrint(
-        '🔵 Request Body: {"role_id": $roleId, "phone_number": "$phoneNumber", "otp": "$otp"}',
+        'ðŸ”µ Request Body: {"role_id": $roleId, "phone_number": "$phoneNumber", "otp": "$otp"}',
       );
 
       final response = await http
@@ -251,8 +251,8 @@ class ApiService {
           )
           .timeout(ApiConstants.requestTimeout);
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
@@ -291,28 +291,28 @@ class ApiService {
         errors: jsonResponse['errors'],
       );
     } on HandshakeException catch (e) {
-      debugPrint('🔴 SSL Handshake Error: $e');
+      debugPrint('ðŸ”´ SSL Handshake Error: $e');
       return ApiResponse(success: false, message: 'SSL error: ${e.message}');
     } on SocketException catch (e) {
-      debugPrint('🔴 No Internet / DNS Error: $e');
+      debugPrint('ðŸ”´ No Internet / DNS Error: $e');
       return ApiResponse(
         success: false,
         message: 'No internet connection. Please check your network.',
       );
     } on http.ClientException catch (e) {
-      debugPrint('🔴 ClientException: $e');
+      debugPrint('ðŸ”´ ClientException: $e');
       return ApiResponse(
         success: false,
         message: 'Request failed: ${e.message}',
       );
     } on TimeoutException catch (e) {
-      debugPrint('🔴 Timeout: $e');
+      debugPrint('ðŸ”´ Timeout: $e');
       return ApiResponse(
         success: false,
         message: 'Request timeout. Please try again.',
       );
     } catch (e) {
-      debugPrint('🔴 Unexpected Error: $e');
+      debugPrint('ðŸ”´ Unexpected Error: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -323,8 +323,8 @@ class ApiService {
     required int userId,
   }) async {
     try {
-      debugPrint('🔵 API Request: POST ${ApiConstants.refreshToken}');
-      debugPrint('🔵 Request Query: {"user_id": $userId, "role_id": $roleId}');
+      debugPrint('ðŸ”µ API Request: POST ${ApiConstants.refreshToken}');
+      debugPrint('ðŸ”µ Request Query: {"user_id": $userId, "role_id": $roleId}');
 
       final currentAccessToken = await SecureStorageService.getAccessToken();
       final headers = Map<String, String>.from(_headers)
@@ -349,8 +349,8 @@ class ApiService {
           )
           .timeout(ApiConstants.requestTimeout);
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
@@ -377,7 +377,7 @@ class ApiService {
         errors: jsonResponse['errors'],
       );
     } on HandshakeException catch (e) {
-      debugPrint('🔴 SSL Handshake Error: $e');
+      debugPrint('ðŸ”´ SSL Handshake Error: $e');
       return ApiResponse(success: false, message: 'SSL error: ${e.message}');
     } on SocketException {
       return ApiResponse(
@@ -390,7 +390,7 @@ class ApiService {
         message: 'Request timeout. Please try again.',
       );
     } catch (e) {
-      debugPrint('🔴 Unexpected Error: $e');
+      debugPrint('ðŸ”´ Unexpected Error: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -398,8 +398,8 @@ class ApiService {
   /// Signup / Register
   Future<ApiResponse> signup({required Map<String, String> fields}) async {
     try {
-      debugPrint('🔵 API Request: POST ${ApiConstants.signup}');
-      debugPrint('🔵 Request Fields: $fields');
+      debugPrint('ðŸ”µ API Request: POST ${ApiConstants.signup}');
+      debugPrint('ðŸ”µ Request Fields: $fields');
 
       final request = http.MultipartRequest(
         'POST',
@@ -413,8 +413,8 @@ class ApiService {
       );
       final response = await http.Response.fromStream(streamedResponse);
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
@@ -447,7 +447,7 @@ class ApiService {
         message: 'Request timeout. Please try again.',
       );
     } catch (e) {
-      debugPrint('🔴 Unexpected Error: $e');
+      debugPrint('ðŸ”´ Unexpected Error: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -455,8 +455,8 @@ class ApiService {
   /// Logout
   Future<ApiResponse> logout({required int userId, required int roleId}) async {
     try {
-      debugPrint('🔵 API Request: POST ${ApiConstants.logout}');
-      debugPrint('🔵 Request Query: user_id=$userId&role_id=$roleId');
+      debugPrint('ðŸ”µ API Request: POST ${ApiConstants.logout}');
+      debugPrint('ðŸ”µ Request Query: user_id=$userId&role_id=$roleId');
 
       final accessToken = await SecureStorageService.getAccessToken();
       final headers = {
@@ -475,8 +475,8 @@ class ApiService {
           .post(uri, headers: headers)
           .timeout(ApiConstants.requestTimeout);
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
@@ -503,7 +503,7 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('🔴 Unexpected Error in logout: $e');
+      debugPrint('ðŸ”´ Unexpected Error in logout: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -515,7 +515,7 @@ class ApiService {
   Future<ApiResponse<ProductModel>> getProducts({required int roleId}) async {
     try {
       debugPrint(
-        '🔵 API Request: GET ${ApiConstants.productlist}?role_id=$roleId',
+        'ðŸ”µ API Request: GET ${ApiConstants.productlist}?role_id=$roleId',
       );
 
       final url = Uri.parse(
@@ -524,8 +524,8 @@ class ApiService {
 
       final response = await _performAuthenticatedGet(url);
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
@@ -555,7 +555,7 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('🔴 Unexpected Error in getProducts: $e');
+      debugPrint('ðŸ”´ Unexpected Error in getProducts: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -609,7 +609,7 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('🔴 Unexpected Error in getProductDetail: $e');
+      debugPrint('ðŸ”´ Unexpected Error in getProductDetail: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -630,20 +630,20 @@ class ApiService {
         queryParameters: {
           'role_id': roleId.toString(),
           'quantity': quantity.toString(),
-          'customer_id': customerId.toString(),
+          'user_id': customerId.toString(),
           'shipping_address_id': shippingAddressId.toString(),
         },
       );
 
-      debugPrint('🔵 API Request: POST $url');
+      debugPrint('ðŸ”µ API Request: POST $url');
 
       final response = await _performAuthenticatedPost(
         url,
         body: {'shipping_address_id': shippingAddressId},
       );
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
@@ -670,7 +670,7 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('🔴 Unexpected Error in buyProduct: $e');
+      debugPrint('ðŸ”´ Unexpected Error in buyProduct: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -685,20 +685,20 @@ class ApiService {
   }) async {
     try {
       debugPrint(
-        'ðŸ”µ API Request: GET ${ApiConstants.service_request_list}?role_id=$roleId&customer_id=$customerId',
+        'Ã°Å¸â€Âµ API Request: GET ${ApiConstants.service_request_list}?role_id=$roleId&user_id=$customerId',
       );
 
       final url = Uri.parse(ApiConstants.service_request_list).replace(
         queryParameters: {
           'role_id': roleId.toString(),
-          'customer_id': customerId.toString(),
+          'user_id': customerId.toString(),
         },
       );
 
       final response = await _performAuthenticatedGet(url);
 
-      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
-      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
+      debugPrint('Ã°Å¸Å¸Â¡ API Response Status: ${response.statusCode}');
+      debugPrint('Ã°Å¸Å¸Â¡ API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
@@ -759,9 +759,319 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('ðŸ”´ Unexpected Error in getAllServiceRequests: $e');
+      debugPrint('Ã°Å¸â€Â´ Unexpected Error in getAllServiceRequests: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
+  }
+
+  // ========================================
+  // Quotation List API
+  // ========================================
+
+  Future<ApiResponse<List<Map<String, dynamic>>>> getQuotationList({
+    required int roleId,
+    required int customerId,
+  }) async {
+    try {
+      debugPrint(
+        'API Request: GET ${ApiConstants.quotation_list}?role_id=$roleId&user_id=$customerId',
+      );
+
+      final url = Uri.parse(ApiConstants.quotation_list).replace(
+        queryParameters: {
+          'role_id': roleId.toString(),
+          'user_id': customerId.toString(),
+        },
+      );
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final dynamic dataRoot = jsonResponse['data'];
+        final Map<String, dynamic> payload = dataRoot is Map<String, dynamic>
+            ? dataRoot
+            : jsonResponse;
+
+        dynamic listNode =
+            payload['quotations'] ??
+            payload['quotation_list'] ??
+            payload['service_request_quotations'] ??
+            payload['serviceRequestQuotations'] ??
+            payload['quote_list'] ??
+            payload['quotes'] ??
+            payload['items'];
+
+        if (listNode == null && payload['data'] is List) {
+          listNode = payload['data'];
+        }
+        if (listNode == null && dataRoot is List) {
+          listNode = dataRoot;
+        }
+
+        final items = listNode is List
+            ? listNode
+                  .whereType<Map>()
+                  .map((e) => Map<String, dynamic>.from(e))
+                  .toList()
+            : <Map<String, dynamic>>[];
+
+        return ApiResponse<List<Map<String, dynamic>>>(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Quotations fetched successfully',
+          data: items,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<List<Map<String, dynamic>>>(
+        success: false,
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch quotations'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in getQuotationList: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> getQuotationDetail({
+    required int quotationId,
+    required int roleId,
+    required int userId,
+  }) async {
+    try {
+      final url = Uri.parse('${ApiConstants.quotation_detail}/$quotationId')
+          .replace(
+            queryParameters: {
+              'role_id': roleId.toString(),
+              'user_id': userId.toString(),
+            },
+          );
+
+      debugPrint('API Request: GET $url');
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (isHtml) {
+        return ApiResponse<Map<String, dynamic>>(
+          success: false,
+          message: 'Server returned HTML',
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      final dynamic dataRoot = jsonResponse['data'];
+      final Map<String, dynamic> payload = dataRoot is Map<String, dynamic>
+          ? dataRoot
+          : jsonResponse;
+
+      dynamic detailNode =
+          payload['quotation'] ??
+          payload['quotation_detail'] ??
+          payload['quotation_details'] ??
+          payload['service_request_quotation'] ??
+          payload['serviceRequestQuotation'] ??
+          payload['quote'] ??
+          payload['message'] ??
+          payload['data'];
+
+      Map<String, dynamic>? detail;
+
+      if (detailNode is Map<String, dynamic>) {
+        detail = Map<String, dynamic>.from(detailNode);
+      } else if (detailNode is Map) {
+        detail = Map<String, dynamic>.from(detailNode);
+      } else if (detailNode is List &&
+          detailNode.isNotEmpty &&
+          detailNode.first is Map) {
+        detail = Map<String, dynamic>.from(detailNode.first as Map);
+      }
+
+      final bool payloadLooksLikeDetail =
+          payload.containsKey('quote_number') ||
+          payload.containsKey('quote_date') ||
+          payload.containsKey('expiry_date');
+
+      if (detail == null && payloadLooksLikeDetail) {
+        detail = payload;
+      }
+
+      if (detail != null) {
+        if (!detail.containsKey('products') && payload['products'] is List) {
+          detail['products'] = payload['products'];
+        }
+        if (!detail.containsKey('lead_details') &&
+            payload['lead_details'] is Map) {
+          detail['lead_details'] = payload['lead_details'];
+        }
+        if (!detail.containsKey('amc_data') && payload['amc_data'] is Map) {
+          detail['amc_data'] = payload['amc_data'];
+        }
+
+        return ApiResponse<Map<String, dynamic>>(
+          success: true,
+          message: jsonResponse['message']?.toString() ?? 'Quotation loaded',
+          data: detail,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message:
+            jsonResponse['message']?.toString() ??
+            'Failed to fetch quotation details',
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in getQuotationDetail: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> acceptQuotation({
+    required int quotationId,
+    required int roleId,
+    required int userId,
+  }) async {
+    return _submitQuotationAction(
+      endpointTemplate: ApiConstants.quotation_accept,
+      quotationId: quotationId,
+      roleId: roleId,
+      userId: userId,
+      actionLabel: 'accept',
+    );
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> rejectQuotation({
+    required int quotationId,
+    required int roleId,
+    required int userId,
+  }) async {
+    return _submitQuotationAction(
+      endpointTemplate: ApiConstants.quotation_reject,
+      quotationId: quotationId,
+      roleId: roleId,
+      userId: userId,
+      actionLabel: 'reject',
+    );
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> _submitQuotationAction({
+    required String endpointTemplate,
+    required int quotationId,
+    required int roleId,
+    required int userId,
+    required String actionLabel,
+  }) async {
+    try {
+      final url = Uri.parse(
+        _resolveQuotationActionEndpoint(endpointTemplate, quotationId),
+      ).replace(
+        queryParameters: {
+          'user_id': userId.toString(),
+          'role_id': roleId.toString(),
+        },
+      );
+
+      debugPrint('API Request: POST $url');
+
+      final response = await _performAuthenticatedPost(url, body: {});
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final dynamic dataRoot = jsonResponse['data'];
+        final Map<String, dynamic> payload = dataRoot is Map<String, dynamic>
+            ? dataRoot
+            : dataRoot is Map
+            ? Map<String, dynamic>.from(dataRoot)
+            : <String, dynamic>{};
+
+        return ApiResponse<Map<String, dynamic>>(
+          success: jsonResponse['success'] ?? true,
+          message: _stringifyMessage(
+            jsonResponse['message'],
+            fallback:
+                'Quotation ${actionLabel == 'accept' ? 'accepted' : 'rejected'} successfully',
+          ),
+          data: payload,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: _stringifyMessage(
+          jsonResponse['message'],
+          fallback:
+              isHtml
+                  ? 'Server returned HTML'
+                  : 'Failed to $actionLabel quotation',
+        ),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in ${actionLabel}Quotation: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  String _resolveQuotationActionEndpoint(String template, int quotationId) {
+    if (template.contains('{id}')) {
+      final bool hasSlashBeforePlaceholder = template.contains('/{id}');
+      return template.replaceAll(
+        '{id}',
+        hasSlashBeforePlaceholder ? quotationId.toString() : '/$quotationId',
+      );
+    }
+    return '$template/$quotationId';
+  }
+
+  String _stringifyMessage(dynamic message, {required String fallback}) {
+    if (message is String && message.trim().isNotEmpty) {
+      return message.trim();
+    }
+    if (message is Map) {
+      final dynamic nested = message['message'] ?? message['error'];
+      if (nested is String && nested.trim().isNotEmpty) {
+        return nested.trim();
+      }
+      return fallback;
+    }
+    return fallback;
   }
 
   // ========================================
@@ -780,7 +1090,7 @@ class ApiService {
           ).replace(
             queryParameters: {
               'role_id': roleId.toString(),
-              'customer_id': customerId.toString(),
+              'user_id': customerId.toString(),
             },
           );
 
@@ -859,7 +1169,7 @@ class ApiService {
           ).replace(
             queryParameters: {
               'role_id': roleId.toString(),
-              'customer_id': customerId.toString(),
+              'user_id': customerId.toString(),
             },
           );
 
@@ -938,7 +1248,7 @@ class ApiService {
     try {
       final queryParameters = <String, String>{
         'role_id': roleId.toString(),
-        'customer_id': customerId.toString(),
+        'user_id': customerId.toString(),
         'service_request_id': requestId.toString(),
         'product_id': productId.toString(),
         'action': action,
@@ -950,7 +1260,7 @@ class ApiService {
 
       final body = <String, dynamic>{
         'role_id': roleId,
-        'customer_id': customerId,
+        'user_id': customerId,
         'service_request_id': requestId,
         'product_id': productId,
         'action': action,
@@ -1018,7 +1328,7 @@ class ApiService {
     try {
       final queryParameters = <String, String>{
         'role_id': roleId.toString(),
-        'customer_id': customerId.toString(),
+        'user_id': customerId.toString(),
         'service_request_id': requestId.toString(),
         'product_id': productId.toString(),
         'action': action,
@@ -1026,7 +1336,7 @@ class ApiService {
 
       final body = <String, dynamic>{
         'role_id': roleId,
-        'customer_id': customerId,
+        'user_id': customerId,
         'service_request_id': requestId,
         'product_id': productId,
         'action': action,
@@ -1092,20 +1402,20 @@ class ApiService {
   }) async {
     try {
       debugPrint(
-        'ðŸ”µ API Request: GET ${ApiConstants.order_list}?role_id=$roleId&customer_id=$customerId',
+        'Ã°Å¸â€Âµ API Request: GET ${ApiConstants.order_list}?role_id=$roleId&user_id=$customerId',
       );
 
       final url = Uri.parse(ApiConstants.order_list).replace(
         queryParameters: {
           'role_id': roleId.toString(),
-          'customer_id': customerId.toString(),
+          'user_id': customerId.toString(),
         },
       );
 
       final response = await _performAuthenticatedGet(url);
 
-      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
-      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
+      debugPrint('Ã°Å¸Å¸Â¡ API Response Status: ${response.statusCode}');
+      debugPrint('Ã°Å¸Å¸Â¡ API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
@@ -1152,7 +1462,7 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('ðŸ”´ Unexpected Error in getOrderList: $e');
+      debugPrint('Ã°Å¸â€Â´ Unexpected Error in getOrderList: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -1209,7 +1519,7 @@ class ApiService {
   }) async {
     try {
       debugPrint(
-        'ðŸ”µ API Request: GET ${ApiConstants.product_category}?role_id=$roleId',
+        'Ã°Å¸â€Âµ API Request: GET ${ApiConstants.product_category}?role_id=$roleId',
       );
 
       final url = Uri.parse(
@@ -1218,8 +1528,8 @@ class ApiService {
 
       final response = await _performAuthenticatedGet(url);
 
-      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
-      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
+      debugPrint('Ã°Å¸Å¸Â¡ API Response Status: ${response.statusCode}');
+      debugPrint('Ã°Å¸Å¸Â¡ API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
@@ -1250,7 +1560,7 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('ðŸ”´ Unexpected Error in getProductCategories: $e');
+      debugPrint('Ã°Å¸â€Â´ Unexpected Error in getProductCategories: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -1265,7 +1575,7 @@ class ApiService {
   }) async {
     try {
       debugPrint(
-        '🔵 API Request: GET ${ApiConstants.profile}?user_id=$userId&role_id=$roleId',
+        'ðŸ”µ API Request: GET ${ApiConstants.profile}?user_id=$userId&role_id=$roleId',
       );
 
       final url = Uri.parse(ApiConstants.profile).replace(
@@ -1277,8 +1587,8 @@ class ApiService {
 
       final response = await _performAuthenticatedGet(url);
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
@@ -1304,7 +1614,7 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('🔴 Unexpected Error in getProfile: $e');
+      debugPrint('ðŸ”´ Unexpected Error in getProfile: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -1319,7 +1629,7 @@ class ApiService {
     required String gender,
   }) async {
     try {
-      debugPrint('🔵 API Request: PUT ${ApiConstants.profile}');
+      debugPrint('ðŸ”µ API Request: PUT ${ApiConstants.profile}');
       final body = {
         'user_id': userId,
         'role_id': roleId,
@@ -1329,15 +1639,15 @@ class ApiService {
         'dob': dob,
         'gender': gender,
       };
-      debugPrint('🔵 Request Body: $body');
+      debugPrint('ðŸ”µ Request Body: $body');
 
       final response = await _performAuthenticatedPut(
         Uri.parse(ApiConstants.profile),
         body: body,
       );
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
@@ -1363,7 +1673,7 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('🔴 Unexpected Error in updateProfile: $e');
+      debugPrint('ðŸ”´ Unexpected Error in updateProfile: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -1378,7 +1688,7 @@ class ApiService {
   }) async {
     try {
       debugPrint(
-        '🔵 API Request: GET ${ApiConstants.addresses}?user_id=$userId&role_id=$roleId',
+        'ðŸ”µ API Request: GET ${ApiConstants.addresses}?user_id=$userId&role_id=$roleId',
       );
 
       final url = Uri.parse(ApiConstants.addresses).replace(
@@ -1390,8 +1700,8 @@ class ApiService {
 
       final response = await _performAuthenticatedGet(url);
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
@@ -1418,7 +1728,7 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('🔴 Unexpected Error in getAddresses: $e');
+      debugPrint('ðŸ”´ Unexpected Error in getAddresses: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -1436,7 +1746,7 @@ class ApiService {
     required bool isPrimary,
   }) async {
     try {
-      debugPrint('🔵 API Request: POST ${ApiConstants.address}');
+      debugPrint('ðŸ”µ API Request: POST ${ApiConstants.address}');
 
       final url = Uri.parse(ApiConstants.address).replace(
         queryParameters: {
@@ -1456,8 +1766,8 @@ class ApiService {
       // Perform an authenticated POST.
       final response = await _performAuthenticatedPost(url, body: {});
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
@@ -1483,7 +1793,7 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('🔴 Unexpected Error in storeAddress: $e');
+      debugPrint('ðŸ”´ Unexpected Error in storeAddress: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -1502,7 +1812,7 @@ class ApiService {
     required bool isPrimary,
   }) async {
     try {
-      debugPrint('🔵 API Request: PUT ${ApiConstants.address}/$addressId');
+      debugPrint('ðŸ”µ API Request: PUT ${ApiConstants.address}/$addressId');
 
       final url = Uri.parse('${ApiConstants.address}/$addressId').replace(
         queryParameters: {
@@ -1524,8 +1834,8 @@ class ApiService {
 
       final response = await _performAuthenticatedPut(url, body: body);
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
@@ -1551,7 +1861,7 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('🔴 Unexpected Error in updateAddress: $e');
+      debugPrint('ðŸ”´ Unexpected Error in updateAddress: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -1946,7 +2256,7 @@ class ApiService {
     int? customerAddressId,
   }) async {
     try {
-      debugPrint('🔵 API Request: POST ${ApiConstants.submitQuickService}');
+      debugPrint('ðŸ”µ API Request: POST ${ApiConstants.submitQuickService}');
 
       final url = Uri.parse(ApiConstants.submitQuickService);
       final request = http.MultipartRequest('POST', url);
@@ -1957,7 +2267,7 @@ class ApiService {
         if (token != null) 'Authorization': 'Bearer $token',
       });
 
-      request.fields['customer_id'] = customerId.toString();
+      request.fields['user_id'] = customerId.toString();
       request.fields['role_id'] = roleId.toString();
       request.fields['service_type'] = serviceType;
       if (customerAddressId != null) {
@@ -2015,8 +2325,8 @@ class ApiService {
       );
       final response = await http.Response.fromStream(streamedResponse);
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
 
@@ -2040,7 +2350,7 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('🔴 Unexpected Error in submitQuickServiceRequest: $e');
+      debugPrint('ðŸ”´ Unexpected Error in submitQuickServiceRequest: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -2058,13 +2368,13 @@ class ApiService {
         },
       );
 
-      debugPrint('🔵 API Request: GET $url');
+      debugPrint('ðŸ”µ API Request: GET $url');
 
       final response = await _performAuthenticatedGet(url);
       final jsonResponse = _safeJsonDecode(response.body);
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final List<dynamic> serviceList = jsonResponse['services'] ?? [];
@@ -2084,7 +2394,7 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('🔴 Unexpected Error in getServicesList: $e');
+      debugPrint('ðŸ”´ Unexpected Error in getServicesList: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -2102,7 +2412,7 @@ class ApiService {
       final url = Uri.parse(ApiConstants.givefeedback).replace(
         queryParameters: {
           'role_id': roleId.toString(),
-          'customer_id': customerId.toString(),
+          'user_id': customerId.toString(),
           'service_type': serviceType,
           'service_id': serviceId,
           'rating': rating.toString(),
@@ -2110,15 +2420,15 @@ class ApiService {
         },
       );
 
-      debugPrint('🔵 API Request: POST $url');
+      debugPrint('ðŸ”µ API Request: POST $url');
 
       // The Postman screenshot shows it as a POST but with query parameters.
       // We use _performAuthenticatedPost with an empty body if the backend expects POST method.
       final response = await _performAuthenticatedPost(url, body: {});
       final jsonResponse = _safeJsonDecode(response.body);
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         return ApiResponse(
@@ -2138,7 +2448,7 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('🔴 Unexpected Error in giveFeedback: $e');
+      debugPrint('ðŸ”´ Unexpected Error in giveFeedback: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -2150,21 +2460,21 @@ class ApiService {
     required String feedbackId,
   }) async {
     try {
-      // Endpoint: https://crackteck.co.in/api/v1/get-feedback/2?role_id=4&customer_id=3
+      // Endpoint: https://crackteck.co.in/api/v1/get-feedback/2?role_id=4&user_id=3
       final url = Uri.parse("${ApiConstants.getfeedback}/$feedbackId").replace(
         queryParameters: {
           'role_id': roleId.toString(),
-          'customer_id': customerId.toString(),
+          'user_id': customerId.toString(),
         },
       );
 
-      debugPrint('🔵 API Request: GET $url');
+      debugPrint('ðŸ”µ API Request: GET $url');
 
       final response = await _performAuthenticatedGet(url);
       final jsonResponse = _safeJsonDecode(response.body);
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         return ApiResponse(
@@ -2184,7 +2494,7 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('🔴 Unexpected Error in getFeedbackDetails: $e');
+      debugPrint('ðŸ”´ Unexpected Error in getFeedbackDetails: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -2198,29 +2508,53 @@ class ApiService {
       final url = Uri.parse(ApiConstants.getallfeedback).replace(
         queryParameters: {
           'role_id': roleId.toString(),
-          'customer_id': customerId.toString(),
+          'user_id': customerId.toString(),
         },
       );
 
-      debugPrint('🔵 API Request: GET $url');
+      debugPrint('API Request: GET $url');
 
       final response = await _performAuthenticatedGet(url);
       final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
 
-      if (response.statusCode == 200) {
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final dynamic dataRoot = jsonResponse['data'];
+        final Map<String, dynamic> payload = dataRoot is Map<String, dynamic>
+            ? dataRoot
+            : jsonResponse;
+
+        dynamic feedbackNode =
+            payload['feedbacks'] ??
+            payload['feedback_list'] ??
+            payload['all_feedback'] ??
+            payload['all_feedbacks'] ??
+            payload['feedback'];
+
+        if (feedbackNode == null && payload['data'] is List) {
+          feedbackNode = payload['data'];
+        }
+        if (feedbackNode == null && dataRoot is List) {
+          feedbackNode = dataRoot;
+        }
+
         return ApiResponse<List<dynamic>>(
           success: jsonResponse['success'] ?? true,
           message: jsonResponse['message'] ?? 'Feedback fetched successfully',
-          data: jsonResponse['data'] as List<dynamic>?,
+          data: feedbackNode is List ? feedbackNode : <dynamic>[],
+          errors: jsonResponse['errors'],
         );
       }
 
-      return ApiResponse(
+      return ApiResponse<List<dynamic>>(
         success: false,
-        message: jsonResponse['message'] ?? 'Failed to fetch feedback list',
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch feedback list'),
         errors: jsonResponse['errors'],
       );
     } on SocketException {
@@ -2228,7 +2562,7 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('🔴 Unexpected Error in getAllFeedback: $e');
+      debugPrint('Unexpected Error in getAllFeedback: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -2242,7 +2576,7 @@ class ApiService {
   }) async {
     try {
       debugPrint(
-        '🔵 API Request: GET ${ApiConstants.amcPlans}?role_id=$roleId',
+        'ðŸ”µ API Request: GET ${ApiConstants.amcPlans}?role_id=$roleId',
       );
 
       final url = Uri.parse(
@@ -2251,8 +2585,8 @@ class ApiService {
 
       final response = await _performAuthenticatedGet(url);
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
@@ -2277,7 +2611,7 @@ class ApiService {
     } on SocketException {
       return ApiResponse(success: false, message: 'No internet connection.');
     } catch (e) {
-      debugPrint('❌ Error fetching AMC plans: $e');
+      debugPrint('âŒ Error fetching AMC plans: $e');
       return ApiResponse(success: false, message: 'An error occurred: $e');
     }
   }
@@ -2289,7 +2623,7 @@ class ApiService {
   }) async {
     try {
       debugPrint(
-        '🔵 API Request: GET ${ApiConstants.amcPlanDetails}/$planId?role_id=$roleId',
+        'ðŸ”µ API Request: GET ${ApiConstants.amcPlanDetails}/$planId?role_id=$roleId',
       );
 
       final url = Uri.parse(
@@ -2298,8 +2632,8 @@ class ApiService {
 
       final response = await _performAuthenticatedGet(url);
 
-      debugPrint('🟡 API Response Status: ${response.statusCode}');
-      debugPrint('🟡 API Response Body: ${response.body}');
+      debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
+      debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
 
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
@@ -2334,7 +2668,7 @@ class ApiService {
     } on TimeoutException {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
-      debugPrint('🔴 Unexpected Error in getAmcPlanDetails: $e');
+      debugPrint('ðŸ”´ Unexpected Error in getAmcPlanDetails: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }
@@ -2363,7 +2697,7 @@ class ApiService {
     // trigger refresh-token/logout instead of trying to parse HTML as JSON.
     if (_looksLikeHtml(response.body)) {
       debugPrint(
-        '🔴 HTML login page detected from ${response.request?.url}. '
+        'ðŸ”´ HTML login page detected from ${response.request?.url}. '
         'Treating as unauthorized.',
       );
       return true;
@@ -2379,7 +2713,7 @@ class ApiService {
     final storedRoleId = await SecureStorageService.getRoleId();
     final storedUserId = await SecureStorageService.getUserId();
     if (storedUserId == null) {
-      debugPrint('🔴 Cannot refresh token: missing stored user_id');
+      debugPrint('ðŸ”´ Cannot refresh token: missing stored user_id');
       return false;
     }
 
@@ -2540,3 +2874,4 @@ class ApiService {
     }
   }
 }
+

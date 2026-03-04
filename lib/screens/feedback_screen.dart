@@ -16,6 +16,24 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   String? _errorMessage;
   List<Map<String, dynamic>> _feedbacks = [];
 
+  String _toText(dynamic value) {
+    if (value == null) return '';
+    if (value is String) return value.trim();
+    return value.toString().trim();
+  }
+
+  Map<String, dynamic>? _toMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return null;
+  }
+
+  int _toInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(_toText(value)) ?? 0;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -46,8 +64,12 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       );
 
       if (response.success) {
+        final parsed = (response.data ?? const <dynamic>[])
+            .map(_toMap)
+            .whereType<Map<String, dynamic>>()
+            .toList();
         setState(() {
-          _feedbacks = List<Map<String, dynamic>>.from(response.data ?? []);
+          _feedbacks = parsed;
           _isLoading = false;
         });
       } else {
@@ -126,21 +148,41 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
         itemCount: _feedbacks.length,
         itemBuilder: (context, index) {
           final feedback = _feedbacks[index];
+          final customer =
+              _toMap(feedback['customer']) ?? const <String, dynamic>{};
 
           final String name =
-              feedback['customer_name']?.toString() ?? 'User';
+              _toText(
+                feedback['customer_name'] ??
+                    feedback['name'] ??
+                    customer['name'] ??
+                    customer['full_name'],
+              ).isEmpty
+              ? 'User'
+              : _toText(
+                  feedback['customer_name'] ??
+                      feedback['name'] ??
+                      customer['name'] ??
+                      customer['full_name'],
+                );
 
-          final String rawDate =
-              feedback['created_at']?.toString() ?? '';
+          final String rawDate = _toText(
+            feedback['created_at'] ??
+                feedback['updated_at'] ??
+                feedback['date'],
+          );
           final String date = rawDate.isNotEmpty
               ? rawDate.split(' ').first
               : '';
 
-          final int rating =
-              int.tryParse(feedback['rating']?.toString() ?? '0') ?? 0;
+          final int rating = _toInt(feedback['rating']).clamp(0, 5);
 
-          final String comment =
-              feedback['comments']?.toString() ?? '';
+          final String comment = _toText(
+            feedback['comments'] ?? feedback['comment'],
+          );
+          final String feedbackId = _toText(
+            feedback['id'] ?? feedback['feedback_id'],
+          );
 
           return _feedbackCard(
             name: name,
@@ -148,12 +190,20 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
             rating: rating,
             comment: comment,
             onTap: () {
+              if (feedbackId.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Feedback details are not available for this item.',
+                    ),
+                  ),
+                );
+                return;
+              }
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => FeedbackDetailScreen(
-                    feedbackId: feedback['id'].toString(),
-                  ),
+                  builder: (_) => FeedbackDetailScreen(feedbackId: feedbackId),
                 ),
               );
             },
@@ -181,7 +231,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
           border: Border.all(color: Colors.grey.shade200),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -205,12 +255,10 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                 Row(
                   children: List.generate(
                     5,
-                        (i) => Icon(
+                    (i) => Icon(
                       Icons.star,
                       size: 16,
-                      color: i < rating
-                          ? Colors.amber
-                          : Colors.grey.shade300,
+                      color: i < rating ? Colors.amber : Colors.grey.shade300,
                     ),
                   ),
                 ),
@@ -222,10 +270,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
             /// Date
             Text(
               date,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade500,
-              ),
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
             ),
 
             const SizedBox(height: 10),

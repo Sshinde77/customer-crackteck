@@ -39,6 +39,10 @@ class ApiConstants {
   static const String service_request_product_diagnostics  = '$baseUrl/service-request-product-diagnostics';
   static const String service_request_approval  = '$baseUrl/customer-approve-reject-part';
   static const String service_request_pickup_approval  = '$baseUrl/customer-approve-reject-pickup';
+  static const String quotation_list  = '$baseUrl/service-request-quotations';
+  static const String quotation_detail  = '$baseUrl/service-request-quotation-details';
+  static const String quotation_accept  = '$baseUrl/service-request-quotations/{id}/accept';
+  static const String quotation_reject  = '$baseUrl/service-request-quotations{id}/reject';
 
 
 
