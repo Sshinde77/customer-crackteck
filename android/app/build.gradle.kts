@@ -13,10 +13,21 @@ if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
 
-val hasReleaseKeystore = keystoreProperties["storeFile"] != null &&
-    keystoreProperties["storePassword"] != null &&
-    keystoreProperties["keyAlias"] != null &&
-    keystoreProperties["keyPassword"] != null
+fun hasText(value: String?): Boolean = !value.isNullOrBlank()
+
+val storeFilePath = keystoreProperties.getProperty("storeFile")
+val storePasswordValue = keystoreProperties.getProperty("storePassword")
+val keyAliasValue = keystoreProperties.getProperty("keyAlias")
+val keyPasswordValue = keystoreProperties.getProperty("keyPassword")
+
+val hasReleaseKeystore = hasText(storeFilePath) &&
+    hasText(storePasswordValue) &&
+    hasText(keyAliasValue) &&
+    hasText(keyPasswordValue)
+
+val isReleaseTask = gradle.startParameter.taskNames.any { task ->
+    task.contains("Release", ignoreCase = true)
+}
 
 android {
     namespace = "com.example.customer_cracktreck"
@@ -37,32 +48,45 @@ android {
         applicationId = "com.example.customer_cracktreck"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 21
         targetSdk = flutter.targetSdkVersion
+        multiDexEnabled = true
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
     signingConfigs {
-        if (hasReleaseKeystore) {
-            create("release") {
-                storeFile = file(keystoreProperties["storeFile"] as String)
-                storePassword = keystoreProperties["storePassword"] as String
-                keyAlias = keystoreProperties["keyAlias"] as String
-                keyPassword = keystoreProperties["keyPassword"] as String
+        create("release") {
+            if (hasReleaseKeystore) {
+                storeFile = file(storeFilePath!!)
+                storePassword = storePasswordValue
+                keyAlias = keyAliasValue
+                keyPassword = keyPasswordValue
             }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = if (hasReleaseKeystore) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
+            if (hasReleaseKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            } else if (isReleaseTask) {
+                throw GradleException(
+                    "Missing release signing config. Create android/key.properties from android/key.properties.example and provide a valid keystore.",
+                )
             }
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
+}
+
+dependencies {
+    implementation("androidx.multidex:multidex:2.0.1")
 }
 
 flutter {

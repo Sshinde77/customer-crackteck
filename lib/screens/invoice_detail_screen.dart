@@ -19,6 +19,7 @@ class InvoiceDetailScreen extends StatefulWidget {
 class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   bool _isLoading = true;
   bool _isActionLoading = false;
+  bool _isPaymentLoading = false;
   String? _errorMessage;
   late InvoiceModel _invoice;
 
@@ -181,6 +182,85 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     );
   }
 
+  double get _pendingPaymentAmount {
+    final remaining = _invoice.grandTotal - _invoice.paidAmount;
+    if (remaining > 0) return remaining;
+    return _invoice.grandTotal > 0 ? _invoice.grandTotal : 0;
+  }
+
+  Future<void> _submitInvoicePayment() async {
+    if (_isPaymentLoading) return;
+
+    final int invoiceId = _invoice.id;
+    if (invoiceId <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invoice id is missing in detail response.'),
+        ),
+      );
+      return;
+    }
+
+    final double amount = _pendingPaymentAmount;
+    if (amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No pending amount found for this invoice.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isPaymentLoading = true);
+
+    try {
+      final int roleId =
+          (await SecureStorageService.getRoleId()) ?? AppStrings.roleId;
+      final int? userId = await SecureStorageService.getUserId();
+
+      if (userId == null) {
+        if (!mounted) return;
+        setState(() => _isPaymentLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('User session missing. Please login again.'),
+          ),
+        );
+        return;
+      }
+
+      final response = await ApiService.instance.payInvoice(
+        invoiceId: invoiceId,
+        roleId: roleId,
+        userId: userId,
+        amount: amount,
+      );
+
+      if (!mounted) return;
+
+      setState(() => _isPaymentLoading = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(response.message ?? 'Invoice payment submitted'),
+          backgroundColor: response.success
+              ? AppColors.primary
+              : Colors.red.shade600,
+        ),
+      );
+
+      if (response.success) {
+        _fetchInvoiceDetail();
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isPaymentLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to submit invoice payment')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -325,7 +405,53 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: _isFinalDecisionStatus(_invoice.status)
+      bottomNavigationBar: _shouldShowPayInvoice
+          ? SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, -3),
+                    ),
+                  ],
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: (_isLoading || _isPaymentLoading)
+                        ? null
+                        : _submitInvoicePayment,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: _isPaymentLoading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.payment),
+                    label: Text(
+                      _isPaymentLoading ? 'Please wait' : 'Pay Invoice',
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : _isFinalDecisionStatus(_invoice.status)
           ? null
           : SafeArea(
               top: false,
@@ -412,6 +538,15 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     return normalized == 'accepted' ||
         normalized == 'approved' ||
         normalized == 'rejected';
+  }
+
+  bool get _shouldShowPayInvoice {
+    final normalizedStatus = _invoice.status.trim().toLowerCase();
+    final normalizedPayment = _invoice.paymentStatus.trim().toLowerCase();
+    final isAccepted =
+        normalizedStatus == 'accepted' || normalizedStatus == 'approved';
+    final isPaid = normalizedPayment == 'paid';
+    return isAccepted && !isPaid;
   }
 
   Widget _sectionCard({

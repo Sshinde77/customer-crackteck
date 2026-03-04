@@ -1,4 +1,5 @@
 storePassword=YOUR_KEYSTORE_PASSWORD
 keyPassword=YOUR_KEY_PASSWORD
 keyAlias=upload
+# Relative to android/app module. This example points to android/upload-keystore.jks
 storeFile=../upload-keystore.jks

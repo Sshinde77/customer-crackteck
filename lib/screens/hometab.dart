@@ -302,7 +302,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(20),
                             color: const Color(0xFFFFE5D0),
-                          ),
+                          ),  
                           child: Stack(
                             children: [
                               Padding(

@@ -1078,6 +1078,74 @@ class ApiService {
     );
   }
 
+  Future<ApiResponse<Map<String, dynamic>>> payInvoice({
+    required int invoiceId,
+    required int roleId,
+    required int userId,
+    required double amount,
+  }) async {
+    try {
+      final url =
+          Uri.parse(
+            _resolveInvoiceEndpoint(ApiConstants.invoice_payment, invoiceId),
+          ).replace(
+            queryParameters: {
+              'user_id': userId.toString(),
+              'role_id': roleId.toString(),
+              'amount': _formatAmountForQuery(amount),
+            },
+          );
+
+      debugPrint('API Request: POST $url');
+
+      final response = await _performAuthenticatedPost(url, body: {});
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final dynamic dataRoot = jsonResponse['data'];
+        final Map<String, dynamic> payload = dataRoot is Map<String, dynamic>
+            ? dataRoot
+            : dataRoot is Map
+            ? Map<String, dynamic>.from(dataRoot)
+            : <String, dynamic>{};
+
+        return ApiResponse<Map<String, dynamic>>(
+          success: jsonResponse['success'] ?? true,
+          message: _stringifyMessage(
+            jsonResponse['message'],
+            fallback: 'Invoice payment submitted successfully',
+          ),
+          data: payload,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: _stringifyMessage(
+          jsonResponse['message'],
+          fallback: isHtml
+              ? 'Server returned HTML'
+              : 'Failed to submit invoice payment',
+        ),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in payInvoice: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
   Future<ApiResponse<Map<String, dynamic>>> _submitInvoiceAction({
     required String endpointTemplate,
     required int invoiceId,
@@ -1376,6 +1444,13 @@ class ApiService {
       );
     }
     return '$template/$id';
+  }
+
+  String _formatAmountForQuery(num amount) {
+    if (amount % 1 == 0) {
+      return amount.toInt().toString();
+    }
+    return amount.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
   }
 
   String _stringifyMessage(dynamic message, {required String fallback}) {
