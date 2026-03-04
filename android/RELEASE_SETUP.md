@@ -12,8 +12,8 @@ This project is configured for a production Android release with:
 Run from project root:
 
 ```powershell
-keytool -genkeypair -v `
-  -keystore android/upload-keystore.jks `
+keytool -genkey -v `
+  -keystore android/app/upload-keystore.jks `
   -alias upload `
   -keyalg RSA `
   -keysize 2048 `
@@ -25,10 +25,10 @@ keytool -genkeypair -v `
 Copy `android/key.properties.example` to `android/key.properties` and fill real values:
 
 ```properties
-storePassword=YOUR_KEYSTORE_PASSWORD
-keyPassword=YOUR_KEY_PASSWORD
+storePassword=your_keystore_password
+keyPassword=your_key_password
 keyAlias=upload
-storeFile=../upload-keystore.jks
+storeFile=app/upload-keystore.jks
 ```
 
 `key.properties` and keystore files are ignored in git.
@@ -44,7 +44,7 @@ flutter build apk --release
 Split per ABI (recommended for smaller APKs):
 
 ```powershell
-flutter build apk --release --split-per-abi
+flutter build apk --split-per-abi
 ```
 
 ## 4) Pre-release Verification Checklist

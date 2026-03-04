@@ -1,3 +1,4 @@
+import java.io.FileInputStream
 import java.util.Properties
 
 plugins {
@@ -10,7 +11,7 @@ plugins {
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
-    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+    FileInputStream(keystorePropertiesFile).use { keystoreProperties.load(it) }
 }
 
 fun hasText(value: String?): Boolean = !value.isNullOrBlank()
@@ -19,11 +20,13 @@ val storeFilePath = keystoreProperties.getProperty("storeFile")
 val storePasswordValue = keystoreProperties.getProperty("storePassword")
 val keyAliasValue = keystoreProperties.getProperty("keyAlias")
 val keyPasswordValue = keystoreProperties.getProperty("keyPassword")
+val resolvedStoreFile = if (hasText(storeFilePath)) rootProject.file(storeFilePath!!) else null
 
 val hasReleaseKeystore = hasText(storeFilePath) &&
     hasText(storePasswordValue) &&
     hasText(keyAliasValue) &&
-    hasText(keyPasswordValue)
+    hasText(keyPasswordValue) &&
+    resolvedStoreFile?.exists() == true
 
 val isReleaseTask = gradle.startParameter.taskNames.any { task ->
     task.contains("Release", ignoreCase = true)
@@ -48,7 +51,7 @@ android {
         applicationId = "com.example.customer_cracktreck"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 21
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         multiDexEnabled = true
         versionCode = flutter.versionCode
@@ -58,7 +61,7 @@ android {
     signingConfigs {
         create("release") {
             if (hasReleaseKeystore) {
-                storeFile = file(storeFilePath!!)
+                storeFile = resolvedStoreFile
                 storePassword = storePasswordValue
                 keyAlias = keyAliasValue
                 keyPassword = keyPasswordValue
@@ -68,11 +71,10 @@ android {
 
     buildTypes {
         release {
-            if (hasReleaseKeystore) {
-                signingConfig = signingConfigs.getByName("release")
-            } else if (isReleaseTask) {
+            signingConfig = signingConfigs.getByName("release")
+            if (!hasReleaseKeystore && isReleaseTask) {
                 throw GradleException(
-                    "Missing release signing config. Create android/key.properties from android/key.properties.example and provide a valid keystore.",
+                    "Missing release signing config. Ensure android/key.properties exists and storeFile points to android/app/upload-keystore.jks.",
                 )
             }
             isMinifyEnabled = true
@@ -87,6 +89,7 @@ android {
 
 dependencies {
     implementation("androidx.multidex:multidex:2.0.1")
+    implementation("com.google.android.play:core:1.10.3")
 }
 
 flutter {
