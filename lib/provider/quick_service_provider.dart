@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/quick_service_model.dart';
 import '../services/api_service.dart';
-import '../constants/app_strings.dart';
 
 class QuickServiceProvider extends ChangeNotifier {
   List<QuickService> _homeQuickServices = const [];
@@ -20,8 +19,11 @@ class QuickServiceProvider extends ChangeNotifier {
   List<QuickService> get otherHomeQuickServices {
     final fixed = _fixedQuickService;
     if (fixed == null) return _homeQuickServices;
-    return _homeQuickServices.where((service) => !_isSameService(service, fixed)).toList(growable: false);
+    return _homeQuickServices
+        .where((service) => !_isSameService(service, fixed))
+        .toList(growable: false);
   }
+
   bool get isHomeLoading => _isHomeLoading;
   String? get homeErrorMessage => _homeErrorMessage;
 
@@ -47,9 +49,7 @@ class QuickServiceProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await ApiService.instance.getQuickServices(
-        roleId: AppStrings.roleId,
-      );
+      final response = await ApiService.instance.getQuickServices();
 
       if (response.success) {
         final fetched = response.data ?? const <QuickService>[];
@@ -80,11 +80,8 @@ class QuickServiceProvider extends ChangeNotifier {
       final normalizedType = serviceType.trim().toLowerCase();
 
       final response = normalizedType == 'quick_service'
-          ? await ApiService.instance.getQuickServices(
-              roleId: AppStrings.roleId,
-            )
+          ? await ApiService.instance.getQuickServices()
           : await ApiService.instance.getServicesList(
-              roleId: AppStrings.roleId,
               serviceType: normalizedType,
             );
 

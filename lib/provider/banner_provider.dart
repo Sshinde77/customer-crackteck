@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/banner_model.dart';
 import '../services/api_service.dart';
-import '../constants/app_strings.dart';
 
 class BannerProvider extends ChangeNotifier {
   List<BannerModel> _banners = [];
@@ -15,9 +14,7 @@ class BannerProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await ApiService.instance.getBanners(
-        roleId: AppStrings.roleId,
-      );
+      final response = await ApiService.instance.getBanners();
 
       if (response.success) {
         _banners = response.data ?? [];

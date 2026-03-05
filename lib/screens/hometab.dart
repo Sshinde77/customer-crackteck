@@ -53,7 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      final response = await ApiService.instance.getProductCategories(roleId: 4);
+      final response = await ApiService.instance.getProductCategories();
       if (!mounted) return;
       if (response.success && response.data != null) {
         setState(() {
@@ -118,7 +118,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-
                     /// 🔹 QUICK SERVICE
                     Consumer<QuickServiceProvider>(
                       builder: (context, provider, child) {
@@ -129,7 +128,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               _sectionTitle('Quick Service'),
                               SizedBox(
                                 height: 160,
-                                child: Center(child: CircularProgressIndicator()),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
                               ),
                             ],
                           );
@@ -141,9 +142,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               _sectionTitle('Quick Service'),
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
                                 child: Text(
-                                  provider.homeErrorMessage ?? 'No quick services available',
+                                  provider.homeErrorMessage ??
+                                      'No quick services available',
                                   style: const TextStyle(color: Colors.red),
                                 ),
                               ),
@@ -166,13 +170,16 @@ class _HomeScreenState extends State<HomeScreen> {
                               height: 250,
                               child: ListView.builder(
                                 scrollDirection: Axis.horizontal,
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
                                 itemCount: quickServicesForHome.length,
                                 itemBuilder: (context, index) {
                                   final service = quickServicesForHome[index];
                                   final isFixed = index == 0;
-                                  final imagePath =
-                                      isFixed ? 'assests/computer.png' : 'assests/laptop.png';
+                                  final imagePath = isFixed
+                                      ? 'assests/computer.png'
+                                      : 'assests/laptop.png';
 
                                   return _QuickServiceCard(
                                     title: service.serviceName ?? 'N/A',
@@ -203,30 +210,31 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Center(child: CircularProgressIndicator()),
                             )
                           : _categoryError != null
-                              ? SizedBox(
-                                  height: 120,
-                                  child: Center(
-                                    child: Text(
-                                      _categoryError!,
-                                      style: const TextStyle(color: Colors.red),
-                                    ),
-                                  ),
-                                )
-                              : GridView.builder(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          ? SizedBox(
+                              height: 120,
+                              child: Center(
+                                child: Text(
+                                  _categoryError!,
+                                  style: const TextStyle(color: Colors.red),
+                                ),
+                              ),
+                            )
+                          : GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
                                     crossAxisCount: 3,
                                     crossAxisSpacing: 12,
                                     mainAxisSpacing: 12,
                                     childAspectRatio: 0.85,
                                   ),
-                                  itemCount: _visibleQuickAddItems.length,
-                                  itemBuilder: (context, index) {
-                                    final item = _visibleQuickAddItems[index];
-                                    return _quickAddItem(context, item);
-                                  },
-                                ),
+                              itemCount: _visibleQuickAddItems.length,
+                              itemBuilder: (context, index) {
+                                final item = _visibleQuickAddItems[index];
+                                return _quickAddItem(context, item);
+                              },
+                            ),
                     ),
 
                     /// 🔽 Expand / Collapse Arrow
@@ -259,7 +267,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 color: Colors.grey.shade100,
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              child: const Center(child: CircularProgressIndicator()),
+                              child: const Center(
+                                child: CircularProgressIndicator(),
+                              ),
                             );
                           }
 
@@ -272,7 +282,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: PageView.builder(
                               controller: _bannerController,
                               itemCount: provider.banners.length,
-                              onPageChanged: (index) => setState(() => _bannerIndex = index),
+                              onPageChanged: (index) =>
+                                  setState(() => _bannerIndex = index),
                               itemBuilder: (_, index) {
                                 final banner = provider.banners[index];
                                 final imageUrl = banner.bannerPath != null
@@ -293,7 +304,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: InkWell(
                         onTap: () {
-                          Navigator.pushNamed(context, AppRoutes.serviceEnquiry);
+                          Navigator.pushNamed(
+                            context,
+                            AppRoutes.serviceEnquiry,
+                          );
                         },
                         borderRadius: BorderRadius.circular(20),
                         child: Container(
@@ -302,7 +316,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(20),
                             color: const Color(0xFFFFE5D0),
-                          ),  
+                          ),
                           child: Stack(
                             children: [
                               Padding(
@@ -311,7 +325,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Icon(Icons.headset_mic_outlined, color: Colors.orange, size: 36),
+                                    const Icon(
+                                      Icons.headset_mic_outlined,
+                                      color: Colors.orange,
+                                      size: 36,
+                                    ),
                                     const SizedBox(height: 4),
                                     const Text(
                                       'Enquiry',
@@ -345,7 +363,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                     child: Container(
                                       width: 150,
                                       alignment: Alignment.centerRight,
-                                      child: Icon(Icons.support_agent, size: 100, color: Colors.orange.withOpacity(0.2)),
+                                      child: Icon(
+                                        Icons.support_agent,
+                                        size: 100,
+                                        color: Colors.orange.withOpacity(0.2),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -375,12 +397,22 @@ class _HomeScreenState extends State<HomeScreen> {
             categoryId: c.id,
             label: c.name!.trim(),
             slug: c.slug,
-            imageUrl: c.image != null ? 'https://crackteck.co.in/${c.image}' : null,
+            imageUrl: c.image != null
+                ? 'https://crackteck.co.in/${c.image}'
+                : null,
           ),
         )
         .toList();
 
-    items.add(const _QuickAddItem(categoryId: null, label: 'Other', slug: null, imageUrl: null, isOther: true));
+    items.add(
+      const _QuickAddItem(
+        categoryId: null,
+        label: 'Other',
+        slug: null,
+        imageUrl: null,
+        isOther: true,
+      ),
+    );
     return items;
   }
 
@@ -388,7 +420,15 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_showAllQuickAdd) return _allQuickAddItems;
     final categoryItems = _allQuickAddItems.where((i) => !i.isOther).toList();
     final visible = categoryItems.take(2).toList();
-    visible.add(const _QuickAddItem(categoryId: null, label: 'Other', slug: null, imageUrl: null, isOther: true));
+    visible.add(
+      const _QuickAddItem(
+        categoryId: null,
+        label: 'Other',
+        slug: null,
+        imageUrl: null,
+        isOther: true,
+      ),
+    );
     return visible;
   }
 
@@ -398,7 +438,9 @@ class _HomeScreenState extends State<HomeScreen> {
     bool updateSelection = false,
   }) {
     if (updateSelection) {
-      context.read<QuickServiceProvider>().setSelectedServiceForNavigation(service);
+      context.read<QuickServiceProvider>().setSelectedServiceForNavigation(
+        service,
+      );
     }
 
     Navigator.pushNamed(
@@ -451,7 +493,11 @@ class _HomeScreenState extends State<HomeScreen> {
             },
             child: Stack(
               children: [
-                const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 28),
+                const Icon(
+                  Icons.notifications_none_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
                 Positioned(
                   right: 2,
                   top: 2,
@@ -461,9 +507,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: Colors.red,
                       shape: BoxShape.circle,
                     ),
-                    constraints: const BoxConstraints(minWidth: 8, minHeight: 8),
+                    constraints: const BoxConstraints(
+                      minWidth: 8,
+                      minHeight: 8,
+                    ),
                   ),
-                )
+                ),
               ],
             ),
           ),
@@ -477,10 +526,7 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       child: Text(
         title,
-        style: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-        ),
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -520,7 +566,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   )
                 : const Center(
-                    child: Text('Other', style: TextStyle(fontWeight: FontWeight.w500)),
+                    child: Text(
+                      'Other',
+                      style: TextStyle(fontWeight: FontWeight.w500),
+                    ),
                   ),
           ),
           const SizedBox(height: 8),
@@ -546,14 +595,17 @@ class _HomeScreenState extends State<HomeScreen> {
           return Center(
             child: CircularProgressIndicator(
               value: loadingProgress.expectedTotalBytes != null
-                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                  ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
                   : null,
             ),
           );
         },
         errorBuilder: (context, error, stackTrace) => Container(
           color: Colors.grey.shade200,
-          child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+          child: const Center(
+            child: Icon(Icons.broken_image, color: Colors.grey),
+          ),
         ),
       ),
     );
@@ -564,23 +616,22 @@ class _QuickServiceCard extends StatelessWidget {
   final String title;
   final String image;
   final QuickService? serviceData;
-  final double width;
-  final EdgeInsetsGeometry margin;
+  final double width = 190;
+  final EdgeInsetsGeometry margin = const EdgeInsets.only(right: 12);
   final VoidCallback? onTap;
 
   const _QuickServiceCard({
     required this.title,
     required this.image,
     this.serviceData,
-    this.width = 180,
-    this.margin = const EdgeInsets.only(right: 16),
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onTap ??
+      onTap:
+          onTap ??
           () {
             Navigator.pushNamed(
               context,
@@ -634,11 +685,9 @@ class _QuickServiceCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    serviceData?.diagnosisList?.join(', ') ?? 'No diagnosis available',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 10,
-                    ),
+                    serviceData?.diagnosisList?.join(', ') ??
+                        'No diagnosis available',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                   ),

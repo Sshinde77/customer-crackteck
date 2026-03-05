@@ -26,20 +26,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _fetchProfileData() async {
     try {
-      final userId = await SecureStorageService.getUserId();
-      final roleId = await SecureStorageService.getRoleId();
+      final ApiResponse<UserModel> response = await ApiService.instance
+          .getProfile();
 
-      if (userId != null && roleId != null) {
-        final ApiResponse<UserModel> response = await ApiService.instance.getProfile(
-          userId: userId,
-          roleId: roleId,
-        );
-
-        if (response.success && response.data != null) {
-          setState(() {
-            _user = response.data;
-          });
-        }
+      if (response.success && response.data != null) {
+        setState(() {
+          _user = response.data;
+        });
       }
     } catch (e) {
       debugPrint('Error fetching profile: $e');
@@ -48,7 +41,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _handleLogout(BuildContext context) async {
+  Future<void> _handleLogout() async {
     // Show confirmation dialog
     final bool? confirm = await showDialog<bool>(
       context: context,
@@ -69,57 +62,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
 
-    if (confirm == true) {
-      // Show loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
-      );
+    if (confirm != true || !mounted) return;
 
-      try {
-        final userId = await SecureStorageService.getUserId();
-        final roleId = await SecureStorageService.getRoleId();
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
 
-        if (userId != null && roleId != null) {
-          final response = await ApiService.instance.logout(
-            userId: userId,
-            roleId: roleId,
-          );
+    try {
+      final response = await ApiService.instance.logout();
 
-          if (response.success) {
-            // Clear local storage
-            await SecureStorageService.clearTokens();
-            await SecureStorageService.saveUserId(0); // Clear user ID
-            
-            if (context.mounted) {
-              Navigator.pop(context); // Close loading indicator
-              Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (route) => false);
-            }
-          } else {
-            if (context.mounted) {
-              Navigator.pop(context); // Close loading indicator
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(response.message ?? 'Logout failed')),
-              );
-            }
-          }
-        } else {
-          // If no stored data, just clear and go to login
-          await SecureStorageService.clearTokens();
-          if (context.mounted) {
-            Navigator.pop(context);
-            Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (route) => false);
-          }
-        }
-      } catch (e) {
-        if (context.mounted) {
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('An error occurred during logout')),
-          );
-        }
+      if (!mounted) return;
+      if (!response.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(response.message ?? 'Logout failed')),
+        );
       }
+
+      await SecureStorageService.clearTokens();
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading indicator
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.login,
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('An error occurred during logout')),
+      );
     }
   }
 
@@ -134,9 +109,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
-              decoration: const BoxDecoration(
-                color: AppColors.primary,
-              ),
+              decoration: const BoxDecoration(color: AppColors.primary),
               child: Row(
                 children: [
                   Container(
@@ -157,7 +130,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _isLoading ? 'Loading...' : 'Hii ${_user?.firstName ?? 'User'}',
+                          _isLoading
+                              ? 'Loading...'
+                              : 'Hii ${_user?.firstName ?? 'User'}',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 20,
@@ -170,17 +145,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
-        
+
             // Profile Options List
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 20,
+                ),
                 children: [
                   _buildProfileOption(
                     Icons.info_outline,
                     'Personal info',
                     onTap: () {
-                      Navigator.pushNamed(context, AppRoutes.personalInfo).then((_) => _fetchProfileData());
+                      Navigator.pushNamed(
+                        context,
+                        AppRoutes.personalInfo,
+                      ).then((_) => _fetchProfileData());
                     },
                   ),
                   _buildProfileOption(
@@ -230,8 +211,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Navigator.pushNamed(context, AppRoutes.feedback);
                     },
                   ),
-                  _buildProfileOption(Icons.headset_mic_outlined, 'Help & Support'),
-                  _buildProfileOption(Icons.privacy_tip_outlined, 'Privacy policy'),
+                  _buildProfileOption(
+                    Icons.headset_mic_outlined,
+                    'Help & Support',
+                  ),
+                  _buildProfileOption(
+                    Icons.privacy_tip_outlined,
+                    'Privacy policy',
+                  ),
                 ],
               ),
             ),
@@ -242,7 +229,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: () => _handleLogout(context),
+                  onPressed: _handleLogout,
                   icon: const Icon(Icons.logout, color: Colors.white),
                   label: const Text(
                     'Logout',
@@ -268,7 +255,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildProfileOption(IconData icon, String title, {VoidCallback? onTap}) {
+  Widget _buildProfileOption(
+    IconData icon,
+    String title, {
+    VoidCallback? onTap,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -286,10 +277,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             color: Colors.black87,
           ),
         ),
-        trailing: const Icon(Icons.arrow_forward, color: Colors.green, size: 20),
-        onTap: onTap ?? () {
-          // Default empty handler
-        },
+        trailing: const Icon(
+          Icons.arrow_forward,
+          color: Colors.green,
+          size: 20,
+        ),
+        onTap:
+            onTap ??
+            () {
+              // Default empty handler
+            },
       ),
     );
   }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/amc_plan_model.dart';
 import '../services/api_service.dart';
-import '../constants/app_strings.dart';
 
 class AmcPlanProvider extends ChangeNotifier {
   List<AmcPlanItem> _amcPlans = [];
@@ -24,9 +23,7 @@ class AmcPlanProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await ApiService.instance.getAmcPlans(
-        roleId: AppStrings.roleId,
-      );
+      final response = await ApiService.instance.getAmcPlans();
 
       if (response.success) {
         _amcPlans = response.data ?? [];
@@ -51,7 +48,6 @@ class AmcPlanProvider extends ChangeNotifier {
     try {
       final response = await ApiService.instance.getAmcPlanDetails(
         planId: planId,
-        roleId: AppStrings.roleId,
       );
 
       if (response.success) {

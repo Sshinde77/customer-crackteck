@@ -276,11 +276,10 @@
 // }
 //
 
-
 import 'dart:async';
 import 'package:customer_cracktreck/routes/app_routes.dart';
 import 'package:customer_cracktreck/routes/route_generator.dart';
-import 'package:customer_cracktreck/services/api_service.dart';
+import 'package:customer_cracktreck/services/auth_service.dart';
 import 'package:customer_cracktreck/widgets/custom_button.dart';
 import 'package:flutter/material.dart';
 import 'package:sms_autofill/sms_autofill.dart';
@@ -299,7 +298,7 @@ class OtpVerificationScreen extends StatefulWidget {
 
 class _OtpVerificationScreenState extends State<OtpVerificationScreen>
     with CodeAutoFill {
-  final ApiService _apiService = ApiService.instance;
+  final AuthService _authService = AuthService.instance;
 
   final TextEditingController _otpController = TextEditingController();
   final FocusNode _otpFocusNode = FocusNode();
@@ -365,7 +364,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
     setState(() => _isVerifying = true);
 
     try {
-      final res = await _apiService.verifyOtp(
+      final res = await _authService.verifyOtp(
         phoneNumber: widget.args.phoneNumber,
         otp: otp,
         roleId: widget.args.roleId,
@@ -392,27 +391,27 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
         Navigator.pushNamedAndRemoveUntil(
           context,
           AppRoutes.adminDashboard,
-              (_) => false,
+          (_) => false,
         );
         break;
       case 2:
         Navigator.pushNamedAndRemoveUntil(
           context,
           AppRoutes.residentDashboard,
-              (_) => false,
+          (_) => false,
         );
         break;
       case 3:
         Navigator.pushNamedAndRemoveUntil(
           context,
           AppRoutes.salespersonDashboard,
-              (_) => false,
+          (_) => false,
         );
       case 4:
         Navigator.pushNamedAndRemoveUntil(
           context,
           AppRoutes.hometab,
-              (_) => false,
+          (_) => false,
         );
         break;
       default:
@@ -424,7 +423,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
   Future<void> resendOtp() async {
     if (!_canResend) return;
 
-    final response = await _apiService.login(
+    final response = await _authService.sendOtp(
       roleId: widget.args.roleId,
       phoneNumber: widget.args.phoneNumber,
     );
@@ -438,9 +437,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
   }
 
   void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   // ================= ANIMATED OTP BOX =================
@@ -465,17 +462,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
               color: AppColors.primary.withOpacity(0.2),
               blurRadius: 8,
               offset: const Offset(0, 4),
-            )
+            ),
         ],
       ),
       child: Text(
-        index < _otpController.text.length
-            ? _otpController.text[index]
-            : "",
-        style: const TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.bold,
-        ),
+        index < _otpController.text.length ? _otpController.text[index] : "",
+        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -518,10 +510,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
             ),
             Text(
               args.phoneNumber,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 35),
@@ -588,4 +577,3 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
     );
   }
 }
-

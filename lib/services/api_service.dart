@@ -67,6 +67,33 @@ class ApiService {
     'Accept': 'application/json',
   };
 
+  Future<Map<String, String>> _authenticatedMultipartHeaders() async {
+    final token = await SecureStorageService.getAccessToken();
+    return {
+      'Accept': 'application/json',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+    };
+  }
+
+  Future<Map<String, String>> _resolvedAuthFields({
+    int? userId,
+    int? roleId,
+  }) async {
+    final storedUserId = await SecureStorageService.getUserId();
+    final storedRoleId = await SecureStorageService.getRoleId();
+    final resolvedUserId = userId ?? storedUserId;
+    final resolvedRoleId = roleId ?? storedRoleId;
+
+    final fields = <String, String>{};
+    if (resolvedUserId != null && resolvedUserId > 0) {
+      fields['user_id'] = resolvedUserId.toString();
+    }
+    if (resolvedRoleId != null && resolvedRoleId > 0) {
+      fields['role_id'] = resolvedRoleId.toString();
+    }
+    return fields;
+  }
+
   // ---------------------------
   // Helper: token persistence
   // ---------------------------
@@ -74,67 +101,102 @@ class ApiService {
     dynamic data, {
     required int roleId,
   }) async {
-    if (data == null) {
-      return;
-    }
-
     String? accessToken;
     String? refreshToken;
     int? userId;
 
     if (data is Map<String, dynamic>) {
-      accessToken = _extractStringField(data, const [
+      final sources = _flattenCandidateMaps(data);
+
+      accessToken = _extractStringFieldFromMaps(sources, const [
         'access_token',
         'token',
         'accessToken',
+        'jwt',
+        'jwt_token',
       ]);
-      refreshToken = _extractStringField(data, const [
+      refreshToken = _extractStringFieldFromMaps(sources, const [
         'refresh_token',
         'refreshToken',
       ]);
 
-      // Try to capture the authenticated user's id from common shapes:
-      // - { user_id: 1, ... }
-      // - { id: 1, ... }
-      // - { user: { id: 1 } }
-      dynamic rawUserId = data['user_id'] ?? data['id'];
-      if (rawUserId == null && data['user'] is Map<String, dynamic>) {
-        final user = data['user'] as Map<String, dynamic>;
-        rawUserId = user['user_id'] ?? user['id'];
+      userId = _extractIntFieldFromMaps(sources, const ['user_id', 'id']);
+
+      if (userId == null) {
+        for (final source in sources) {
+          if (source['user'] is Map<String, dynamic>) {
+            final user = source['user'] as Map<String, dynamic>;
+            userId = _tryParseInt(user['user_id'] ?? user['id']);
+            if (userId != null) {
+              break;
+            }
+          }
+        }
       }
-      userId = _tryParseInt(rawUserId);
     } else if (data is String) {
       // Some APIs may return the token directly as a string.
       accessToken = data;
     }
 
-    if (accessToken != null && accessToken.isNotEmpty) {
-      await SecureStorageService.saveAccessToken(accessToken);
-    }
-    if (refreshToken != null && refreshToken.isNotEmpty) {
-      await SecureStorageService.saveRefreshToken(refreshToken);
-    }
-
-    // Persist role so that refresh-token calls know which role_id to send.
-    await SecureStorageService.saveRoleId(roleId);
-
-    // Persist user id when available so dashboard/refresh calls can send it.
-    if (userId != null) {
-      await SecureStorageService.saveUserId(userId);
-    }
+    // Persist any available auth payload in one write flow.
+    await SecureStorageService.saveSession(
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+      userId: userId,
+      roleId: roleId,
+    );
   }
 
-  String? _extractStringField(Map<String, dynamic> source, List<String> keys) {
-    for (final key in keys) {
-      final value = source[key];
-      if (value is String && value.isNotEmpty) {
-        return value;
+  List<Map<String, dynamic>> _flattenCandidateMaps(
+    Map<String, dynamic> source,
+  ) {
+    final result = <Map<String, dynamic>>[source];
+    final queue = <Map<String, dynamic>>[source];
+
+    while (queue.isNotEmpty) {
+      final current = queue.removeAt(0);
+      for (final key in const ['data', 'result', 'payload']) {
+        final nested = current[key];
+        if (nested is Map<String, dynamic> && !result.contains(nested)) {
+          result.add(nested);
+          queue.add(nested);
+        }
+      }
+    }
+    return result;
+  }
+
+  String? _extractStringFieldFromMaps(
+    Iterable<Map<String, dynamic>> sources,
+    List<String> keys,
+  ) {
+    for (final source in sources) {
+      for (final key in keys) {
+        final value = source[key];
+        if (value is String && value.trim().isNotEmpty) {
+          return value.trim();
+        }
       }
     }
     return null;
   }
 
-  int? _tryParseInt(dynamic value) {
+  int? _extractIntFieldFromMaps(
+    Iterable<Map<String, dynamic>> sources,
+    List<String> keys,
+  ) {
+    for (final source in sources) {
+      for (final key in keys) {
+        final parsed = _tryParseInt(source[key]);
+        if (parsed != null) {
+          return parsed;
+        }
+      }
+    }
+    return null;
+  }
+
+  static int? _tryParseInt(dynamic value) {
     if (value == null) return null;
     if (value is int) return value;
     if (value is num) return value.toInt();
@@ -259,15 +321,13 @@ class ApiService {
 
       if (!isHtml &&
           (response.statusCode == 200 || response.statusCode == 201)) {
-        // Persist tokens (if present) for this role.
-        await _persistTokensFromData(
-          jsonResponse['data'] ?? jsonResponse,
-          roleId: roleId,
-        );
+        // Persist tokens and user context (if present) for this role.
+        await _persistTokensFromData(jsonResponse, roleId: roleId);
+        final responseData = jsonResponse['data'] ?? jsonResponse;
         return ApiResponse(
           success: jsonResponse['success'] ?? true,
           message: jsonResponse['message'] ?? 'OTP verified',
-          data: jsonResponse['data'],
+          data: responseData,
           errors: jsonResponse['errors'],
         );
       }
@@ -455,27 +515,32 @@ class ApiService {
   }
 
   /// Logout
-  Future<ApiResponse> logout({required int userId, required int roleId}) async {
+  Future<ApiResponse> logout({int? userId, int? roleId}) async {
     try {
+      final authFields = await _resolvedAuthFields(
+        userId: userId,
+        roleId: roleId,
+      );
+      if (!authFields.containsKey('user_id') ||
+          !authFields.containsKey('role_id')) {
+        return ApiResponse(
+          success: false,
+          message: 'Missing user session. Please login again.',
+        );
+      }
       debugPrint('ðŸ”µ API Request: POST ${ApiConstants.logout}');
-      debugPrint('ðŸ”µ Request Query: user_id=$userId&role_id=$roleId');
-
-      final accessToken = await SecureStorageService.getAccessToken();
-      final headers = {
-        'Accept': 'application/json',
-        if (accessToken != null) 'Authorization': 'Bearer $accessToken',
-      };
+      debugPrint(
+        'Request Query: user_id=${authFields['user_id']}&role_id=${authFields['role_id']}',
+      );
 
       final uri = Uri.parse(ApiConstants.logout).replace(
         queryParameters: {
-          'user_id': userId.toString(),
-          'role_id': roleId.toString(),
+          'user_id': authFields['user_id']!,
+          'role_id': authFields['role_id']!,
         },
       );
 
-      final response = await http
-          .post(uri, headers: headers)
-          .timeout(ApiConstants.requestTimeout);
+      final response = await _performAuthenticatedPost(uri, body: {});
 
       debugPrint('ðŸŸ¡ API Response Status: ${response.statusCode}');
       debugPrint('ðŸŸ¡ API Response Body: ${response.body}');
@@ -514,15 +579,19 @@ class ApiService {
   // Product List API
   // ========================================
 
-  Future<ApiResponse<ProductModel>> getProducts({required int roleId}) async {
+  Future<ApiResponse<ProductModel>> getProducts({int? roleId}) async {
     try {
       debugPrint(
         'ðŸ”µ API Request: GET ${ApiConstants.productlist}?role_id=$roleId',
       );
 
-      final url = Uri.parse(
-        ApiConstants.productlist,
-      ).replace(queryParameters: {'role_id': roleId.toString()});
+      final query = <String, String>{};
+      if (roleId != null && roleId > 0) {
+        query['role_id'] = roleId.toString();
+      }
+      final url = query.isEmpty
+          ? Uri.parse(ApiConstants.productlist)
+          : Uri.parse(ApiConstants.productlist).replace(queryParameters: query);
 
       final response = await _performAuthenticatedGet(url);
 
@@ -568,12 +637,18 @@ class ApiService {
 
   Future<ApiResponse<ProductData>> getProductDetail({
     required int productId,
-    required int roleId,
+    int? roleId,
   }) async {
     try {
-      final url = Uri.parse(
-        '${ApiConstants.productdetail}/$productId',
-      ).replace(queryParameters: {'role_id': roleId.toString()});
+      final query = <String, String>{};
+      if (roleId != null && roleId > 0) {
+        query['role_id'] = roleId.toString();
+      }
+      final url = query.isEmpty
+          ? Uri.parse('${ApiConstants.productdetail}/$productId')
+          : Uri.parse(
+              '${ApiConstants.productdetail}/$productId',
+            ).replace(queryParameters: query);
 
       final response = await _performAuthenticatedGet(url);
       final jsonResponse = _safeJsonDecode(response.body);
@@ -1908,16 +1983,22 @@ class ApiService {
   // ========================================
 
   Future<ApiResponse<List<ProductCategory>>> getProductCategories({
-    required int roleId,
+    int? roleId,
   }) async {
     try {
       debugPrint(
         'Ã°Å¸â€Âµ API Request: GET ${ApiConstants.product_category}?role_id=$roleId',
       );
 
-      final url = Uri.parse(
-        ApiConstants.product_category,
-      ).replace(queryParameters: {'role_id': roleId.toString()});
+      final query = <String, String>{};
+      if (roleId != null && roleId > 0) {
+        query['role_id'] = roleId.toString();
+      }
+      final url = query.isEmpty
+          ? Uri.parse(ApiConstants.product_category)
+          : Uri.parse(
+              ApiConstants.product_category,
+            ).replace(queryParameters: query);
 
       final response = await _performAuthenticatedGet(url);
 
@@ -1962,20 +2043,29 @@ class ApiService {
   // Profile API
   // ========================================
 
-  Future<ApiResponse<UserModel>> getProfile({
-    required int userId,
-    required int roleId,
-  }) async {
+  Future<ApiResponse<UserModel>> getProfile({int? userId, int? roleId}) async {
     try {
+      final authFields = await _resolvedAuthFields(
+        userId: userId,
+        roleId: roleId,
+      );
+      if (!authFields.containsKey('user_id') ||
+          !authFields.containsKey('role_id')) {
+        return ApiResponse(
+          success: false,
+          message: 'Missing user session. Please login again.',
+        );
+      }
+
+      final resolvedUserId = authFields['user_id']!;
+      final resolvedRoleId = authFields['role_id']!;
+
       debugPrint(
-        'ðŸ”µ API Request: GET ${ApiConstants.profile}?user_id=$userId&role_id=$roleId',
+        'ðŸ”µ API Request: GET ${ApiConstants.profile}?user_id=$resolvedUserId&role_id=$resolvedRoleId',
       );
 
       final url = Uri.parse(ApiConstants.profile).replace(
-        queryParameters: {
-          'user_id': userId.toString(),
-          'role_id': roleId.toString(),
-        },
+        queryParameters: {'user_id': resolvedUserId, 'role_id': resolvedRoleId},
       );
 
       final response = await _performAuthenticatedGet(url);
@@ -2264,16 +2354,25 @@ class ApiService {
   // ========================================
 
   Future<ApiResponse<AadharCard>> getAadharDetails({
-    required int userId,
-    required int roleId,
+    int? userId,
+    int? roleId,
   }) async {
     try {
-      final url = Uri.parse(ApiConstants.aadharCard).replace(
-        queryParameters: {
-          'user_id': userId.toString(),
-          'role_id': roleId.toString(),
-        },
+      final authFields = await _resolvedAuthFields(
+        userId: userId,
+        roleId: roleId,
       );
+      if (!authFields.containsKey('user_id') ||
+          !authFields.containsKey('role_id')) {
+        return ApiResponse(
+          success: false,
+          message: 'Missing user session. Please login again.',
+        );
+      }
+
+      final url = Uri.parse(
+        ApiConstants.aadharCard,
+      ).replace(queryParameters: authFields);
 
       final response = await _performAuthenticatedGet(url);
       final jsonResponse = _safeJsonDecode(response.body);
@@ -2294,17 +2393,23 @@ class ApiService {
     }
   }
 
-  Future<ApiResponse<PanCard>> getPanDetails({
-    required int userId,
-    required int roleId,
-  }) async {
+  Future<ApiResponse<PanCard>> getPanDetails({int? userId, int? roleId}) async {
     try {
-      final url = Uri.parse(ApiConstants.panCard).replace(
-        queryParameters: {
-          'user_id': userId.toString(),
-          'role_id': roleId.toString(),
-        },
+      final authFields = await _resolvedAuthFields(
+        userId: userId,
+        roleId: roleId,
       );
+      if (!authFields.containsKey('user_id') ||
+          !authFields.containsKey('role_id')) {
+        return ApiResponse(
+          success: false,
+          message: 'Missing user session. Please login again.',
+        );
+      }
+
+      final url = Uri.parse(
+        ApiConstants.panCard,
+      ).replace(queryParameters: authFields);
 
       final response = await _performAuthenticatedGet(url);
       final jsonResponse = _safeJsonDecode(response.body);
@@ -2326,8 +2431,8 @@ class ApiService {
   }
 
   Future<ApiResponse> uploadAadhar({
-    required int userId,
-    required int roleId,
+    int? userId,
+    int? roleId,
     required String aadharNumber,
     File? frontImage,
     File? backImage,
@@ -2342,15 +2447,21 @@ class ApiService {
       }
 
       final request = http.MultipartRequest('POST', url);
-      final token = await SecureStorageService.getAccessToken();
+      request.headers.addAll(await _authenticatedMultipartHeaders());
 
-      request.headers.addAll({
-        'Accept': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      });
+      final authFields = await _resolvedAuthFields(
+        userId: userId,
+        roleId: roleId,
+      );
+      if (!authFields.containsKey('user_id') ||
+          !authFields.containsKey('role_id')) {
+        return ApiResponse(
+          success: false,
+          message: 'Missing user session. Please login again.',
+        );
+      }
 
-      request.fields['user_id'] = userId.toString();
-      request.fields['role_id'] = roleId.toString();
+      request.fields.addAll(authFields);
       request.fields['aadhar_number'] = aadharNumber;
 
       if (documentId != null) {
@@ -2393,8 +2504,8 @@ class ApiService {
   }
 
   Future<ApiResponse> uploadPan({
-    required int userId,
-    required int roleId,
+    int? userId,
+    int? roleId,
     required String panNumber,
     File? frontImage,
     File? backImage,
@@ -2409,15 +2520,21 @@ class ApiService {
       }
 
       final request = http.MultipartRequest('POST', url);
-      final token = await SecureStorageService.getAccessToken();
+      request.headers.addAll(await _authenticatedMultipartHeaders());
 
-      request.headers.addAll({
-        'Accept': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      });
+      final authFields = await _resolvedAuthFields(
+        userId: userId,
+        roleId: roleId,
+      );
+      if (!authFields.containsKey('user_id') ||
+          !authFields.containsKey('role_id')) {
+        return ApiResponse(
+          success: false,
+          message: 'Missing user session. Please login again.',
+        );
+      }
 
-      request.fields['user_id'] = userId.toString();
-      request.fields['role_id'] = roleId.toString();
+      request.fields.addAll(authFields);
       request.fields['pan_number'] = panNumber;
 
       if (documentId != null) {
@@ -2467,16 +2584,25 @@ class ApiService {
   // ========================================
 
   Future<ApiResponse<CompanyDetails>> getCompanyDetails({
-    required int userId,
-    required int roleId,
+    int? userId,
+    int? roleId,
   }) async {
     try {
-      final url = Uri.parse(ApiConstants.company).replace(
-        queryParameters: {
-          'user_id': userId.toString(),
-          'role_id': roleId.toString(),
-        },
+      final authFields = await _resolvedAuthFields(
+        userId: userId,
+        roleId: roleId,
       );
+      if (!authFields.containsKey('user_id') ||
+          !authFields.containsKey('role_id')) {
+        return ApiResponse(
+          success: false,
+          message: 'Missing user session. Please login again.',
+        );
+      }
+
+      final url = Uri.parse(
+        ApiConstants.company,
+      ).replace(queryParameters: authFields);
 
       final response = await _performAuthenticatedGet(url);
       final jsonResponse = _safeJsonDecode(response.body);
@@ -2498,8 +2624,8 @@ class ApiService {
   }
 
   Future<ApiResponse> storeCompanyDetails({
-    required int userId,
-    required int roleId,
+    int? userId,
+    int? roleId,
     required String companyName,
     required String address1,
     required String address2,
@@ -2511,12 +2637,27 @@ class ApiService {
     int? companyId,
   }) async {
     try {
+      final authFields = await _resolvedAuthFields(
+        userId: userId,
+        roleId: roleId,
+      );
+      if (!authFields.containsKey('user_id') ||
+          !authFields.containsKey('role_id')) {
+        return ApiResponse(
+          success: false,
+          message: 'Missing user session. Please login again.',
+        );
+      }
+
+      final resolvedUserId = authFields['user_id']!;
+      final resolvedRoleId = authFields['role_id']!;
+
       if (companyId != null) {
         // For Edit: PUT request with params in URL as per Postman screenshot
         final url = Uri.parse("${ApiConstants.company}/$companyId").replace(
           queryParameters: {
-            'user_id': userId.toString(),
-            'role_id': roleId.toString(),
+            'user_id': resolvedUserId,
+            'role_id': resolvedRoleId,
             'company_name': companyName,
             'comp_address1': address1,
             'comp_address2': address2,
@@ -2542,8 +2683,8 @@ class ApiService {
         // For Store: POST request with body
         final url = Uri.parse(ApiConstants.company);
         final body = {
-          'user_id': userId,
-          'role_id': roleId,
+          'user_id': int.parse(resolvedUserId),
+          'role_id': int.parse(resolvedRoleId),
           'company_name': companyName,
           'comp_address1': address1,
           'comp_address2': address2,
@@ -2579,13 +2720,15 @@ class ApiService {
   // Banners API
   // ========================================
 
-  Future<ApiResponse<List<BannerModel>>> getBanners({
-    required int roleId,
-  }) async {
+  Future<ApiResponse<List<BannerModel>>> getBanners({int? roleId}) async {
     try {
-      final url = Uri.parse(
-        ApiConstants.banners,
-      ).replace(queryParameters: {'role_id': roleId.toString()});
+      final query = <String, String>{};
+      if (roleId != null && roleId > 0) {
+        query['role_id'] = roleId.toString();
+      }
+      final url = query.isEmpty
+          ? Uri.parse(ApiConstants.banners)
+          : Uri.parse(ApiConstants.banners).replace(queryParameters: query);
 
       final response = await _performAuthenticatedGet(url);
       final jsonResponse = _safeJsonDecode(response.body);
@@ -2612,12 +2755,18 @@ class ApiService {
   // ========================================
 
   Future<ApiResponse<List<QuickService>>> getQuickServices({
-    required int roleId,
+    int? roleId,
   }) async {
     try {
-      final url = Uri.parse(
-        ApiConstants.quickservices,
-      ).replace(queryParameters: {'role_id': roleId.toString()});
+      final query = <String, String>{};
+      if (roleId != null && roleId > 0) {
+        query['role_id'] = roleId.toString();
+      }
+      final url = query.isEmpty
+          ? Uri.parse(ApiConstants.quickservices)
+          : Uri.parse(
+              ApiConstants.quickservices,
+            ).replace(queryParameters: query);
 
       final response = await _performAuthenticatedGet(url);
       final jsonResponse = _safeJsonDecode(response.body);
@@ -2641,8 +2790,8 @@ class ApiService {
 
   /// Submit Quick Service Request
   Future<ApiResponse> submitQuickServiceRequest({
-    required int customerId,
-    required int roleId,
+    int? customerId,
+    int? roleId,
     required String serviceType,
     required List<Map<String, dynamic>> products,
     int? amcPlanId,
@@ -2653,15 +2802,21 @@ class ApiService {
 
       final url = Uri.parse(ApiConstants.submitQuickService);
       final request = http.MultipartRequest('POST', url);
-      final token = await SecureStorageService.getAccessToken();
+      request.headers.addAll(await _authenticatedMultipartHeaders());
 
-      request.headers.addAll({
-        'Accept': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      });
+      final authFields = await _resolvedAuthFields(
+        userId: customerId,
+        roleId: roleId,
+      );
+      if (!authFields.containsKey('user_id') ||
+          !authFields.containsKey('role_id')) {
+        return ApiResponse(
+          success: false,
+          message: 'Missing user session. Please login again.',
+        );
+      }
 
-      request.fields['user_id'] = customerId.toString();
-      request.fields['role_id'] = roleId.toString();
+      request.fields.addAll(authFields);
       request.fields['service_type'] = serviceType;
       if (customerAddressId != null) {
         request.fields['customer_address_id'] = customerAddressId.toString();
@@ -2750,16 +2905,17 @@ class ApiService {
 
   /// Get Services List (Filtered by role_id and service_type)
   Future<ApiResponse<List<QuickService>>> getServicesList({
-    required int roleId,
+    int? roleId,
     required String serviceType,
   }) async {
     try {
-      final url = Uri.parse(ApiConstants.servicesList).replace(
-        queryParameters: {
-          'role_id': roleId.toString(),
-          'service_type': serviceType,
-        },
-      );
+      final query = <String, String>{'service_type': serviceType};
+      if (roleId != null && roleId > 0) {
+        query['role_id'] = roleId.toString();
+      }
+      final url = Uri.parse(
+        ApiConstants.servicesList,
+      ).replace(queryParameters: query);
 
       debugPrint('ðŸ”µ API Request: GET $url');
 
@@ -2964,17 +3120,19 @@ class ApiService {
   // AMC Plans API
   // ========================================
 
-  Future<ApiResponse<List<AmcPlanItem>>> getAmcPlans({
-    required int roleId,
-  }) async {
+  Future<ApiResponse<List<AmcPlanItem>>> getAmcPlans({int? roleId}) async {
     try {
       debugPrint(
         'ðŸ”µ API Request: GET ${ApiConstants.amcPlans}?role_id=$roleId',
       );
 
-      final url = Uri.parse(
-        ApiConstants.amcPlans,
-      ).replace(queryParameters: {'role_id': roleId.toString()});
+      final query = <String, String>{};
+      if (roleId != null && roleId > 0) {
+        query['role_id'] = roleId.toString();
+      }
+      final url = query.isEmpty
+          ? Uri.parse(ApiConstants.amcPlans)
+          : Uri.parse(ApiConstants.amcPlans).replace(queryParameters: query);
 
       final response = await _performAuthenticatedGet(url);
 
@@ -3012,16 +3170,22 @@ class ApiService {
   // Get AMC Plan Details by ID
   Future<ApiResponse<AmcPlanDetailResponse>> getAmcPlanDetails({
     required int planId,
-    required int roleId,
+    int? roleId,
   }) async {
     try {
       debugPrint(
         'ðŸ”µ API Request: GET ${ApiConstants.amcPlanDetails}/$planId?role_id=$roleId',
       );
 
-      final url = Uri.parse(
-        '${ApiConstants.amcPlanDetails}/$planId',
-      ).replace(queryParameters: {'role_id': roleId.toString()});
+      final query = <String, String>{};
+      if (roleId != null && roleId > 0) {
+        query['role_id'] = roleId.toString();
+      }
+      final url = query.isEmpty
+          ? Uri.parse('${ApiConstants.amcPlanDetails}/$planId')
+          : Uri.parse(
+              '${ApiConstants.amcPlanDetails}/$planId',
+            ).replace(queryParameters: query);
 
       final response = await _performAuthenticatedGet(url);
 
@@ -3071,6 +3235,9 @@ class ApiService {
 
   static const int _fallbackRoleIdForRefresh = 3; // Salesperson role id
   static const int _maxAuthRetries = 1;
+  static const Duration _maxPostRefreshTokenWait = Duration(seconds: 45);
+  static Future<bool>? _ongoingTokenRefresh;
+  static Future<void>? _ongoingAuthFailureHandling;
 
   /// Heuristic check for HTML content (e.g. redirected login page).
   static bool _looksLikeHtml(String body) {
@@ -3102,6 +3269,39 @@ class ApiService {
         bodyLower.contains('token not provided');
   }
 
+  static Future<Uri> _appendStoredAuthQuery(Uri url) async {
+    final roleId = await SecureStorageService.getRoleId();
+    final userId = await SecureStorageService.getUserId();
+    final query = Map<String, String>.from(url.queryParameters);
+
+    final existingRoleId = query['role_id'];
+    final existingUserId = query['user_id'];
+
+    if (_isInvalidAuthQueryValue(existingRoleId) &&
+        roleId != null &&
+        roleId > 0) {
+      query['role_id'] = roleId.toString();
+    }
+    if (_isInvalidAuthQueryValue(existingUserId) &&
+        userId != null &&
+        userId > 0) {
+      query['user_id'] = userId.toString();
+    }
+
+    if (mapEquals(query, url.queryParameters)) {
+      return url;
+    }
+    return url.replace(queryParameters: query);
+  }
+
+  static bool _isInvalidAuthQueryValue(String? value) {
+    final normalized = value?.trim().toLowerCase() ?? '';
+    return normalized.isEmpty ||
+        normalized == 'null' ||
+        normalized == 'undefined' ||
+        normalized == '0';
+  }
+
   static Future<bool> _attemptTokenRefresh() async {
     final storedRoleId = await SecureStorageService.getRoleId();
     final storedUserId = await SecureStorageService.getUserId();
@@ -3116,26 +3316,137 @@ class ApiService {
       roleId: roleId,
       userId: storedUserId,
     );
-    return response.success;
+    if (!response.success) {
+      return false;
+    }
+
+    await _waitForRefreshedTokenReadiness();
+    return true;
+  }
+
+  static Future<void> _waitForRefreshedTokenReadiness() async {
+    final accessToken = await SecureStorageService.getAccessToken();
+    if (accessToken == null || accessToken.isEmpty) {
+      return;
+    }
+
+    final waitDuration = _computePostRefreshWait(accessToken);
+    if (waitDuration == null || waitDuration <= Duration.zero) {
+      return;
+    }
+
+    debugPrint(
+      'Waiting ${waitDuration.inSeconds}s for refreshed token nbf before retrying request.',
+    );
+    await Future.delayed(waitDuration);
+  }
+
+  static Duration? _computePostRefreshWait(String token) {
+    final payload = _decodeJwtPayload(token);
+    if (payload == null) {
+      return null;
+    }
+
+    final nbfValue = _tryParseInt(payload['nbf']);
+    if (nbfValue == null) {
+      return null;
+    }
+
+    final nowSeconds = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final deltaSeconds = nbfValue - nowSeconds;
+    if (deltaSeconds <= 0) {
+      return null;
+    }
+
+    final waitSeconds = deltaSeconds + 1;
+    final candidate = Duration(seconds: waitSeconds);
+    if (candidate > _maxPostRefreshTokenWait) {
+      return _maxPostRefreshTokenWait;
+    }
+    return candidate;
+  }
+
+  static Map<String, dynamic>? _decodeJwtPayload(String token) {
+    final parts = token.split('.');
+    if (parts.length < 2) {
+      return null;
+    }
+
+    try {
+      final normalized = base64Url.normalize(parts[1]);
+      final decoded = utf8.decode(base64Url.decode(normalized));
+      final parsed = jsonDecode(decoded);
+      if (parsed is Map<String, dynamic>) {
+        return parsed;
+      }
+      if (parsed is Map) {
+        return Map<String, dynamic>.from(parsed);
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  static Future<bool> _attemptTokenRefreshSingleFlight() {
+    final inFlight = _ongoingTokenRefresh;
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    late Future<bool> refreshFuture;
+    refreshFuture = _attemptTokenRefresh()
+        .catchError((error, stackTrace) {
+          debugPrint('Refresh token flow failed: $error');
+          return false;
+        })
+        .whenComplete(() {
+          if (identical(_ongoingTokenRefresh, refreshFuture)) {
+            _ongoingTokenRefresh = null;
+          }
+        });
+
+    _ongoingTokenRefresh = refreshFuture;
+    return refreshFuture;
   }
 
   static Future<void> _handleAuthFailure() async {
-    await SecureStorageService.clearTokens();
-    await NavigationService.navigateToAuthRoot();
+    final inFlight = _ongoingAuthFailureHandling;
+    if (inFlight != null) {
+      await inFlight;
+      return;
+    }
+
+    late Future<void> authFailureFuture;
+    authFailureFuture =
+        () async {
+          await SecureStorageService.clearTokens();
+          await NavigationService.navigateToAuthRoot();
+        }().whenComplete(() {
+          if (identical(_ongoingAuthFailureHandling, authFailureFuture)) {
+            _ongoingAuthFailureHandling = null;
+          }
+        });
+
+    _ongoingAuthFailureHandling = authFailureFuture;
+    await authFailureFuture;
   }
 
   static Future<http.Response> _performAuthenticatedGet(Uri url) async {
     int retryCount = 0;
+    bool refreshedInThisRequest = false;
     while (true) {
+      final authenticatedUrl = await _appendStoredAuthQuery(url);
       final accessToken = await SecureStorageService.getAccessToken();
       final headers = <String, String>{
+        'Content-Type': 'application/json',
         'Accept': 'application/json',
         if (accessToken != null && accessToken.isNotEmpty)
           'Authorization': 'Bearer $accessToken',
       };
 
       final response = await http
-          .get(url, headers: headers)
+          .get(authenticatedUrl, headers: headers)
           .timeout(ApiConstants.requestTimeout);
 
       if (!_isUnauthorizedResponse(response)) {
@@ -3144,16 +3455,19 @@ class ApiService {
 
       // Unauthorized
       if (retryCount >= _maxAuthRetries) {
-        await _handleAuthFailure();
+        if (!refreshedInThisRequest) {
+          await _handleAuthFailure();
+        }
         return response;
       }
 
       retryCount++;
-      final refreshed = await _attemptTokenRefresh();
+      final refreshed = await _attemptTokenRefreshSingleFlight();
       if (!refreshed) {
         await _handleAuthFailure();
         return response;
       }
+      refreshedInThisRequest = true;
       // Token refreshed successfully, loop will retry with new token.
     }
   }
@@ -3163,7 +3477,9 @@ class ApiService {
     required Map<String, dynamic> body,
   }) async {
     int retryCount = 0;
+    bool refreshedInThisRequest = false;
     while (true) {
+      final authenticatedUrl = await _appendStoredAuthQuery(url);
       final accessToken = await SecureStorageService.getAccessToken();
       final headers = <String, String>{
         'Content-Type': 'application/json',
@@ -3173,7 +3489,7 @@ class ApiService {
       };
 
       final response = await http
-          .put(url, headers: headers, body: jsonEncode(body))
+          .put(authenticatedUrl, headers: headers, body: jsonEncode(body))
           .timeout(ApiConstants.requestTimeout);
 
       if (!_isUnauthorizedResponse(response)) {
@@ -3182,23 +3498,28 @@ class ApiService {
 
       // Unauthorized
       if (retryCount >= _maxAuthRetries) {
-        await _handleAuthFailure();
+        if (!refreshedInThisRequest) {
+          await _handleAuthFailure();
+        }
         return response;
       }
 
       retryCount++;
-      final refreshed = await _attemptTokenRefresh();
+      final refreshed = await _attemptTokenRefreshSingleFlight();
       if (!refreshed) {
         await _handleAuthFailure();
         return response;
       }
+      refreshedInThisRequest = true;
       // Token refreshed successfully, loop will retry with new token.
     }
   }
 
   static Future<http.Response> _performAuthenticatedPutRequest(Uri url) async {
     int retryCount = 0;
+    bool refreshedInThisRequest = false;
     while (true) {
+      final authenticatedUrl = await _appendStoredAuthQuery(url);
       final accessToken = await SecureStorageService.getAccessToken();
       final headers = <String, String>{
         'Accept': 'application/json',
@@ -3207,7 +3528,7 @@ class ApiService {
       };
 
       final response = await http
-          .put(url, headers: headers)
+          .put(authenticatedUrl, headers: headers)
           .timeout(ApiConstants.requestTimeout);
 
       if (!_isUnauthorizedResponse(response)) {
@@ -3216,16 +3537,19 @@ class ApiService {
 
       // Unauthorized
       if (retryCount >= _maxAuthRetries) {
-        await _handleAuthFailure();
+        if (!refreshedInThisRequest) {
+          await _handleAuthFailure();
+        }
         return response;
       }
 
       retryCount++;
-      final refreshed = await _attemptTokenRefresh();
+      final refreshed = await _attemptTokenRefreshSingleFlight();
       if (!refreshed) {
         await _handleAuthFailure();
         return response;
       }
+      refreshedInThisRequest = true;
     }
   }
 
@@ -3234,7 +3558,9 @@ class ApiService {
     required Map<String, dynamic> body,
   }) async {
     int retryCount = 0;
+    bool refreshedInThisRequest = false;
     while (true) {
+      final authenticatedUrl = await _appendStoredAuthQuery(url);
       final accessToken = await SecureStorageService.getAccessToken();
       final headers = <String, String>{
         'Content-Type': 'application/json',
@@ -3244,7 +3570,7 @@ class ApiService {
       };
 
       final response = await http
-          .post(url, headers: headers, body: jsonEncode(body))
+          .post(authenticatedUrl, headers: headers, body: jsonEncode(body))
           .timeout(ApiConstants.requestTimeout);
 
       if (!_isUnauthorizedResponse(response)) {
@@ -3253,16 +3579,19 @@ class ApiService {
 
       // Unauthorized
       if (retryCount >= _maxAuthRetries) {
-        await _handleAuthFailure();
+        if (!refreshedInThisRequest) {
+          await _handleAuthFailure();
+        }
         return response;
       }
 
       retryCount++;
-      final refreshed = await _attemptTokenRefresh();
+      final refreshed = await _attemptTokenRefreshSingleFlight();
       if (!refreshed) {
         await _handleAuthFailure();
         return response;
       }
+      refreshedInThisRequest = true;
       // Token refreshed successfully, loop will retry with new token.
     }
   }

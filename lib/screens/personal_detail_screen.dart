@@ -16,7 +16,7 @@ class _PersonalDetailScreenState extends State<PersonalDetailScreen> {
   bool _isEditing = false;
   bool _isLoading = true;
   bool _isSaving = false;
-  
+
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
@@ -33,29 +33,26 @@ class _PersonalDetailScreenState extends State<PersonalDetailScreen> {
   Future<void> _fetchProfileData() async {
     setState(() => _isLoading = true);
     try {
-      final userId = await SecureStorageService.getUserId();
-      final roleId = await SecureStorageService.getRoleId();
+      final ApiResponse<UserModel> response = await ApiService.instance
+          .getProfile();
 
-      if (userId != null && roleId != null) {
-        final ApiResponse<UserModel> response = await ApiService.instance.getProfile(
-          userId: userId,
-          roleId: roleId,
-        );
-
-        if (response.success && response.data != null) {
-          final user = response.data!;
-          _firstNameController.text = user.firstName ?? '';
-          _lastNameController.text = user.lastName ?? '';
-          _phoneController.text = user.phone ?? '';
-          _emailController.text = user.email ?? '';
-          _dobController.text = user.dob ?? '';
-          _selectedGender = (user.gender?.toLowerCase() == 'female') ? 'female' : 'male';
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(response.message ?? 'Failed to load profile')),
-            );
-          }
+      if (response.success && response.data != null) {
+        final user = response.data!;
+        _firstNameController.text = user.firstName ?? '';
+        _lastNameController.text = user.lastName ?? '';
+        _phoneController.text = user.phone ?? '';
+        _emailController.text = user.email ?? '';
+        _dobController.text = user.dob ?? '';
+        _selectedGender = (user.gender?.toLowerCase() == 'female')
+            ? 'female'
+            : 'male';
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response.message ?? 'Failed to load profile'),
+            ),
+          );
         }
       }
     } catch (e) {
@@ -84,7 +81,14 @@ class _PersonalDetailScreenState extends State<PersonalDetailScreen> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(response.message ?? (response.success ? 'Profile updated successfully' : 'Failed to update profile'))),
+            SnackBar(
+              content: Text(
+                response.message ??
+                    (response.success
+                        ? 'Profile updated successfully'
+                        : 'Failed to update profile'),
+              ),
+            ),
           );
           if (response.success) {
             setState(() {
@@ -116,26 +120,41 @@ class _PersonalDetailScreenState extends State<PersonalDetailScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Personal Details', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Personal Details',
+          style: TextStyle(color: Colors.white),
+        ),
         actions: [
           if (!_isLoading)
-            _isSaving 
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))),
-                )
-              : IconButton(
-                  icon: Icon(_isEditing ? Icons.check : Icons.edit, color: Colors.white),
-                  onPressed: () {
-                    if (_isEditing) {
-                      _updateProfileData();
-                    } else {
-                      setState(() {
-                        _isEditing = true;
-                      });
-                    }
-                  },
-                ),
+            _isSaving
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      ),
+                    ),
+                  )
+                : IconButton(
+                    icon: Icon(
+                      _isEditing ? Icons.check : Icons.edit,
+                      color: Colors.white,
+                    ),
+                    onPressed: () {
+                      if (_isEditing) {
+                        _updateProfileData();
+                      } else {
+                        setState(() {
+                          _isEditing = true;
+                        });
+                      }
+                    },
+                  ),
         ],
       ),
       body: _isLoading
@@ -149,13 +168,34 @@ class _PersonalDetailScreenState extends State<PersonalDetailScreen> {
                   const SizedBox(height: 16),
                   _buildTextField("Last Name", _lastNameController),
                   const SizedBox(height: 16),
-                  _buildTextField("Phone Number", _phoneController, keyboardType: TextInputType.phone, isReadOnlyAlways: true),
+                  _buildTextField(
+                    "Phone Number",
+                    _phoneController,
+                    keyboardType: TextInputType.phone,
+                    isReadOnlyAlways: true,
+                  ),
                   const SizedBox(height: 16),
-                  _buildTextField("Email Address", _emailController, keyboardType: TextInputType.emailAddress),
+                  _buildTextField(
+                    "Email Address",
+                    _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                  ),
                   const SizedBox(height: 16),
-                  _buildTextField("Date of Birth", _dobController, isDatePicker: true, suffixIcon: Icons.calendar_today),
+                  _buildTextField(
+                    "Date of Birth",
+                    _dobController,
+                    isDatePicker: true,
+                    suffixIcon: Icons.calendar_today,
+                  ),
                   const SizedBox(height: 16),
-                  const Text("Gender", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black54)),
+                  const Text(
+                    "Gender",
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black54,
+                    ),
+                  ),
                   Row(
                     children: [
                       _buildGenderRadio("Male", "male"),
@@ -169,38 +209,72 @@ class _PersonalDetailScreenState extends State<PersonalDetailScreen> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller, {TextInputType? keyboardType, bool isDatePicker = false, IconData? suffixIcon, bool isReadOnlyAlways = false}) {
+  Widget _buildTextField(
+    String label,
+    TextEditingController controller, {
+    TextInputType? keyboardType,
+    bool isDatePicker = false,
+    IconData? suffixIcon,
+    bool isReadOnlyAlways = false,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black54)),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: Colors.black54,
+          ),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
           keyboardType: keyboardType,
           readOnly: isReadOnlyAlways || !_isEditing || isDatePicker,
-          onTap: isDatePicker && _isEditing ? () async {
-            DateTime? pickedDate = await showDatePicker(
-              context: context,
-              initialDate: controller.text.isNotEmpty ? (DateTime.tryParse(controller.text) ?? DateTime(2000)) : DateTime(2000),
-              firstDate: DateTime(1950),
-              lastDate: DateTime.now(),
-            );
-            if (pickedDate != null) {
-              setState(() {
-                controller.text = pickedDate.toString().split(' ')[0];
-              });
-            }
-          } : null,
+          onTap: isDatePicker && _isEditing
+              ? () async {
+                  DateTime? pickedDate = await showDatePicker(
+                    context: context,
+                    initialDate: controller.text.isNotEmpty
+                        ? (DateTime.tryParse(controller.text) ?? DateTime(2000))
+                        : DateTime(2000),
+                    firstDate: DateTime(1950),
+                    lastDate: DateTime.now(),
+                  );
+                  if (pickedDate != null) {
+                    setState(() {
+                      controller.text = pickedDate.toString().split(' ')[0];
+                    });
+                  }
+                }
+              : null,
           decoration: InputDecoration(
             isDense: true,
             filled: isReadOnlyAlways || !_isEditing,
-            fillColor: (isReadOnlyAlways || !_isEditing) ? Colors.grey.shade50 : Colors.white,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey.shade300)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey.shade300)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.primary)),
-            suffixIcon: suffixIcon != null ? Icon(suffixIcon, size: 20, color: Colors.grey) : null,
+            fillColor: (isReadOnlyAlways || !_isEditing)
+                ? Colors.grey.shade50
+                : Colors.white,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.primary),
+            ),
+            suffixIcon: suffixIcon != null
+                ? Icon(suffixIcon, size: 20, color: Colors.grey)
+                : null,
           ),
         ),
       ],
@@ -214,9 +288,11 @@ class _PersonalDetailScreenState extends State<PersonalDetailScreen> {
           value: value,
           groupValue: _selectedGender,
           activeColor: AppColors.primary,
-          onChanged: _isEditing ? (val) {
-            setState(() => _selectedGender = val!);
-          } : null,
+          onChanged: _isEditing
+              ? (val) {
+                  setState(() => _selectedGender = val!);
+                }
+              : null,
         ),
         Text(label),
       ],

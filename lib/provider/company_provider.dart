@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/company_model.dart';
 import '../services/api_service.dart';
-import '../constants/core/secure_storage_service.dart';
 
 class CompanyProvider extends ChangeNotifier {
   CompanyDetails? _companyDetails;
@@ -15,18 +14,9 @@ class CompanyProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final userId = await SecureStorageService.getUserId();
-      final roleId = await SecureStorageService.getRoleId();
-
-      if (userId != null && roleId != null) {
-        final response = await ApiService.instance.getCompanyDetails(
-          userId: userId,
-          roleId: roleId,
-        );
-
-        if (response.success) {
-          _companyDetails = response.data;
-        }
+      final response = await ApiService.instance.getCompanyDetails();
+      if (response.success) {
+        _companyDetails = response.data;
       }
     } catch (e) {
       debugPrint("Error fetching company details: $e");
@@ -50,28 +40,21 @@ class CompanyProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final userId = await SecureStorageService.getUserId();
-      final roleId = await SecureStorageService.getRoleId();
+      final response = await ApiService.instance.storeCompanyDetails(
+        companyName: companyName,
+        address1: address1,
+        address2: address2,
+        city: city,
+        state: state,
+        country: country,
+        pincode: pincode,
+        gstNo: gstNo,
+        companyId: _companyDetails?.id,
+      );
 
-      if (userId != null && roleId != null) {
-        final response = await ApiService.instance.storeCompanyDetails(
-          userId: userId,
-          roleId: roleId,
-          companyName: companyName,
-          address1: address1,
-          address2: address2,
-          city: city,
-          state: state,
-          country: country,
-          pincode: pincode,
-          gstNo: gstNo,
-          companyId: _companyDetails?.id,
-        );
-
-        if (response.success) {
-          await fetchCompanyDetails();
-          return true;
-        }
+      if (response.success) {
+        await fetchCompanyDetails();
+        return true;
       }
       return false;
     } catch (e) {

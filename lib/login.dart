@@ -1,6 +1,6 @@
 import 'package:customer_cracktreck/routes/app_routes.dart';
 import 'package:customer_cracktreck/routes/route_generator.dart';
-import 'package:customer_cracktreck/services/api_service.dart';
+import 'package:customer_cracktreck/services/auth_service.dart';
 import 'package:customer_cracktreck/widgets/custom_button.dart';
 import 'package:customer_cracktreck/widgets/error_dialog.dart';
 import 'package:customer_cracktreck/widgets/phone_input_field.dart';
@@ -10,15 +10,11 @@ import 'constants/app_colors.dart';
 import 'constants/app_spacing.dart';
 import 'constants/app_strings.dart';
 
-
 /// Unified Login Screen for all roles
 class LoginScreen extends StatefulWidget {
   final int roleId;
 
-  const LoginScreen({
-    Key? key,
-    required this.roleId ,
-  }) : super(key: key);
+  const LoginScreen({Key? key, required this.roleId}) : super(key: key);
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -26,7 +22,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _phoneController = TextEditingController();
-  final ApiService _apiService = ApiService.instance;
+  final AuthService _authService = AuthService.instance;
 
   bool _isLoading = false;
   String? _errorText;
@@ -59,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
-    final response = await _apiService.login(
+    final response = await _authService.sendOtp(
       roleId: widget.roleId,
       phoneNumber: _phoneController.text.trim(),
     );
@@ -84,16 +80,12 @@ class _LoginScreenState extends State<LoginScreen> {
         context: context,
         message: response.message ?? AppStrings.networkError,
       );
-
     }
   }
 
   /// Navigate to sign up screen
   void _navigateToSignUp() {
-    Navigator.pushNamed(
-      context,
-      AppRoutes.signUp,
-    );
+    Navigator.pushNamed(context, AppRoutes.signUp);
   }
 
   String getLoginSubtitle() {

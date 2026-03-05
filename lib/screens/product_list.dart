@@ -9,7 +9,12 @@ class ProductScreen extends StatefulWidget {
   final int? initialCategoryId;
   final String? initialCategorySlug;
 
-  const ProductScreen({super.key, this.initialCategory, this.initialCategoryId, this.initialCategorySlug});
+  const ProductScreen({
+    super.key,
+    this.initialCategory,
+    this.initialCategoryId,
+    this.initialCategorySlug,
+  });
 
   @override
   State<ProductScreen> createState() => _ProductScreenState();
@@ -47,13 +52,16 @@ class _ProductScreenState extends State<ProductScreen> {
     });
 
     try {
-      final response = await ApiService.instance.getProductCategories(roleId: 4);
+      final response = await ApiService.instance.getProductCategories();
 
       if (!mounted) return;
 
       if (response.success && response.data != null) {
         final categories = response.data!;
-        final ids = categories.where((c) => c.id != null).map((c) => c.id).toSet();
+        final ids = categories
+            .where((c) => c.id != null)
+            .map((c) => c.id)
+            .toSet();
 
         int selectedId = _selectedCategoryId;
         String? selectedSlug = _selectedCategorySlug;
@@ -65,14 +73,21 @@ class _ProductScreenState extends State<ProductScreen> {
 
           ProductCategory? matched;
           if (slugFilter.isNotEmpty) {
-            matched = categories.where((c) => (c.slug ?? '').toLowerCase() == slugFilter.toLowerCase()).cast<ProductCategory?>().firstWhere(
-                  (c) => c != null,
-                  orElse: () => null,
-                );
+            matched = categories
+                .where(
+                  (c) =>
+                      (c.slug ?? '').toLowerCase() == slugFilter.toLowerCase(),
+                )
+                .cast<ProductCategory?>()
+                .firstWhere((c) => c != null, orElse: () => null);
           }
           if (matched == null && nameFilter.isNotEmpty) {
             matched = categories
-                .where((c) => (c.name ?? '').toLowerCase().contains(nameFilter.toLowerCase()))
+                .where(
+                  (c) => (c.name ?? '').toLowerCase().contains(
+                    nameFilter.toLowerCase(),
+                  ),
+                )
                 .cast<ProductCategory?>()
                 .firstWhere((c) => c != null, orElse: () => null);
           }
@@ -87,10 +102,10 @@ class _ProductScreenState extends State<ProductScreen> {
           selectedSlug = null;
           selectedName = null;
         } else {
-          final matched = categories.where((c) => c.id == selectedId).cast<ProductCategory?>().firstWhere(
-                (c) => c != null,
-                orElse: () => null,
-              );
+          final matched = categories
+              .where((c) => c.id == selectedId)
+              .cast<ProductCategory?>()
+              .firstWhere((c) => c != null, orElse: () => null);
           selectedSlug = matched?.slug;
           selectedName = matched?.name;
         }
@@ -127,9 +142,8 @@ class _ProductScreenState extends State<ProductScreen> {
     });
 
     try {
-      // Role ID 4 as per your request
-      final response = await ApiService.instance.getProducts(roleId: 4);
-      
+      final response = await ApiService.instance.getProducts();
+
       if (response.success && response.data != null) {
         setState(() {
           _products = response.data!.products ?? [];
@@ -154,18 +168,27 @@ class _ProductScreenState extends State<ProductScreen> {
     String query = _searchController.text.toLowerCase();
     setState(() {
       _filteredProducts = _products.where((p) {
-        final nameMatches = (p.warehouseProduct?.productName ?? '').toLowerCase().contains(query);
-        final int? categoryIdFilter = _selectedCategoryId == _allCategoriesValue ? null : _selectedCategoryId;
+        final nameMatches = (p.warehouseProduct?.productName ?? '')
+            .toLowerCase()
+            .contains(query);
+        final int? categoryIdFilter = _selectedCategoryId == _allCategoriesValue
+            ? null
+            : _selectedCategoryId;
         final categoryNameFilter = _selectedCategoryName?.trim();
         final categorySlugFilter = _selectedCategorySlug?.trim();
-        final bool hasNameFilter = categoryNameFilter != null && categoryNameFilter.isNotEmpty;
-        final bool hasSlugFilter = categorySlugFilter != null && categorySlugFilter.isNotEmpty;
+        final bool hasNameFilter =
+            categoryNameFilter != null && categoryNameFilter.isNotEmpty;
+        final bool hasSlugFilter =
+            categorySlugFilter != null && categorySlugFilter.isNotEmpty;
         if (categoryIdFilter == null && !hasNameFilter && !hasSlugFilter) {
           return nameMatches;
         }
 
         final parentCategory = p.warehouseProduct?.parentCategorie;
-        final int? productCategoryId = parentCategory?.id ?? p.warehouseProduct?.parentCategoryId ?? p.categoryId;
+        final int? productCategoryId =
+            parentCategory?.id ??
+            p.warehouseProduct?.parentCategoryId ??
+            p.categoryId;
         final String productCategorySlug =
             (parentCategory?.slug ?? p.categorySlug ?? '').toLowerCase();
         final String productCategoryName =
@@ -176,16 +199,22 @@ class _ProductScreenState extends State<ProductScreen> {
           if (productCategoryId != null) {
             categoryMatches = productCategoryId == categoryIdFilter;
           } else if (hasSlugFilter) {
-            categoryMatches = productCategorySlug == categorySlugFilter.toLowerCase();
+            categoryMatches =
+                productCategorySlug == categorySlugFilter.toLowerCase();
           } else if (hasNameFilter) {
-            categoryMatches = productCategoryName.contains(categoryNameFilter.toLowerCase());
+            categoryMatches = productCategoryName.contains(
+              categoryNameFilter.toLowerCase(),
+            );
           } else {
             categoryMatches = false;
           }
         } else if (hasSlugFilter) {
-          categoryMatches = productCategorySlug == categorySlugFilter.toLowerCase();
+          categoryMatches =
+              productCategorySlug == categorySlugFilter.toLowerCase();
         } else if (hasNameFilter) {
-          categoryMatches = productCategoryName.contains(categoryNameFilter.toLowerCase());
+          categoryMatches = productCategoryName.contains(
+            categoryNameFilter.toLowerCase(),
+          );
         }
 
         return nameMatches && categoryMatches;
@@ -235,59 +264,59 @@ class _ProductScreenState extends State<ProductScreen> {
                     ],
                   )
                 : _categoryError != null
-                    ? Text(
-                        'Categories unavailable',
-                        style: TextStyle(color: Colors.grey.shade600),
-                        overflow: TextOverflow.ellipsis,
-                      )
-                    : DropdownButtonHideUnderline(
-                        child: DropdownButton<int>(
-                          value: _selectedCategoryId,
-                          isExpanded: true,
-                          items: [
-                            const DropdownMenuItem<int>(
-                              value: _allCategoriesValue,
-                              child: Text('All Categories'),
-                            ),
-                            ..._categories.where((c) => c.id != null).map((c) {
-                              return DropdownMenuItem<int>(
-                                value: c.id!,
-                                child: Text(
-                                  c.name ?? 'Unnamed',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              );
-                            }),
-                          ],
-                          onChanged: (value) {
-                            if (value == null) return;
-                            if (value == _selectedCategoryId) return;
-
-                            if (value == _allCategoriesValue) {
-                              setState(() {
-                                _selectedCategoryId = _allCategoriesValue;
-                                _selectedCategorySlug = null;
-                                _selectedCategoryName = null;
-                              });
-                              _applyFilters();
-                              return;
-                            }
-
-                            final matched = _categories.where((c) => c.id == value).cast<ProductCategory?>().firstWhere(
-                                  (c) => c != null,
-                                  orElse: () => null,
-                                );
-
-                            setState(() {
-                              _selectedCategoryId = value;
-                              _selectedCategorySlug = matched?.slug;
-                              _selectedCategoryName = matched?.name;
-                            });
-                            _applyFilters();
-                          },
+                ? Text(
+                    'Categories unavailable',
+                    style: TextStyle(color: Colors.grey.shade600),
+                    overflow: TextOverflow.ellipsis,
+                  )
+                : DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: _selectedCategoryId,
+                      isExpanded: true,
+                      items: [
+                        const DropdownMenuItem<int>(
+                          value: _allCategoriesValue,
+                          child: Text('All Categories'),
                         ),
-                      ),
+                        ..._categories.where((c) => c.id != null).map((c) {
+                          return DropdownMenuItem<int>(
+                            value: c.id!,
+                            child: Text(
+                              c.name ?? 'Unnamed',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        if (value == _selectedCategoryId) return;
+
+                        if (value == _allCategoriesValue) {
+                          setState(() {
+                            _selectedCategoryId = _allCategoriesValue;
+                            _selectedCategorySlug = null;
+                            _selectedCategoryName = null;
+                          });
+                          _applyFilters();
+                          return;
+                        }
+
+                        final matched = _categories
+                            .where((c) => c.id == value)
+                            .cast<ProductCategory?>()
+                            .firstWhere((c) => c != null, orElse: () => null);
+
+                        setState(() {
+                          _selectedCategoryId = value;
+                          _selectedCategorySlug = matched?.slug;
+                          _selectedCategoryName = matched?.name;
+                        });
+                        _applyFilters();
+                      },
+                    ),
+                  ),
           ),
           if (_categoryError != null)
             IconButton(
@@ -295,7 +324,9 @@ class _ProductScreenState extends State<ProductScreen> {
               onPressed: _fetchCategories,
               tooltip: 'Retry',
             ),
-          if (_categoryError == null && !_isLoadingCategories && _selectedCategoryId != _allCategoriesValue)
+          if (_categoryError == null &&
+              !_isLoadingCategories &&
+              _selectedCategoryId != _allCategoriesValue)
             IconButton(
               icon: const Icon(Icons.close, color: Colors.grey),
               onPressed: () {
@@ -337,7 +368,6 @@ class _ProductScreenState extends State<ProductScreen> {
 
         body: Column(
           children: [
-
             /// SEARCH BAR
             Padding(
               padding: const EdgeInsets.all(16),
@@ -377,34 +407,39 @@ class _ProductScreenState extends State<ProductScreen> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _errorMessage != null
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-                              const SizedBox(height: 10),
-                              ElevatedButton(
-                                onPressed: _fetchProducts,
-                                child: const Text('Retry'),
-                              )
-                            ],
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            _errorMessage!,
+                            style: const TextStyle(color: Colors.red),
                           ),
-                        )
-                      : _filteredProducts.isEmpty
-                          ? const Center(child: Text('No products found'))
-                          : GridView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              itemCount: _filteredProducts.length,
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                crossAxisSpacing: 16,
-                                mainAxisSpacing: 16,
-                                childAspectRatio: 0.68, // Slightly taller to fit 2 lines comfortably
-                              ),
-                              itemBuilder: (context, index) {
-                                return _productCard(context, _filteredProducts[index]);
-                              },
-                            ),
+                          const SizedBox(height: 10),
+                          ElevatedButton(
+                            onPressed: _fetchProducts,
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    )
+                  : _filteredProducts.isEmpty
+                  ? const Center(child: Text('No products found'))
+                  : GridView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: _filteredProducts.length,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                            childAspectRatio:
+                                0.68, // Slightly taller to fit 2 lines comfortably
+                          ),
+                      itemBuilder: (context, index) {
+                        return _productCard(context, _filteredProducts[index]);
+                      },
+                    ),
             ),
           ],
         ),
@@ -415,7 +450,7 @@ class _ProductScreenState extends State<ProductScreen> {
   /// PRODUCT CARD
   Widget _productCard(BuildContext context, ProductData product) {
     final wp = product.warehouseProduct;
-    final String imageUrl = wp?.mainProductImage != null 
+    final String imageUrl = wp?.mainProductImage != null
         ? "https://crackteck.co.in/${wp!.mainProductImage}"
         : "";
 
@@ -433,7 +468,7 @@ class _ProductScreenState extends State<ProductScreen> {
         children: [
           /// IMAGE - Fixed square container
           AspectRatio(
-            aspectRatio: 1, 
+            aspectRatio: 1,
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -445,7 +480,11 @@ class _ProductScreenState extends State<ProductScreen> {
                     ? Image.network(
                         imageUrl,
                         fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported, color: Colors.grey),
+                        errorBuilder: (context, error, stackTrace) =>
+                            const Icon(
+                              Icons.image_not_supported,
+                              color: Colors.grey,
+                            ),
                       )
                     : const Icon(Icons.image, color: Colors.grey, size: 40),
               ),
@@ -457,10 +496,7 @@ class _ProductScreenState extends State<ProductScreen> {
           /// PRICE
           Text(
             "₹ ${wp?.finalPrice ?? '0'}",
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
 
           const SizedBox(height: 2),
