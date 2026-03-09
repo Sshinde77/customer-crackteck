@@ -60,6 +60,8 @@ class ApiConstants {
       '$baseUrl/service-request-invoice/{id}/reject';
   static const String invoice_payment =
       '$baseUrl/invoice-payment/{id}';
+  static const String cancelorder =
+      '$baseUrl/cancel-order/{id}';
 
   // Request Timeout
   static const Duration requestTimeout = Duration(seconds: 30);

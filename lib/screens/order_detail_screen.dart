@@ -5,6 +5,8 @@ import '../constants/app_strings.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/order_model.dart';
 import '../services/api_service.dart';
+import '../utils/order_status_utils.dart';
+import '../widgets/order_status_badge.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final int orderId;
@@ -26,6 +28,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   static const String _imageBaseUrl = 'https://crackteck.co.in/';
 
   bool _isLoading = true;
+  bool _isCancelling = false;
   String? _errorMessage;
   OrderModel? _order;
   OrderItemModel? _selectedItem;
@@ -116,20 +119,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     return text.isEmpty ? fallback : text;
   }
 
-  Color _statusColor(String status) {
-    final lower = status.toLowerCase();
-    if (lower.contains('paid') || lower.contains('success') || lower.contains('delivered')) {
-      return Colors.green.shade700;
-    }
-    if (lower.contains('pending') || lower.contains('processing')) {
-      return Colors.orange.shade700;
-    }
-    if (lower.contains('failed') || lower.contains('cancel')) {
-      return Colors.red.shade700;
-    }
-    return Colors.black87;
-  }
-
   Widget _buildInfoRow(String label, String value, {Color? valueColor, bool boldValue = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -163,6 +152,120 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
+  Future<void> _cancelOrder() async {
+    final orderId = _order?.id;
+    if (orderId == null || _isCancelling) {
+      return;
+    }
+
+    final shouldCancel = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Cancel Order'),
+          content: const Text('Are you sure you want to cancel this order?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('No'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Yes'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldCancel != true) {
+      return;
+    }
+
+    setState(() {
+      _isCancelling = true;
+    });
+
+    try {
+      final int roleId = (await SecureStorageService.getRoleId()) ?? AppStrings.roleId;
+      final int? customerId = await SecureStorageService.getUserId();
+
+      if (customerId == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Customer id missing. Please login again.')),
+        );
+        return;
+      }
+
+      final response = await ApiService.instance.cancelOrder(
+        orderId: orderId,
+        roleId: roleId,
+        userId: customerId,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            response.message ??
+                (response.success ? 'Order cancelled successfully' : 'Failed to cancel order'),
+          ),
+          backgroundColor: response.success ? Colors.green : Colors.red,
+        ),
+      );
+
+      if (response.success) {
+        await _fetchOrderDetails();
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCancelling = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildActionButton({
+    required String label,
+    required Color backgroundColor,
+    required VoidCallback? onPressed,
+    bool isLoading = false,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: backgroundColor,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: isLoading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final order = _order;
@@ -170,7 +273,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final productName = _safeText(item?.product?.productName, fallback: 'Product');
     final imageUrl = _normalizeImageUrl(item?.product?.mainProductImage);
     final paymentStatus = _safeText(order?.paymentStatus);
-    final orderStatus = _safeText(order?.orderStatus);
+    final rawOrderStatus = order?.status ?? order?.orderStatus;
+    final orderStatus = getOrderDisplayStatus(rawOrderStatus);
+    final canCancel = canCancelOrder(rawOrderStatus);
+    final canReplace = canReplaceOrder(order);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -261,14 +367,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  Text(
-                                    paymentStatus,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      color: _statusColor(paymentStatus),
-                                    ),
-                                  ),
+                                  OrderStatusBadge(status: rawOrderStatus),
                                 ],
                               ),
                             ),
@@ -287,7 +386,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                           children: [
                             _buildInfoRow('Order Number', _safeText(order?.orderNumber)),
                             _buildInfoRow('Order Status', orderStatus),
-                            _buildInfoRow('Payment Status', paymentStatus, valueColor: _statusColor(paymentStatus)),
+                            _buildInfoRow('Payment Status', paymentStatus),
                             _buildInfoRow('Quantity', '${item?.quantity ?? order?.totalItems ?? 0}'),
                             _buildInfoRow('Item Price', '₹ ${_safeText(item?.price, fallback: '0')}'),
                             _buildInfoRow('Subtotal', '₹ ${_safeText(order?.subtotal, fallback: '0')}'),
@@ -302,10 +401,26 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                           ],
                         ),
                       ),
+                      if (canCancel || canReplace) ...[
+                        const SizedBox(height: 16),
+                        if (canCancel)
+                          _buildActionButton(
+                            label: 'Cancel Order',
+                            backgroundColor: Colors.red,
+                            onPressed: _isCancelling ? null : _cancelOrder,
+                            isLoading: _isCancelling,
+                          ),
+                        if (canCancel && canReplace) const SizedBox(height: 12),
+                        if (canReplace)
+                          _buildActionButton(
+                            label: 'Replace Product',
+                            backgroundColor: AppColors.primary,
+                            onPressed: () {},
+                          ),
+                      ],
                     ],
                   ),
                 ),
     );
   }
 }
-

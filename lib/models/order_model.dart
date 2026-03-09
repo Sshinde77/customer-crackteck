@@ -28,8 +28,10 @@ class OrderModel {
   final String? shippingCharges;
   final String? grandTotal;
   final String? paymentStatus;
+  final String? status;
   final String? orderStatus;
   final String? createdAt;
+  final String? deliveredAt;
   final List<OrderItemModel>? items;
 
   OrderModel({
@@ -44,8 +46,10 @@ class OrderModel {
     this.shippingCharges,
     this.grandTotal,
     this.paymentStatus,
+    this.status,
     this.orderStatus,
     this.createdAt,
+    this.deliveredAt,
     this.items,
   });
 
@@ -83,9 +87,17 @@ class OrderModel {
       shippingCharges: _readString(json['shipping_charges'] ?? json['shipping']),
       grandTotal: _readString(json['grand_total'] ?? json['total']),
       paymentStatus:
-          _readString(json['payment_status'] ?? json['paymentStatus'] ?? json['status'] ?? json['payment']),
-      orderStatus: _readString(json['order_status'] ?? json['orderStatus']),
+          _readString(json['payment_status'] ?? json['paymentStatus'] ?? json['payment']),
+      status: _readString(json['status']),
+      orderStatus: _readString(json['order_status'] ?? json['orderStatus'] ?? json['status']),
       createdAt: _readString(json['created_at'] ?? json['createdAt']),
+      deliveredAt: _readString(
+        json['delivered_at'] ??
+            json['deliveredAt'] ??
+            json['delivery_date'] ??
+            json['deliveryDate'] ??
+            json['order_delivered_at'],
+      ),
       items: rawItems is List
           ? rawItems
               .whereType<Map>()

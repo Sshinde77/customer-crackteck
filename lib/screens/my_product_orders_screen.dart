@@ -5,6 +5,7 @@ import '../constants/app_strings.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/order_model.dart';
 import '../services/api_service.dart';
+import '../widgets/order_status_badge.dart';
 import 'order_detail_screen.dart';
 
 class MyProductOrdersScreen extends StatefulWidget {
@@ -80,7 +81,7 @@ class _MyProductOrdersScreenState extends State<MyProductOrdersScreen> {
   List<_OrderDisplayItem> _flattenOrders(List<OrderModel> orders) {
     final out = <_OrderDisplayItem>[];
     for (final order in orders) {
-      final status = (order.paymentStatus ?? order.orderStatus ?? '').trim();
+      final status = (order.status ?? order.orderStatus ?? '').trim();
       final orderNo = (order.orderNumber ?? '').trim();
 
       final items = order.items ?? const <OrderItemModel>[];
@@ -118,20 +119,6 @@ class _MyProductOrdersScreenState extends State<MyProductOrdersScreen> {
     }
 
     return out;
-  }
-
-  Color _statusColor(String status) {
-    final lower = status.toLowerCase();
-    if (lower.contains('paid') || lower.contains('success') || lower.contains('delivered')) {
-      return Colors.green.shade700;
-    }
-    if (lower.contains('pending') || lower.contains('processing')) {
-      return Colors.orange.shade700;
-    }
-    if (lower.contains('failed') || lower.contains('cancel')) {
-      return Colors.red.shade700;
-    }
-    return Colors.black87;
   }
 
   @override
@@ -262,14 +249,7 @@ class _MyProductOrdersScreenState extends State<MyProductOrdersScreen> {
                     ),
                   ],
                   const SizedBox(height: 8),
-                  Text(
-                    status,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: _statusColor(status),
-                    ),
-                  ),
+                  OrderStatusBadge(status: item.status),
                 ],
               ),
             ),
@@ -322,4 +302,3 @@ class _OrderDisplayItem {
     required this.productId,
   });
 }
-
