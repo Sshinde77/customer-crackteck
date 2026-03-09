@@ -14,12 +14,12 @@ class PhoneInputField extends StatelessWidget {
   final ValueChanged<String>? onChanged;
 
   const PhoneInputField({
-    Key? key,
+    super.key,
     required this.controller,
     required this.label,
     this.errorText,
     this.onChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

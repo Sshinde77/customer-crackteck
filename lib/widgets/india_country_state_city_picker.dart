@@ -105,7 +105,7 @@ class _IndiaCountryStateCityPickerState extends State<IndiaCountryStateCityPicke
   }
 
   void _applyInitialSelection() {
-    final String? desiredCountry = (widget.initialCountry ?? 'India').trim();
+    final String desiredCountry = (widget.initialCountry ?? 'India').trim();
     final String? resolvedCountry = _countries.any((c) => c.name == desiredCountry)
         ? desiredCountry
         : (_countries.any((c) => c.name == 'India') ? 'India' : (_countries.isNotEmpty ? _countries.first.name : null));
@@ -182,7 +182,7 @@ class _IndiaCountryStateCityPickerState extends State<IndiaCountryStateCityPicke
     return Column(
       children: [
         DropdownButtonFormField<String>(
-          value: _country,
+          initialValue: _country,
           dropdownColor: widget.dropdownColor,
           isExpanded: true,
           decoration: const InputDecoration(
@@ -202,7 +202,7 @@ class _IndiaCountryStateCityPickerState extends State<IndiaCountryStateCityPicke
         ),
         const SizedBox(height: 10),
         DropdownButtonFormField<String>(
-          value: _state,
+          initialValue: _state,
           dropdownColor: widget.dropdownColor,
           isExpanded: true,
           decoration: const InputDecoration(
@@ -222,7 +222,7 @@ class _IndiaCountryStateCityPickerState extends State<IndiaCountryStateCityPicke
         ),
         const SizedBox(height: 10),
         DropdownButtonFormField<String>(
-          value: _city,
+          initialValue: _city,
           dropdownColor: widget.dropdownColor,
           isExpanded: true,
           decoration: const InputDecoration(

@@ -178,12 +178,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   Widget build(BuildContext context) {
     final wp = _product.warehouseProduct;
 
-    final List<String> images = <String>[
+    final List<String> images = <String>{
       if ((wp?.mainProductImage ?? '').trim().isNotEmpty) _normalizeImageUrl(wp!.mainProductImage!),
       ...?wp?.additionalProductImages
-          ?.where((s) => s.trim().isNotEmpty)
+          .where((s) => s.trim().isNotEmpty)
           .map(_normalizeImageUrl),
-    ].toSet().toList();
+    }.toList();
 
     final String title = (wp?.productName ?? _product.metaTitle ?? 'Product').trim();
     final int? stockQty = _readStockQuantity(wp);

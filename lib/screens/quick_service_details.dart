@@ -789,7 +789,7 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
     ];
 
     return DropdownButtonFormField<int>(
-      value: _selectedAddressId,
+      initialValue: _selectedAddressId,
       isExpanded: true,
       items: dropdownItems,
       onChanged: _isLoading

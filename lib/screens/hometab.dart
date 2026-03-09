@@ -313,7 +313,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Container(
                           width: double.infinity,
                           height: 140,
-                          decoration: BoxDecoration(
+                          decoration: BoxDecoration(  
                             borderRadius: BorderRadius.circular(20),
                             color: const Color(0xFFFFE5D0),
                           ),

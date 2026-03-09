@@ -594,7 +594,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     ];
 
     return DropdownButtonFormField<int>(
-      value: _selectedAddressId,
+      initialValue: _selectedAddressId,
       isExpanded: true,
       items: dropdownItems,
       onChanged: _isLoading
@@ -654,7 +654,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
             }
 
             return DropdownButtonFormField<QuickService>(
-              value: provider.requestServices.contains(product.selectedQuickService) ? product.selectedQuickService : null,
+              initialValue: provider.requestServices.contains(product.selectedQuickService) ? product.selectedQuickService : null,
               hint: const Text('Select Service Type'),
               isExpanded: true,
               items: provider.requestServices.map((service) {

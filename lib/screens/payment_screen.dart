@@ -347,7 +347,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     ];
 
     return DropdownButtonFormField<int>(
-      value: _selectedAddressId,
+      initialValue: _selectedAddressId,
       isExpanded: true,
       items: dropdownItems,
       onChanged: _isSubmitting

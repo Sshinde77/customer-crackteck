@@ -1,8 +1,10 @@
 import 'package:customer_cracktreck/routes/app_routes.dart';
 import 'package:customer_cracktreck/routes/route_generator.dart';
 import 'package:customer_cracktreck/services/auth_service.dart';
+import 'package:customer_cracktreck/services/google_auth_service.dart';
 import 'package:customer_cracktreck/widgets/custom_button.dart';
 import 'package:customer_cracktreck/widgets/error_dialog.dart';
+import 'package:customer_cracktreck/widgets/google_sign_in_button.dart';
 import 'package:customer_cracktreck/widgets/phone_input_field.dart';
 import 'package:flutter/material.dart';
 
@@ -14,7 +16,7 @@ import 'constants/app_strings.dart';
 class LoginScreen extends StatefulWidget {
   final int roleId;
 
-  const LoginScreen({Key? key, required this.roleId}) : super(key: key);
+  const LoginScreen({super.key, required this.roleId});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -23,8 +25,10 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final AuthService _authService = AuthService.instance;
+  final GoogleAuthService _googleAuthService = GoogleAuthService.instance;
 
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   String? _errorText;
 
   @override
@@ -80,6 +84,37 @@ class _LoginScreenState extends State<LoginScreen> {
         context: context,
         message: response.message ?? AppStrings.networkError,
       );
+    }
+  }
+
+  Future<void> _handleGoogleLogin() async {
+    setState(() {
+      _isGoogleLoading = true;
+    });
+
+    try {
+      final Map<String, dynamic>? googleUserData =
+          await _googleAuthService.signInWithGoogle();
+
+      if (googleUserData == null) {
+        return;
+      }
+
+      debugPrint('Selected Google email: ${googleUserData['email']}');
+
+      await _googleAuthService.sendGoogleLoginDataToBackend(googleUserData);
+    } catch (error) {
+      if (!mounted) return;
+      showErrorDialog(
+        context: context,
+        message: 'Google sign-in failed. Please try again.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGoogleLoading = false;
+        });
+      }
     }
   }
 
@@ -158,6 +193,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 text: AppStrings.loginButton,
                 onPressed: _handleLogin,
                 isLoading: _isLoading,
+              ),
+
+              const SizedBox(height: AppSpacing.buttonSpacing),
+
+              GoogleSignInButton(
+                onPressed: _handleGoogleLogin,
+                isLoading: _isGoogleLoading,
               ),
 
               const SizedBox(height: AppSpacing.buttonSignUpSpacing),
