@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'amc_mode_selection_screen.dart';
 import 'service_request_screen.dart';
 
 class QuickServicesScreen extends StatelessWidget {
@@ -73,11 +74,12 @@ class QuickServicesScreen extends StatelessWidget {
   }) {
     return GestureDetector(
       onTap: () {
+        final Widget destination = title == 'AMC Service Request'
+            ? const AmcModeSelectionScreen()
+            : ServiceRequestScreen(title: title);
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => ServiceRequestScreen(title: title),
-          ),
+          MaterialPageRoute(builder: (context) => destination),
         );
       },
       child: ClipRRect(
@@ -88,9 +90,9 @@ class QuickServicesScreen extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                baseColor.withOpacity(0.95),
-                baseColor.withOpacity(0.75),
-                baseColor.withOpacity(0.55),
+                baseColor.withValues(alpha: 0.95),
+                baseColor.withValues(alpha: 0.75),
+                baseColor.withValues(alpha: 0.55),
               ],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
@@ -105,7 +107,7 @@ class QuickServicesScreen extends StatelessWidget {
                 child: Icon(
                   icon,
                   size: 110,
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha: 0.15),
                 ),
               ),
 

@@ -7,7 +7,14 @@ import '../provider/amc_plan_provider.dart';
 import 'amc_plan_detail_screen.dart';
 
 class AmcPlansScreen extends StatefulWidget {
-  const AmcPlansScreen({super.key});
+  const AmcPlansScreen({
+    super.key,
+    this.supportTypeFilter,
+    this.title = 'AMC Plans',
+  });
+
+  final String? supportTypeFilter;
+  final String title;
 
   @override
   State<AmcPlansScreen> createState() => _AmcPlansScreenState();
@@ -18,7 +25,9 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AmcPlanProvider>().fetchAmcPlans();
+      context.read<AmcPlanProvider>().fetchAmcPlans(
+        supportTypeFilter: widget.supportTypeFilter,
+      );
     });
   }
 
@@ -29,10 +38,12 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         elevation: 0,
-        title: const Text('AMC Plans', style: TextStyle(color: Colors.white)),
+        title: Text(widget.title, style: const TextStyle(color: Colors.white)),
       ),
       body: Consumer<AmcPlanProvider>(
         builder: (context, provider, child) {
+          final filteredPlans = _filteredPlans(provider.amcPlans);
+
           if (provider.isLoading) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -44,7 +55,11 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                    const Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Colors.red,
+                    ),
                     const SizedBox(height: 16),
                     Text(
                       'Error: ${provider.errorMessage}',
@@ -53,7 +68,9 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: provider.fetchAmcPlans,
+                      onPressed: () => provider.fetchAmcPlans(
+                        supportTypeFilter: widget.supportTypeFilter,
+                      ),
                       child: const Text('Retry'),
                     ),
                   ],
@@ -62,16 +79,22 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
             );
           }
 
-          if (provider.amcPlans.isEmpty) {
-            return const Center(
+          if (filteredPlans.isEmpty) {
+            return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.inbox_outlined, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
+                  const Icon(
+                    Icons.inbox_outlined,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(height: 16),
                   Text(
-                    'No AMC plans available',
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                    widget.supportTypeFilter == null
+                        ? 'No AMC plans available'
+                        : 'No ${widget.supportTypeFilter} AMC plans available',
+                    style: const TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                 ],
               ),
@@ -79,11 +102,14 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
           }
 
           return RefreshIndicator(
-            onRefresh: provider.fetchAmcPlans,
+            onRefresh: () => provider.fetchAmcPlans(
+              supportTypeFilter: widget.supportTypeFilter,
+            ),
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: provider.amcPlans.length,
-              itemBuilder: (context, index) => _buildPlanCard(provider.amcPlans[index]),
+              itemCount: filteredPlans.length,
+              itemBuilder: (context, index) =>
+                  _buildPlanCard(filteredPlans[index]),
             ),
           );
         },
@@ -96,10 +122,14 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
     final coveredItems = planItem.coveredItems ?? [];
     final status = (plan?.status ?? 'inactive').trim().toLowerCase();
     final isActive = status == 'active';
-    final planName = (plan?.planName ?? '').trim().isNotEmpty ? plan!.planName! : 'N/A';
+    final planName = (plan?.planName ?? '').trim().isNotEmpty
+        ? plan!.planName!
+        : 'N/A';
     final planCode = (plan?.planCode ?? '').trim();
     final description = (plan?.description ?? '').trim();
-    final totalCost = (plan?.totalCost ?? '').trim().isNotEmpty ? plan!.totalCost! : '0';
+    final totalCost = (plan?.totalCost ?? '').trim().isNotEmpty
+        ? plan!.totalCost!
+        : '0';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -112,7 +142,10 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => AmcPlanDetailScreen(planId: plan!.id!),
+                builder: (context) => AmcPlanDetailScreen(
+                  planId: plan!.id!,
+                  requestButtonLabel: 'Request for AMC',
+                ),
               ),
             );
           }
@@ -150,7 +183,10 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: isActive ? Colors.green[50] : Colors.grey[200],
                       borderRadius: BorderRadius.circular(20),
@@ -180,16 +216,25 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
                 spacing: 12,
                 runSpacing: 8,
                 children: [
-                  _buildInfoChip(Icons.calendar_today, '${plan?.duration ?? 0} months'),
-                  _buildInfoChip(Icons.support_agent, '${plan?.totalVisits ?? 0} visits'),
-                  _buildInfoChip(Icons.build, '${coveredItems.length} services'),
+                  _buildInfoChip(
+                    Icons.calendar_today,
+                    '${plan?.duration ?? 0} months',
+                  ),
+                  _buildInfoChip(
+                    Icons.support_agent,
+                    '${plan?.totalVisits ?? 0} visits',
+                  ),
+                  _buildInfoChip(
+                    Icons.build,
+                    '${coveredItems.length} services',
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -222,7 +267,10 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => AmcPlanDetailScreen(planId: plan!.id!),
+                              builder: (context) => AmcPlanDetailScreen(
+                                planId: plan!.id!,
+                                requestButtonLabel: 'Request for AMC',
+                              ),
                             ),
                           );
                         }
@@ -260,13 +308,24 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
         children: [
           Icon(icon, size: 14, color: Colors.grey[700]),
           const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-          ),
+          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[700])),
         ],
       ),
     );
   }
-}
 
+  List<AmcPlanItem> _filteredPlans(List<AmcPlanItem> plans) {
+    final filter = widget.supportTypeFilter?.trim().toLowerCase();
+    if (filter == null || filter.isEmpty) {
+      return plans;
+    }
+
+    return plans.where((item) {
+      final plan = item.plan;
+      if (plan == null) {
+        return false;
+      }
+      return plan.matchesSupportFilter(filter);
+    }).toList();
+  }
+}

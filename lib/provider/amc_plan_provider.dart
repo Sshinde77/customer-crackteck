@@ -17,13 +17,15 @@ class AmcPlanProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String? get detailErrorMessage => _detailErrorMessage;
 
-  Future<void> fetchAmcPlans() async {
+  Future<void> fetchAmcPlans({String? supportTypeFilter}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final response = await ApiService.instance.getAmcPlans();
+      final response = await ApiService.instance.getAmcPlans(
+        supportType: supportTypeFilter,
+      );
 
       if (response.success) {
         _amcPlans = response.data ?? [];

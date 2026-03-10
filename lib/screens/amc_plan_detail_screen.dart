@@ -7,8 +7,13 @@ import 'service_request_screen.dart';
 
 class AmcPlanDetailScreen extends StatefulWidget {
   final int planId;
+  final String requestButtonLabel;
 
-  const AmcPlanDetailScreen({super.key, required this.planId});
+  const AmcPlanDetailScreen({
+    super.key,
+    required this.planId,
+    this.requestButtonLabel = 'Subscribe to Plan',
+  });
 
   @override
   State<AmcPlanDetailScreen> createState() => _AmcPlanDetailScreenState();
@@ -603,8 +608,8 @@ class _AmcPlanDetailScreenState extends State<AmcPlanDetailScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text(
-              'Subscribe to Plan',
+            child: Text(
+              widget.requestButtonLabel,
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,

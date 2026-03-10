@@ -3250,7 +3250,10 @@ class ApiService {
   // AMC Plans API
   // ========================================
 
-  Future<ApiResponse<List<AmcPlanItem>>> getAmcPlans({int? roleId}) async {
+  Future<ApiResponse<List<AmcPlanItem>>> getAmcPlans({
+    int? roleId,
+    String? supportType,
+  }) async {
     try {
       debugPrint(
         'ðŸ”µ API Request: GET ${ApiConstants.amcPlans}?role_id=$roleId',
@@ -3259,6 +3262,10 @@ class ApiService {
       final query = <String, String>{};
       if (roleId != null && roleId > 0) {
         query['role_id'] = roleId.toString();
+      }
+      final normalizedSupportType = supportType?.trim().toLowerCase();
+      if (normalizedSupportType != null && normalizedSupportType.isNotEmpty) {
+        query['support_type'] = normalizedSupportType;
       }
       final url = query.isEmpty
           ? Uri.parse(ApiConstants.amcPlans)

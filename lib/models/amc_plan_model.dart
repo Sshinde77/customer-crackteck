@@ -19,13 +19,9 @@ class AmcPlanResponse {
     return AmcPlanResponse(
       amcPlans: plansNode is List
           ? plansNode
-              .whereType<Map>()
-              .map(
-                (i) => AmcPlanItem.fromJson(
-                  Map<String, dynamic>.from(i),
-                ),
-              )
-              .toList()
+                .whereType<Map>()
+                .map((i) => AmcPlanItem.fromJson(Map<String, dynamic>.from(i)))
+                .toList()
           : null,
     );
   }
@@ -53,11 +49,7 @@ class AmcPlanDetailResponse {
       coveredItems: rawCoveredItems is List
           ? rawCoveredItems
                 .whereType<Map>()
-                .map(
-                  (i) => CoveredItem.fromJson(
-                    Map<String, dynamic>.from(i),
-                  ),
-                )
+                .map((i) => CoveredItem.fromJson(Map<String, dynamic>.from(i)))
                 .toList()
           : null,
     );
@@ -81,11 +73,7 @@ class AmcPlanItem {
       coveredItems: rawCoveredItems is List
           ? rawCoveredItems
                 .whereType<Map>()
-                .map(
-                  (i) => CoveredItem.fromJson(
-                    Map<String, dynamic>.from(i),
-                  ),
-                )
+                .map((i) => CoveredItem.fromJson(Map<String, dynamic>.from(i)))
                 .toList()
           : null,
     );
@@ -171,8 +159,12 @@ class AmcPlan {
   factory AmcPlan.fromJson(Map<String, dynamic> json) {
     return AmcPlan(
       id: _toInt(json['id']),
-      planName: _toStringValue(json['plan_name'] ?? json['planName'] ?? json['name']),
-      planCode: _toStringValue(json['plan_code'] ?? json['planCode'] ?? json['code']),
+      planName: _toStringValue(
+        json['plan_name'] ?? json['planName'] ?? json['name'],
+      ),
+      planCode: _toStringValue(
+        json['plan_code'] ?? json['planCode'] ?? json['code'],
+      ),
       description: _toStringValue(json['description']),
       duration: _toInt(json['duration']),
       totalVisits: _toInt(json['total_visits'] ?? json['totalVisits']),
@@ -184,7 +176,9 @@ class AmcPlan {
       coveredItems: _toIntList(json['covered_items'] ?? json['coveredItems']),
       brochure: _toStringValue(json['brochure']),
       tandc: _toStringValue(json['tandc']),
-      replacementPolicy: _toStringValue(json['replacement_policy'] ?? json['replacementPolicy']),
+      replacementPolicy: _toStringValue(
+        json['replacement_policy'] ?? json['replacementPolicy'],
+      ),
       status: _toStringValue(json['status']),
       deletedAt: _toStringValue(json['deleted_at']),
       createdAt: _toStringValue(json['created_at']),
@@ -214,6 +208,40 @@ class AmcPlan {
       'created_at': createdAt,
       'updated_at': updatedAt,
     };
+  }
+
+  bool matchesSupportFilter(String filter) {
+    final normalizedFilter = filter.trim().toLowerCase();
+    if (normalizedFilter.isEmpty) {
+      return true;
+    }
+
+    final haystack = <String?>[
+      supportType,
+      planName,
+      planCode,
+      description,
+      payTerms,
+      replacementPolicy,
+    ].whereType<String>().map((value) => value.toLowerCase()).join(' ');
+
+    if (normalizedFilter == 'offline') {
+      return haystack.contains('offline') ||
+          haystack.contains('off line') ||
+          haystack.contains('onsite') ||
+          haystack.contains('on site') ||
+          haystack.contains('site visit') ||
+          haystack.contains('visit');
+    }
+
+    if (normalizedFilter == 'online') {
+      return haystack.contains('online') ||
+          haystack.contains('on line') ||
+          haystack.contains('remote') ||
+          haystack.contains('virtual');
+    }
+
+    return haystack.contains(normalizedFilter);
   }
 }
 
@@ -274,9 +302,13 @@ class CoveredItem {
       itemCode: _toStringValue(json['item_code'] ?? json['itemCode']),
       serviceType: _toStringValue(json['service_type'] ?? json['serviceType']),
       serviceName: _toStringValue(json['service_name'] ?? json['serviceName']),
-      serviceCharge: _toStringValue(json['service_charge'] ?? json['serviceCharge']),
+      serviceCharge: _toStringValue(
+        json['service_charge'] ?? json['serviceCharge'],
+      ),
       status: _toStringValue(json['status']),
-      diagnosisList: _toStringList(json['diagnosis_list'] ?? json['diagnosisList']),
+      diagnosisList: _toStringList(
+        json['diagnosis_list'] ?? json['diagnosisList'],
+      ),
       deletedAt: _toStringValue(json['deleted_at']),
       createdAt: _toStringValue(json['created_at']),
       updatedAt: _toStringValue(json['updated_at']),
