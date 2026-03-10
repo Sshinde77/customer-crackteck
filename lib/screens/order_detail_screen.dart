@@ -29,6 +29,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   bool _isLoading = true;
   bool _isCancelling = false;
+  bool _isReturning = false;
   String? _errorMessage;
   OrderModel? _order;
   OrderItemModel? _selectedItem;
@@ -117,6 +118,48 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   String _safeText(String? value, {String fallback = '—'}) {
     final text = (value ?? '').trim();
     return text.isEmpty ? fallback : text;
+  }
+
+  String _formatDateTime(String? raw, {bool includeTime = true}) {
+    final parsed = parseOrderDate(raw);
+    if (parsed == null) {
+      return _safeText(raw);
+    }
+
+    final day = parsed.day.toString().padLeft(2, '0');
+    final month = _monthName(parsed.month);
+    final year = parsed.year.toString();
+    final date = '$day $month $year';
+    if (!includeTime) {
+      return date;
+    }
+
+    final hour = parsed.hour % 12 == 0 ? 12 : parsed.hour % 12;
+    final minute = parsed.minute.toString().padLeft(2, '0');
+    final period = parsed.hour >= 12 ? 'PM' : 'AM';
+    return '$date, ${hour.toString().padLeft(2, '0')}:$minute $period';
+  }
+
+  String _monthName(int month) {
+    const months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+
+    if (month < 1 || month > months.length) {
+      return '';
+    }
+    return months[month - 1];
   }
 
   Widget _buildInfoRow(String label, String value, {Color? valueColor, bool boldValue = false}) {
@@ -223,6 +266,105 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       if (mounted) {
         setState(() {
           _isCancelling = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _returnOrder() async {
+    final orderId = _order?.id;
+    if (orderId == null || _isReturning) {
+      return;
+    }
+
+    final notesController = TextEditingController();
+    try {
+      final customerNotes = await showDialog<String>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Return Order'),
+            content: TextField(
+              controller: notesController,
+              maxLines: 3,
+              textInputAction: TextInputAction.done,
+              decoration: const InputDecoration(
+                hintText: 'Enter return reason',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  final notes = notesController.text.trim();
+                  if (notes.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please enter return notes.'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.pop(context, notes);
+                },
+                child: const Text('Submit'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (customerNotes == null || customerNotes.trim().isEmpty) {
+        return;
+      }
+
+      setState(() {
+        _isReturning = true;
+      });
+
+      final int roleId = (await SecureStorageService.getRoleId()) ?? AppStrings.roleId;
+      final int? customerId = await SecureStorageService.getUserId();
+
+      if (customerId == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Customer id missing. Please login again.')),
+        );
+        return;
+      }
+
+      final response = await ApiService.instance.returnOrder(
+        orderId: orderId,
+        roleId: roleId,
+        customerId: customerId,
+        customerNotes: customerNotes,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            response.message ??
+                (response.success ? 'Order returned successfully' : 'Failed to return order'),
+          ),
+          backgroundColor: response.success ? Colors.green : Colors.red,
+        ),
+      );
+
+      if (response.success) {
+        await _fetchOrderDetails();
+      }
+    } finally {
+      notesController.dispose();
+      if (mounted) {
+        setState(() {
+          _isReturning = false;
         });
       }
     }
@@ -397,7 +539,17 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                               '₹ ${_safeText(order?.grandTotal ?? order?.subtotal, fallback: '0')}',
                               boldValue: true,
                             ),
-                            _buildInfoRow('Ordered On', _safeText(order?.createdAt)),
+                            _buildInfoRow(
+                              'Ordered On',
+                              _formatDateTime(order?.createdAt),
+                            ),
+                            _buildInfoRow(
+                              'Expected Delivery Date',
+                              _formatDateTime(
+                                order?.expectedDeliveryDate,
+                                includeTime: false,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -413,9 +565,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         if (canCancel && canReplace) const SizedBox(height: 12),
                         if (canReplace)
                           _buildActionButton(
-                            label: 'Replace Product',
+                            label: 'Return Order',
                             backgroundColor: AppColors.primary,
-                            onPressed: () {},
+                            onPressed: _isReturning ? null : _returnOrder,
+                            isLoading: _isReturning,
                           ),
                       ],
                     ],

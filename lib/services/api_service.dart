@@ -2042,6 +2042,72 @@ class ApiService {
     }
   }
 
+  Future<ApiResponse<Map<String, dynamic>>> returnOrder({
+    required int orderId,
+    required int roleId,
+    required int customerId,
+    required String customerNotes,
+  }) async {
+    try {
+      final url =
+          Uri.parse(
+            _resolveInvoiceEndpoint(ApiConstants.returnorder, orderId),
+          ).replace(
+            queryParameters: {
+              'customer_id': customerId.toString(),
+              'role_id': roleId.toString(),
+              'customer_notes': customerNotes,
+            },
+          );
+
+      debugPrint('API Request: POST $url');
+
+      final response = await _performAuthenticatedPost(url, body: {});
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final dynamic dataRoot = jsonResponse['data'];
+        final Map<String, dynamic> payload = dataRoot is Map<String, dynamic>
+            ? dataRoot
+            : dataRoot is Map
+            ? Map<String, dynamic>.from(dataRoot)
+            : <String, dynamic>{};
+
+        return ApiResponse<Map<String, dynamic>>(
+          success: jsonResponse['success'] ?? jsonResponse['status'] ?? true,
+          message: _stringifyMessage(
+            jsonResponse['message'],
+            fallback: 'Order returned successfully',
+          ),
+          data: payload,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: _stringifyMessage(
+          jsonResponse['message'],
+          fallback: isHtml ? 'Server returned HTML' : 'Failed to return order',
+        ),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in returnOrder: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
   // ========================================
   // Product Categories API
   // ========================================

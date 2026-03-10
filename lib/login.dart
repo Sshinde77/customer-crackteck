@@ -96,18 +96,58 @@ class _LoginScreenState extends State<LoginScreen> {
       final Map<String, dynamic>? googleUserData =
           await _googleAuthService.signInWithGoogle();
 
+      if (!mounted) return;
+
       if (googleUserData == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Google sign-in was cancelled.')),
+        );
         return;
       }
 
-      debugPrint('Selected Google email: ${googleUserData['email']}');
+      final accessToken = (googleUserData['accessToken'] as String?)?.trim();
+      if (accessToken == null || accessToken.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Google access token not available.')),
+        );
+        return;
+      }
 
-      await _googleAuthService.sendGoogleLoginDataToBackend(googleUserData);
+      final response = await _authService.loginWithGoogle(
+        accessToken,
+        roleId: widget.roleId,
+      );
+
+      if (!mounted) return;
+
+      if (response.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response.message ?? 'Google login successful'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.hometab,
+          (route) => false,
+        );
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(response.message ?? 'Google login failed'),
+          backgroundColor: Colors.red,
+        ),
+      );
     } catch (error) {
       if (!mounted) return;
-      showErrorDialog(
-        context: context,
-        message: 'Google sign-in failed. Please try again.',
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Google sign-in failed. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) {

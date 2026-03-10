@@ -32,6 +32,7 @@ class OrderModel {
   final String? orderStatus;
   final String? createdAt;
   final String? deliveredAt;
+  final String? expectedDeliveryDate;
   final List<OrderItemModel>? items;
 
   OrderModel({
@@ -50,6 +51,7 @@ class OrderModel {
     this.orderStatus,
     this.createdAt,
     this.deliveredAt,
+    this.expectedDeliveryDate,
     this.items,
   });
 
@@ -97,6 +99,12 @@ class OrderModel {
             json['delivery_date'] ??
             json['deliveryDate'] ??
             json['order_delivered_at'],
+      ),
+      expectedDeliveryDate: _readString(
+        json['expected_delivery_date'] ??
+            json['expectedDeliveryDate'] ??
+            json['delivery_expected_at'] ??
+            json['deliveryExpectedAt'],
       ),
       items: rawItems is List
           ? rawItems

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Lightweight token storage abstraction.
@@ -7,6 +8,7 @@ class SecureStorageService {
   static const String _refreshTokenKey = 'refresh_token';
   static const String _userIdKey = 'user_id';
   static const String _roleIdKey = 'role_id';
+  static const String _userDataKey = 'user_data';
 
   static SharedPreferences? _prefs;
   static bool _initialized = false;
@@ -15,6 +17,7 @@ class SecureStorageService {
   static String? _refreshToken;
   static int? _userId;
   static int? _roleId;
+  static Map<String, dynamic>? _userData;
 
   static Future<void> _ensureInitialized() async {
     if (_initialized && _prefs != null) return;
@@ -23,6 +26,13 @@ class SecureStorageService {
     _refreshToken = _prefs!.getString(_refreshTokenKey);
     _userId = _prefs!.getInt(_userIdKey);
     _roleId = _prefs!.getInt(_roleIdKey);
+    final rawUserData = _prefs!.getString(_userDataKey);
+    if (rawUserData != null && rawUserData.isNotEmpty) {
+      final decoded = jsonDecode(rawUserData);
+      if (decoded is Map) {
+        _userData = Map<String, dynamic>.from(decoded);
+      }
+    }
     _initialized = true;
   }
 
@@ -76,12 +86,24 @@ class SecureStorageService {
     await _prefs!.setInt(_roleIdKey, roleId);
   }
 
+  static Future<Map<String, dynamic>?> getUserData() async {
+    await _ensureInitialized();
+    return _userData == null ? null : Map<String, dynamic>.from(_userData!);
+  }
+
+  static Future<void> saveUserData(Map<String, dynamic> userData) async {
+    await _ensureInitialized();
+    _userData = Map<String, dynamic>.from(userData);
+    await _prefs!.setString(_userDataKey, jsonEncode(_userData));
+  }
+
   /// Persist a full or partial auth session atomically.
   static Future<void> saveSession({
     String? accessToken,
     String? refreshToken,
     int? userId,
     int? roleId,
+    Map<String, dynamic>? userData,
   }) async {
     await _ensureInitialized();
 
@@ -102,6 +124,10 @@ class SecureStorageService {
       _roleId = roleId;
       writes.add(_prefs!.setInt(_roleIdKey, roleId));
     }
+    if (userData != null && userData.isNotEmpty) {
+      _userData = Map<String, dynamic>.from(userData);
+      writes.add(_prefs!.setString(_userDataKey, jsonEncode(_userData)));
+    }
 
     if (writes.isNotEmpty) {
       await Future.wait(writes);
@@ -115,11 +141,13 @@ class SecureStorageService {
     _refreshToken = null;
     _userId = null;
     _roleId = null;
+    _userData = null;
     await Future.wait([
       _prefs!.remove(_accessTokenKey),
       _prefs!.remove(_refreshTokenKey),
       _prefs!.remove(_userIdKey),
       _prefs!.remove(_roleIdKey),
+      _prefs!.remove(_userDataKey),
     ]);
   }
 }

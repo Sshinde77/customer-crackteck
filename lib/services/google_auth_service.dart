@@ -44,10 +44,4 @@ class GoogleAuthService {
     }
   }
 
-  Future<void> sendGoogleLoginDataToBackend(
-    Map<String, dynamic> googleUserData,
-  ) async {
-    // TODO: Replace with the actual API integration once the backend contract is ready.
-    debugPrint('Sending Google login payload to backend: $googleUserData');
-  }
 }

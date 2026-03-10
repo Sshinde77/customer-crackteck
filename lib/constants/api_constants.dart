@@ -62,6 +62,11 @@ class ApiConstants {
       '$baseUrl/invoice-payment/{id}';
   static const String cancelorder =
       '$baseUrl/cancel-order/{id}';
+  static const String returnorder =
+      '$baseUrl/return-order/{id}';
+
+  static const String googlelogin =
+      '$baseUrl/google-login';
 
   // Request Timeout
   static const Duration requestTimeout = Duration(seconds: 30);
