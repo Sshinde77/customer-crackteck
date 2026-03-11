@@ -55,6 +55,11 @@ class AuthService {
     int? roleId,
   }) async {
     try {
+      final requestBody = <String, dynamic>{
+        'accessToken': accessToken,
+        if (roleId != null) 'role_id': roleId,
+      };
+
       final response = await http
           .post(
             Uri.parse(ApiConstants.googlelogin),
@@ -62,13 +67,12 @@ class AuthService {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
-            body: jsonEncode(<String, dynamic>{
-              'accessToken': accessToken,
-            }),
+            body: jsonEncode(requestBody),
           )
           .timeout(ApiConstants.requestTimeout);
 
       debugPrint('API Request: POST ${ApiConstants.googlelogin}');
+      debugPrint('API Request Body: ${jsonEncode(requestBody)}');
       debugPrint('API Response Status: ${response.statusCode}');
       debugPrint('API Response Body: ${response.body}');
 

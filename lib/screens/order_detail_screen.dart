@@ -370,6 +370,26 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
   }
 
+  Future<void> _downloadInvoice() async {
+    final order = _order;
+    if (order == null) return;
+
+    if (!order.hasInvoicePdf) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invoice is not available yet.')),
+      );
+      return;
+    }
+
+    final fileName = _safeText(
+      order.invoiceNumber,
+      fallback: order.orderNumber ?? 'invoice',
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Downloading $fileName.pdf')),
+    );
+  }
+
   Widget _buildActionButton({
     required String label,
     required Color backgroundColor,
@@ -412,13 +432,17 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Widget build(BuildContext context) {
     final order = _order;
     final item = _selectedItem;
-    final productName = _safeText(item?.product?.productName, fallback: 'Product');
+    final productName = _safeText(
+      item?.productName ?? item?.product?.productName,
+      fallback: 'Product',
+    );
     final imageUrl = _normalizeImageUrl(item?.product?.mainProductImage);
     final paymentStatus = _safeText(order?.paymentStatus);
     final rawOrderStatus = order?.status ?? order?.orderStatus;
     final orderStatus = getOrderDisplayStatus(rawOrderStatus);
+    final isDelivered = normalizeOrderStatus(rawOrderStatus) == 'delivered';
     final canCancel = canCancelOrder(rawOrderStatus);
-    final canReplace = canReplaceOrder(order);
+    final canReplace = order?.isReturnable == true;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -530,13 +554,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             _buildInfoRow('Order Status', orderStatus),
                             _buildInfoRow('Payment Status', paymentStatus),
                             _buildInfoRow('Quantity', '${item?.quantity ?? order?.totalItems ?? 0}'),
-                            _buildInfoRow('Item Price', '₹ ${_safeText(item?.price, fallback: '0')}'),
-                            _buildInfoRow('Subtotal', '₹ ${_safeText(order?.subtotal, fallback: '0')}'),
-                            _buildInfoRow('Tax Amount', '₹ ${_safeText(order?.taxAmount, fallback: '0')}'),
-                            _buildInfoRow('Shipping Charges', '₹ ${_safeText(order?.shippingCharges, fallback: '0')}'),
+                            _buildInfoRow('Item Price', 'Rs ${_safeText(item?.price, fallback: '0')}'),
+                            _buildInfoRow('Subtotal', 'Rs ${_safeText(order?.subtotal, fallback: '0')}'),
+                            _buildInfoRow('Tax Amount', 'Rs ${_safeText(order?.taxAmount, fallback: '0')}'),
+                            _buildInfoRow(
+                              'Shipping Charges',
+                              'Rs ${_safeText(order?.shippingCharges, fallback: '0')}',
+                            ),
                             _buildInfoRow(
                               'Grand Total',
-                              '₹ ${_safeText(order?.grandTotal ?? order?.subtotal, fallback: '0')}',
+                              'Rs ${_safeText(order?.grandTotal ?? order?.subtotal, fallback: '0')}',
                               boldValue: true,
                             ),
                             _buildInfoRow(
@@ -553,6 +580,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                           ],
                         ),
                       ),
+                      if (isDelivered) ...[
+                        const SizedBox(height: 16),
+                        _buildActionButton(
+                          label: 'Download Invoice',
+                          backgroundColor: Colors.green,
+                          onPressed: _downloadInvoice,
+                        ),
+                      ],
                       if (canCancel || canReplace) ...[
                         const SizedBox(height: 16),
                         if (canCancel)

@@ -33,6 +33,10 @@ class OrderModel {
   final String? createdAt;
   final String? deliveredAt;
   final String? expectedDeliveryDate;
+  final int? invoiceId;
+  final String? invoiceNumber;
+  final String? invoicePdf;
+  final bool? isReturnable;
   final List<OrderItemModel>? items;
 
   OrderModel({
@@ -52,6 +56,10 @@ class OrderModel {
     this.createdAt,
     this.deliveredAt,
     this.expectedDeliveryDate,
+    this.invoiceId,
+    this.invoiceNumber,
+    this.invoicePdf,
+    this.isReturnable,
     this.items,
   });
 
@@ -87,7 +95,14 @@ class OrderModel {
       couponCode: _readString(json['coupon_code'] ?? json['coupon']),
       taxAmount: _readString(json['tax_amount'] ?? json['tax']),
       shippingCharges: _readString(json['shipping_charges'] ?? json['shipping']),
-      grandTotal: _readString(json['grand_total'] ?? json['total']),
+      grandTotal: _readString(
+        json['grand_total'] ??
+            json['grandTotal'] ??
+            json['total_amount'] ??
+            json['final_amount'] ??
+            json['net_amount'] ??
+            json['total'],
+      ),
       paymentStatus:
           _readString(json['payment_status'] ?? json['paymentStatus'] ?? json['payment']),
       status: _readString(json['status']),
@@ -106,6 +121,27 @@ class OrderModel {
             json['delivery_expected_at'] ??
             json['deliveryExpectedAt'],
       ),
+      invoiceId: _tryParseInt(
+        json['invoice_id'] ??
+            json['invoiceId'] ??
+            json['order_invoice_id'],
+      ),
+      invoiceNumber: _readString(
+        json['invoice_number'] ??
+            json['invoiceNumber'] ??
+            json['order_invoice_number'],
+      ),
+      invoicePdf: _readString(
+        json['invoice_pdf'] ??
+            json['invoicePdf'] ??
+            json['pdf_url'] ??
+            json['pdf'] ??
+            json['order_invoice_pdf'],
+      ),
+      isReturnable: _tryParseBool(
+        json['is_returnable'] ??
+            json['isReturnable'],
+      ),
       items: rawItems is List
           ? rawItems
               .whereType<Map>()
@@ -114,11 +150,14 @@ class OrderModel {
           : null,
     );
   }
+
+  bool get hasInvoicePdf => (invoicePdf ?? '').trim().isNotEmpty;
 }
 
 class OrderItemModel {
   final int? id;
   final int? productId;
+  final String? productName;
   final int? quantity;
   final String? price;
   final OrderProductModel? product;
@@ -126,6 +165,7 @@ class OrderItemModel {
   OrderItemModel({
     this.id,
     this.productId,
+    this.productName,
     this.quantity,
     this.price,
     this.product,
@@ -157,6 +197,7 @@ class OrderItemModel {
     return OrderItemModel(
       id: _tryParseInt(json['id']),
       productId: _tryParseInt(json['product_id'] ?? json['productId']),
+      productName: _readString(json['product_name'] ?? json['name'] ?? json['title']),
       quantity: _tryParseInt(json['qty'] ?? json['quantity'] ?? json['order_qty']),
       price: _readString(json['price'] ?? json['unit_price'] ?? json['final_price']),
       product: productMap != null ? OrderProductModel.fromJson(productMap) : null,
@@ -200,4 +241,20 @@ class OrderProductModel {
       finalPrice: _readString(json['final_price'] ?? json['selling_price'] ?? json['price']),
     );
   }
+}
+
+bool? _tryParseBool(dynamic value) {
+  if (value == null) return null;
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+
+  final normalized = value.toString().trim().toLowerCase();
+  if (normalized.isEmpty) return null;
+  if (normalized == '1' || normalized == 'true' || normalized == 'yes') {
+    return true;
+  }
+  if (normalized == '0' || normalized == 'false' || normalized == 'no') {
+    return false;
+  }
+  return null;
 }
