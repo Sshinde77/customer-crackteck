@@ -44,6 +44,8 @@ dependencies:
   country_state_city_picker: ^1.2.8
   shared_preferences: ^2.5.3
   google_sign_in: ^6.2.1
+  scratcher: ^2.5.0
+  confetti: ^0.8.0
 
 dev_dependencies:
   flutter_test:

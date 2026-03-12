@@ -6,6 +6,7 @@ import '../constants/core/secure_storage_service.dart';
 import '../models/user_model.dart';
 import '../models/api_response.dart';
 import 'invoice_list_screen.dart';
+import 'rewards_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -200,6 +201,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         context,
                         MaterialPageRoute(
                           builder: (_) => const InvoiceListScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildProfileOption(
+                    Icons.card_giftcard_rounded,
+                    'My rewards',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const RewardsScreen(),
                         ),
                       );
                     },

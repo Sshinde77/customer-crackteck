@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/core/secure_storage_service.dart';
+import '../models/reward_coupon_model.dart';
 import '../models/service_request_list_model.dart';
 import '../routes/app_routes.dart';
 import '../services/api_service.dart';
+import '../services/reward_local_service.dart';
+import '../widgets/scratch_reward_popup.dart';
 
 class MyServiceRequestScreen extends StatefulWidget {
   const MyServiceRequestScreen({super.key});
@@ -17,6 +20,7 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   List<ServiceRequestListItem> _requests = [];
+  final Map<String, RewardCoupon> _rewardsBySource = <String, RewardCoupon>{};
 
   @override
   void initState() {
@@ -50,8 +54,24 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
       if (!mounted) return;
 
       if (response.success && response.data != null) {
+        final requests = response.data!;
+        final Map<String, RewardCoupon> rewardsBySource = <String, RewardCoupon>{};
+        for (final request in requests) {
+          if (!request.isDone) continue;
+          final reward = await RewardLocalService.instance.getRewardBySource(
+            sourceType: 'service',
+            sourceId: _rewardSourceIdFor(request),
+          );
+          if (reward != null) {
+            rewardsBySource[_rewardSourceIdFor(request)] = reward;
+          }
+        }
+
         setState(() {
-          _requests = response.data!;
+          _requests = requests;
+          _rewardsBySource
+            ..clear()
+            ..addAll(rewardsBySource);
           _isLoading = false;
         });
         return;
@@ -68,6 +88,44 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  String _rewardSourceIdFor(ServiceRequestListItem request) {
+    if (request.id != null) {
+      return 'SRV${request.id}';
+    }
+
+    final fallback = (request.requestId ?? request.serviceCode ?? request.serviceName ?? 'UNKNOWN').trim();
+    return 'SRV$fallback';
+  }
+
+  Future<void> _openRewardPopup(ServiceRequestListItem request) async {
+    final sourceId = _rewardSourceIdFor(request);
+    final reward = await RewardLocalService.instance.createOrGetReward(
+      sourceType: 'service',
+      sourceId: sourceId,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _rewardsBySource[sourceId] = reward;
+    });
+
+    final updatedReward = await ScratchRewardPopup.show(
+      context,
+      reward: reward,
+      onRewardUpdated: (value) {
+        if (!mounted) return;
+        setState(() {
+          _rewardsBySource[sourceId] = value;
+        });
+      },
+    );
+
+    if (!mounted || updatedReward == null) return;
+    setState(() {
+      _rewardsBySource[sourceId] = updatedReward;
+    });
   }
 
   @override
@@ -212,6 +270,7 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
 
   Widget _buildRequestCard(ServiceRequestListItem request) {
     final isDone = request.isDone;
+    final hasClaimedReward = _rewardsBySource.containsKey(_rewardSourceIdFor(request));
     return GestureDetector(
       onTap: () {
         Navigator.pushNamed(
@@ -256,26 +315,50 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
             _buildInfoRow('Status', request.displayStatus),
             if (isDone) ...[
               const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => _showFeedbackDialog(request),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => _showFeedbackDialog(request),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        'Give Feedback',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
-                  child: const Text(
-                    'Give Feedback',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => _openRewardPopup(request),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1A73E8),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                        hasClaimedReward ? 'View Reward' : 'Claim Reward',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ],
           ],

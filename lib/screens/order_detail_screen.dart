@@ -4,9 +4,14 @@ import '../constants/app_colors.dart';
 import '../constants/app_strings.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/order_model.dart';
+import '../models/reward_coupon_model.dart';
+import '../screens/rewards_screen.dart';
 import '../services/api_service.dart';
+import '../services/reward_local_service.dart';
 import '../utils/order_status_utils.dart';
+import '../widgets/claim_reward_button.dart';
 import '../widgets/order_status_badge.dart';
+import '../widgets/scratch_reward_popup.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final int orderId;
@@ -33,11 +38,18 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   String? _errorMessage;
   OrderModel? _order;
   OrderItemModel? _selectedItem;
+  RewardCoupon? _reward;
 
   @override
   void initState() {
     super.initState();
     _fetchOrderDetails();
+  }
+
+  String get _rewardSourceId {
+    final orderId = _order?.id?.toString() ?? widget.orderId.toString();
+    final itemId = _selectedItem?.id?.toString();
+    return itemId == null ? 'ORD$orderId' : 'ORD$orderId-ITEM$itemId';
   }
 
   String _normalizeImageUrl(String? raw) {
@@ -81,9 +93,24 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       }
 
       final order = response.data!;
+      final selectedItem = _resolveSelectedItem(order);
+      final rawOrderStatus = order.status ?? order.orderStatus;
+      final isDelivered = normalizeOrderStatus(rawOrderStatus) == 'delivered';
+      RewardCoupon? reward;
+      if (isDelivered) {
+        reward = await RewardLocalService.instance.getRewardBySource(
+          sourceType: 'order',
+          sourceId: selectedItem?.id != null
+              ? 'ORD${widget.orderId}-ITEM${selectedItem!.id}'
+              : 'ORD${widget.orderId}',
+        );
+      }
+
+      if (!mounted) return;
       setState(() {
         _order = order;
-        _selectedItem = _resolveSelectedItem(order);
+        _selectedItem = selectedItem;
+        _reward = reward;
         _isLoading = false;
       });
     } catch (_) {
@@ -390,6 +417,34 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
+  Future<void> _openRewardPopup() async {
+    final reward = await RewardLocalService.instance.createOrGetReward(
+      sourceType: 'order',
+      sourceId: _rewardSourceId,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _reward = reward;
+    });
+
+    final updatedReward = await ScratchRewardPopup.show(
+      context,
+      reward: reward,
+      onRewardUpdated: (value) {
+        if (!mounted) return;
+        setState(() {
+          _reward = value;
+        });
+      },
+    );
+
+    if (!mounted || updatedReward == null) return;
+    setState(() {
+      _reward = updatedReward;
+    });
+  }
+
   Widget _buildActionButton({
     required String label,
     required Color backgroundColor,
@@ -458,157 +513,179 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         ),
         elevation: 0,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _errorMessage != null
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                          const SizedBox(height: 12),
+                          ElevatedButton(
+                            onPressed: _fetchOrderDetails,
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _fetchOrderDetails,
+                    child: ListView(
+                      padding: const EdgeInsets.all(16),
                       children: [
-                        Text(
-                          _errorMessage!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.red),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade200),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 90,
+                                height: 90,
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: imageUrl.isNotEmpty
+                                    ? Image.network(
+                                        imageUrl,
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (context, error, stackTrace) =>
+                                            const Icon(Icons.image_not_supported, color: Colors.grey),
+                                      )
+                                    : const Icon(Icons.image, color: Colors.grey, size: 42),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      productName,
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    OrderStatusBadge(status: rawOrderStatus),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 12),
-                        ElevatedButton(
-                          onPressed: _fetchOrderDetails,
-                          child: const Text('Retry'),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Column(
+                            children: [
+                              _buildInfoRow('Order Number', _safeText(order?.orderNumber)),
+                              _buildInfoRow('Order Status', orderStatus),
+                              _buildInfoRow('Payment Status', paymentStatus),
+                              _buildInfoRow('Quantity', '${item?.quantity ?? order?.totalItems ?? 0}'),
+                              _buildInfoRow('Item Price', 'Rs ${_safeText(item?.price, fallback: '0')}'),
+                              _buildInfoRow('Subtotal', 'Rs ${_safeText(order?.subtotal, fallback: '0')}'),
+                              _buildInfoRow('Tax Amount', 'Rs ${_safeText(order?.taxAmount, fallback: '0')}'),
+                              _buildInfoRow(
+                                'Shipping Charges',
+                                'Rs ${_safeText(order?.shippingCharges, fallback: '0')}',
+                              ),
+                              _buildInfoRow(
+                                'Grand Total',
+                                'Rs ${_safeText(order?.grandTotal ?? order?.subtotal, fallback: '0')}',
+                                boldValue: true,
+                              ),
+                              _buildInfoRow(
+                                'Ordered On',
+                                _formatDateTime(order?.createdAt),
+                              ),
+                              _buildInfoRow(
+                                'Expected Delivery Date',
+                                _formatDateTime(
+                                  order?.expectedDeliveryDate,
+                                  includeTime: false,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
+                        if (isDelivered) ...[
+                          const SizedBox(height: 16),
+                          ClaimRewardButton(
+                            hasClaimed: _reward != null,
+                            onPressed: _openRewardPopup,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildActionButton(
+                            label: 'Download Invoice',
+                            backgroundColor: Colors.green,
+                            onPressed: _downloadInvoice,
+                          ),
+                        ],
+                        if (canCancel || canReplace) ...[
+                          const SizedBox(height: 16),
+                          if (canCancel)
+                            _buildActionButton(
+                              label: 'Cancel Order',
+                              backgroundColor: Colors.red,
+                              onPressed: _isCancelling ? null : _cancelOrder,
+                              isLoading: _isCancelling,
+                            ),
+                          if (canCancel && canReplace) const SizedBox(height: 12),
+                          if (canReplace)
+                            _buildActionButton(
+                              label: 'Return Order',
+                              backgroundColor: AppColors.primary,
+                              onPressed: _isReturning ? null : _returnOrder,
+                              isLoading: _isReturning,
+                            ),
+                        ],
+                        // if (_reward != null) ...[
+                        //   const SizedBox(height: 16),
+                        //   _buildActionButton(
+                        //     label: 'View My Rewards',
+                        //     backgroundColor: const Color(0xFF1A73E8),
+                        //     onPressed: () {
+                        //       Navigator.push(
+                        //         context,
+                        //         MaterialPageRoute(
+                        //           builder: (_) => const RewardsScreen(),
+                        //         ),
+                        //       );
+                        //     },
+                        //   ),
+                        // ],
                       ],
                     ),
                   ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _fetchOrderDetails,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade200),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 90,
-                              height: 90,
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: imageUrl.isNotEmpty
-                                  ? Image.network(
-                                      imageUrl,
-                                      fit: BoxFit.contain,
-                                      errorBuilder: (context, error, stackTrace) =>
-                                          const Icon(Icons.image_not_supported, color: Colors.grey),
-                                    )
-                                  : const Icon(Icons.image, color: Colors.grey, size: 42),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    productName,
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  OrderStatusBadge(status: rawOrderStatus),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Column(
-                          children: [
-                            _buildInfoRow('Order Number', _safeText(order?.orderNumber)),
-                            _buildInfoRow('Order Status', orderStatus),
-                            _buildInfoRow('Payment Status', paymentStatus),
-                            _buildInfoRow('Quantity', '${item?.quantity ?? order?.totalItems ?? 0}'),
-                            _buildInfoRow('Item Price', 'Rs ${_safeText(item?.price, fallback: '0')}'),
-                            _buildInfoRow('Subtotal', 'Rs ${_safeText(order?.subtotal, fallback: '0')}'),
-                            _buildInfoRow('Tax Amount', 'Rs ${_safeText(order?.taxAmount, fallback: '0')}'),
-                            _buildInfoRow(
-                              'Shipping Charges',
-                              'Rs ${_safeText(order?.shippingCharges, fallback: '0')}',
-                            ),
-                            _buildInfoRow(
-                              'Grand Total',
-                              'Rs ${_safeText(order?.grandTotal ?? order?.subtotal, fallback: '0')}',
-                              boldValue: true,
-                            ),
-                            _buildInfoRow(
-                              'Ordered On',
-                              _formatDateTime(order?.createdAt),
-                            ),
-                            _buildInfoRow(
-                              'Expected Delivery Date',
-                              _formatDateTime(
-                                order?.expectedDeliveryDate,
-                                includeTime: false,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (isDelivered) ...[
-                        const SizedBox(height: 16),
-                        _buildActionButton(
-                          label: 'Download Invoice',
-                          backgroundColor: Colors.green,
-                          onPressed: _downloadInvoice,
-                        ),
-                      ],
-                      if (canCancel || canReplace) ...[
-                        const SizedBox(height: 16),
-                        if (canCancel)
-                          _buildActionButton(
-                            label: 'Cancel Order',
-                            backgroundColor: Colors.red,
-                            onPressed: _isCancelling ? null : _cancelOrder,
-                            isLoading: _isCancelling,
-                          ),
-                        if (canCancel && canReplace) const SizedBox(height: 12),
-                        if (canReplace)
-                          _buildActionButton(
-                            label: 'Return Order',
-                            backgroundColor: AppColors.primary,
-                            onPressed: _isReturning ? null : _returnOrder,
-                            isLoading: _isReturning,
-                          ),
-                      ],
-                    ],
-                  ),
-                ),
+      ),
     );
   }
 }

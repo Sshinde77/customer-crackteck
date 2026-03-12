@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/quick_service_model.dart';
+import '../models/reward_coupon_model.dart';
+import '../screens/rewards_screen.dart';
 import '../services/api_service.dart';
+import '../services/reward_local_service.dart';
+import '../widgets/claim_reward_button.dart';
+import '../widgets/scratch_reward_popup.dart';
 
 class ServiceDetailScreen extends StatefulWidget {
   final QuickService? service;
@@ -22,6 +27,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
   bool _isLoading = false;
   String? _errorMessage;
   Map<String, dynamic>? _detailData;
+  RewardCoupon? _reward;
 
   @override
   void initState() {
@@ -60,8 +66,32 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
       if (!mounted) return;
 
       if (response.success && response.data != null && response.data!.isNotEmpty) {
+        final detail = response.data!;
+        final nestedService =
+            _toMap(detail['service']) ?? _toMap(detail['service_detail']) ?? <String, dynamic>{};
+        final rawStatus = _pickFirstText(
+          <dynamic>[
+            detail['status'],
+            detail['request_status'],
+            detail['service_status'],
+            nestedService['status'],
+            widget.service?.status,
+          ],
+          fallback: 'unknown',
+        );
+
+        RewardCoupon? reward;
+        if (_isCompletedStatus(rawStatus)) {
+          reward = await RewardLocalService.instance.getRewardBySource(
+            sourceType: 'service',
+            sourceId: _rewardSourceId,
+          );
+        }
+
+        if (!mounted) return;
         setState(() {
-          _detailData = response.data;
+          _detailData = detail;
+          _reward = reward;
           _isLoading = false;
         });
         return;
@@ -139,6 +169,49 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
     return widget.service?.diagnosisList ?? [];
   }
 
+  bool _isCompletedStatus(String status) {
+    final normalized = status.trim().toLowerCase();
+    return normalized.contains('completed') ||
+        normalized.contains('complete') ||
+        normalized.contains('closed') ||
+        normalized.contains('delivered') ||
+        normalized.contains('done');
+  }
+
+  String get _rewardSourceId {
+    return widget.service?.id != null
+        ? 'SRV${widget.service!.id}'
+        : 'SRV${widget.service?.itemCode ?? widget.service?.serviceName ?? 'UNKNOWN'}';
+  }
+
+  Future<void> _openRewardPopup() async {
+    final reward = await RewardLocalService.instance.createOrGetReward(
+      sourceType: 'service',
+      sourceId: _rewardSourceId,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _reward = reward;
+    });
+
+    final updatedReward = await ScratchRewardPopup.show(
+      context,
+      reward: reward,
+      onRewardUpdated: (value) {
+        if (!mounted) return;
+        setState(() {
+          _reward = value;
+        });
+      },
+    );
+
+    if (!mounted || updatedReward == null) return;
+    setState(() {
+      _reward = updatedReward;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final Map<String, dynamic> detail = _detailData ?? <String, dynamic>{};
@@ -192,6 +265,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
 
     final String status = rawStatus.toUpperCase();
     final bool isActive = rawStatus.toLowerCase() == 'active';
+    final bool isCompleted = _isCompletedStatus(rawStatus);
     final List<String> diagnosis = _resolveDiagnosis(detail, nestedService);
 
     return Scaffold(
@@ -297,6 +371,13 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
             _buildInfoRow('Service Charge', ' $serviceCharge'),
             const SizedBox(height: 12),
             _buildInfoRow('Status', status),
+            if (isCompleted) ...[
+              const SizedBox(height: 20),
+              ClaimRewardButton(
+                hasClaimed: _reward != null,
+                onPressed: _openRewardPopup,
+              ),
+            ],
             const SizedBox(height: 20),
             const Text(
               'Diagnosis List',
@@ -341,6 +422,31 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
             if (_isLoading) ...[
               const SizedBox(height: 24),
               const Center(child: CircularProgressIndicator()),
+            ],
+            if (_reward != null) ...[
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const RewardsScreen(),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1A73E8),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: const Text('View My Rewards'),
+                ),
+              ),
             ],
           ],
         ),
