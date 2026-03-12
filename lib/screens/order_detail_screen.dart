@@ -305,6 +305,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
 
     final notesController = TextEditingController();
+
     try {
       final customerNotes = await showDialog<String>(
         context: context,

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:scratcher/scratcher.dart';
 
 import '../models/reward_coupon_model.dart';
@@ -87,6 +88,15 @@ class _ScratchRewardPopupState extends State<ScratchRewardPopup> {
     );
   }
 
+  Future<void> _copyRewardCode() async {
+    await Clipboard.setData(ClipboardData(text: _reward.code));
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Coupon code copied')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
 final bottomInset = MediaQuery.of(context).viewInsets.bottom * 0.5;
@@ -150,6 +160,7 @@ final bottomInset = MediaQuery.of(context).viewInsets.bottom * 0.5;
                               _RewardRevealFace(
                                 reward: _reward,
                                 showUnlockedMessage: _showUnlockedMessage,
+                                onCopyCode: _copyRewardCode,
                               ),
                               if (!_reward.scratched)
                                 Scratcher(
@@ -271,10 +282,12 @@ final bottomInset = MediaQuery.of(context).viewInsets.bottom * 0.5;
 class _RewardRevealFace extends StatelessWidget {
   final RewardCoupon reward;
   final bool showUnlockedMessage;
+  final VoidCallback onCopyCode;
 
   const _RewardRevealFace({
     required this.reward,
     required this.showUnlockedMessage,
+    required this.onCopyCode,
   });
 
   @override
@@ -328,13 +341,51 @@ class _RewardRevealFace extends StatelessWidget {
               color: Colors.white.withOpacity(0.16),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Text(
-              reward.code,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.4,
-              ),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    reward.code,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: onCopyCode,
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.14),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white.withOpacity(0.20)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Icon(
+                          Icons.copy_rounded,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          'Copy',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 10),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../constants/app_colors.dart';
 import '../models/reward_coupon_model.dart';
 
 class RewardCardWidget extends StatelessWidget {
@@ -7,6 +8,7 @@ class RewardCardWidget extends StatelessWidget {
   final bool isCompact;
   final Widget? trailing;
   final VoidCallback? onTap;
+  final VoidCallback? onCopyCode;
 
   const RewardCardWidget({
     super.key,
@@ -14,11 +16,13 @@ class RewardCardWidget extends StatelessWidget {
     this.isCompact = false,
     this.trailing,
     this.onTap,
+    this.onCopyCode,
   });
 
   @override
   Widget build(BuildContext context) {
     final accent = _colorFromHex(reward.accentHex);
+    final baseTint = Color.lerp(AppColors.primary, accent, 0.18) ?? AppColors.primary;
 
     return Material(
       color: Colors.transparent,
@@ -28,19 +32,15 @@ class RewardCardWidget extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
-            gradient: LinearGradient(
-              colors: <Color>[
-                accent,
-                Color.lerp(accent, Colors.white, 0.35) ?? accent,
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+            color: baseTint.withOpacity(0.08),
+            border: Border.all(
+              color: baseTint.withOpacity(0.16),
             ),
             boxShadow: <BoxShadow>[
               BoxShadow(
-                color: accent.withOpacity(0.22),
-                blurRadius: 22,
-                offset: const Offset(0, 12),
+                color: baseTint.withOpacity(0.06),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
@@ -55,13 +55,13 @@ class RewardCardWidget extends StatelessWidget {
                       width: isCompact ? 44 : 52,
                       height: isCompact ? 44 : 52,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.18),
+                        color: baseTint.withOpacity(0.10),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white.withOpacity(0.18)),
+                        border: Border.all(color: baseTint.withOpacity(0.14)),
                       ),
                       child: Icon(
                         _iconForName(reward.iconName),
-                        color: Colors.white,
+                        color: AppColors.primary,
                         size: isCompact ? 24 : 28,
                       ),
                     ),
@@ -73,7 +73,7 @@ class RewardCardWidget extends StatelessWidget {
                 Text(
                   reward.title,
                   style: TextStyle(
-                    color: Colors.white,
+                    color: const Color(0xFF202124),
                     fontSize: isCompact ? 20 : 24,
                     fontWeight: FontWeight.w800,
                   ),
@@ -82,7 +82,7 @@ class RewardCardWidget extends StatelessWidget {
                 Text(
                   reward.scratched ? reward.description : 'Scratch to reveal reward',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.96),
+                    color: Colors.black87.withOpacity(0.72),
                     fontSize: isCompact ? 13 : 14,
                     height: 1.35,
                   ),
@@ -91,15 +91,15 @@ class RewardCardWidget extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.16),
+                    color: baseTint.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.white.withOpacity(0.18)),
+                    border: Border.all(color: baseTint.withOpacity(0.14)),
                   ),
                   child: Row(
                     children: <Widget>[
                       const Icon(
                         Icons.confirmation_number_outlined,
-                        color: Colors.white,
+                        color: AppColors.primary,
                         size: 18,
                       ),
                       const SizedBox(width: 8),
@@ -107,11 +107,33 @@ class RewardCardWidget extends StatelessWidget {
                         child: Text(
                           reward.scratched ? 'CODE: ${reward.code}' : 'Scratch to reveal coupon code',
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: Color(0xFF202124),
                             fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
+                      if (reward.scratched && onCopyCode != null) ...<Widget>[
+                        const SizedBox(width: 8),
+                        InkWell(
+                          onTap: onCopyCode,
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: AppColors.primary.withOpacity(0.14),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.copy_rounded,
+                              size: 16,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -121,7 +143,7 @@ class RewardCardWidget extends StatelessWidget {
                       ? 'Valid till ${reward.validTill}'
                       : 'Unlocked from ${reward.sourceType}',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.black87.withOpacity(0.62),
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.2,

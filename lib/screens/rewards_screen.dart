@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../constants/app_colors.dart';
 import '../models/reward_coupon_model.dart';
 import '../services/reward_local_service.dart';
 import '../widgets/reward_list_item.dart';
@@ -54,16 +56,27 @@ class _RewardsScreenState extends State<RewardsScreen> {
     });
   }
 
+  Future<void> _copyRewardCode(RewardCoupon reward) async {
+    if (!reward.scratched) return;
+
+    await Clipboard.setData(ClipboardData(text: reward.code));
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${reward.code} copied to clipboard')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final unlockedCount = _rewards.where((reward) => reward.scratched).length;
     final pendingCount = _rewards.length - unlockedCount;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
+      backgroundColor: const Color(0xFFF7FBF8),
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF202124),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         elevation: 0,
         title: const Text(
           'My Rewards',
@@ -82,16 +95,15 @@ class _RewardsScreenState extends State<RewardsScreen> {
                     padding: const EdgeInsets.all(22),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(28),
-                      gradient: const LinearGradient(
-                        colors: <Color>[Color(0xFF1A73E8), Color(0xFF34A853)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+                      color: AppColors.primary.withOpacity(0.06),
+                      border: Border.all(
+                        color: AppColors.primary.withOpacity(0.10),
                       ),
                       boxShadow: <BoxShadow>[
                         BoxShadow(
-                          color: const Color(0xFF1A73E8).withOpacity(0.18),
-                          blurRadius: 24,
-                          offset: const Offset(0, 12),
+                          color: AppColors.primary.withOpacity(0.05),
+                          blurRadius: 16,
+                          offset: const Offset(0, 8),
                         ),
                       ],
                     ),
@@ -103,12 +115,12 @@ class _RewardsScreenState extends State<RewardsScreen> {
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.18),
+                                color: AppColors.primary.withOpacity(0.08),
                                 borderRadius: BorderRadius.circular(18),
                               ),
                               child: const Icon(
                                 Icons.card_giftcard_rounded,
-                                color: Colors.white,
+                                color: AppColors.primary,
                                 size: 28,
                               ),
                             ),
@@ -117,7 +129,7 @@ class _RewardsScreenState extends State<RewardsScreen> {
                               child: Text(
                                 'My Rewards',
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: AppColors.primary,
                                   fontSize: 24,
                                   fontWeight: FontWeight.w800,
                                 ),
@@ -130,7 +142,7 @@ class _RewardsScreenState extends State<RewardsScreen> {
                           'You have $unlockedCount unlocked reward${unlockedCount == 1 ? '' : 's'} and '
                           '$pendingCount scratch card${pendingCount == 1 ? '' : 's'}.',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.92),
+                            color: Colors.black87.withOpacity(0.70),
                             fontSize: 14,
                             height: 1.35,
                           ),
@@ -143,29 +155,34 @@ class _RewardsScreenState extends State<RewardsScreen> {
                     Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: AppColors.primary.withOpacity(0.04),
                         borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: AppColors.primary.withOpacity(0.10),
+                        ),
                       ),
-                      child: const Column(
+                      child: Column(
                         children: <Widget>[
                           Icon(
                             Icons.redeem_outlined,
                             size: 40,
-                            color: Color(0xFF9AA0A6),
+                            color: AppColors.primary.withOpacity(0.55),
                           ),
-                          SizedBox(height: 12),
-                          Text(
+                          const SizedBox(height: 12),
+                          const Text(
                             'No rewards yet',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
                           Text(
                             'Delivered orders and completed services will unlock scratch cards here.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: Color(0xFF5F6368)),
+                            style: TextStyle(
+                              color: Colors.black87.withOpacity(0.60),
+                            ),
                           ),
                         ],
                       ),
@@ -175,6 +192,7 @@ class _RewardsScreenState extends State<RewardsScreen> {
                       return RewardListItem(
                         reward: reward,
                         onTap: () => _openReward(reward),
+                        onCopyCode: reward.scratched ? () => _copyRewardCode(reward) : null,
                       );
                     }),
                 ],

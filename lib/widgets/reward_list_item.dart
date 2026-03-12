@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 
+import '../constants/app_colors.dart';
 import '../models/reward_coupon_model.dart';
 import 'reward_card_widget.dart';
 
 class RewardListItem extends StatelessWidget {
   final RewardCoupon reward;
   final VoidCallback? onTap;
+  final VoidCallback? onCopyCode;
 
   const RewardListItem({
     super.key,
     required this.reward,
     this.onTap,
+    this.onCopyCode,
   });
 
   @override
@@ -21,16 +24,20 @@ class RewardListItem extends StatelessWidget {
           reward: reward,
           isCompact: true,
           onTap: onTap,
+          onCopyCode: onCopyCode,
           trailing: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.18),
+              color: AppColors.primary.withOpacity(0.08),
               borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: AppColors.primary.withOpacity(0.12),
+              ),
             ),
             child: Text(
               reward.scratched ? 'Unlocked' : 'Pending',
               style: const TextStyle(
-                color: Colors.white,
+                color: AppColors.primary,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
