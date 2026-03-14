@@ -194,3 +194,13 @@ All endpoints are from `lib/constants/api_constants.dart` and implementation is 
 - Integrated but UI pending: 2 (`/quick-services`, `/give-feedback`)
 - Not integrated: 1 (`/services`)
 
+
+
+storePassword=crackteck789
+keyPassword=crackteck789
+keyAlias=crackteck_upload
+storeFile=app/upload-keystore.jks
+
+
+SHA1: 20:79:3C:DA:F7:21:E6:23:9D:B6:71:44:88:99:1B:F6:3C:11:84:59
+SHA-256: 93:5A:C2:02:3C:9F:82:F2:97:16:A1:DE:EB:1C:ED:89:AF:1F:5A:7C:4B:A9:A6:F0:81:AB:DA:01:49:CF:4F:0F

@@ -1,5 +1,7 @@
 import 'package:customer_cracktreck/routes/app_routes.dart';
 import 'package:customer_cracktreck/routes/route_generator.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -11,9 +13,19 @@ import 'provider/banner_provider.dart';
 import 'provider/quick_service_provider.dart';
 import 'provider/amc_plan_provider.dart';
 
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+}
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  if (!kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS)) {
+    await FirebaseMessaging.instance.requestPermission();
+  }
   if (kReleaseMode) {
     debugPrint = (String? message, {int? wrapWidth}) {};
   }

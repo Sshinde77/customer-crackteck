@@ -1,4 +1,4 @@
-package com.example.customer_cracktreck;
+package com.crackteck.customer;
 
 import io.flutter.embedding.android.FlutterActivity;
 

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "119371907943",
+    "project_id": "premium-axis-490013-p9",
+    "storage_bucket": "premium-axis-490013-p9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:119371907943:android:4cdb4f704d5600f65e25c2",
+        "android_client_info": {
+          "package_name": "com.crackteck.customer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAvD_OZspQ272JRfuYw4ld961oZ5bgpeGU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
