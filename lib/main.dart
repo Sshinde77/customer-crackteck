@@ -18,12 +18,17 @@ import 'provider/banner_provider.dart';
 import 'provider/quick_service_provider.dart';
 import 'provider/amc_plan_provider.dart';
 
+/// 🔔 Global Local Notifications Plugin instance
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
+
 /// 🔔 Notification Channel (REQUIRED)
 const AndroidNotificationChannel channel = AndroidNotificationChannel(
-  'high_importance_channel',
-  'High Importance Notifications',
+  'high_importance_channel', // id (positional)
+  'High Importance Notifications', // name (positional)
   description: 'This channel is used for important notifications.',
   importance: Importance.high,
+  playSound: true,
 );
 
 /// 🔥 Background Handler
@@ -37,9 +42,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 Future<void> _logFcmToken() async {
   try {
     final messaging = FirebaseMessaging.instance;
-
     String? token = await messaging.getToken();
-
     developer.log('FCM Token: $token', name: 'FCM');
     print('🔥 FCM TOKEN: $token');
 
@@ -60,31 +63,71 @@ Future<void> main() async {
     await Firebase.initializeApp();
 
     /// ✅ Request permission FIRST
-    await FirebaseMessaging.instance.requestPermission();
+    await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
 
-    /// ✅ Get token AFTER permission (handled with try-catch inside)
+    /// ✅ Get token AFTER permission
     await _logFcmToken();
 
     /// 🔔 Local Notification Setup
-    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-        FlutterLocalNotificationsPlugin();
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    
+    const InitializationSettings initializationSettings = InitializationSettings(
+      android: initializationSettingsAndroid,
+    );
+
+    await flutterLocalNotificationsPlugin.initialize(
+      settings: initializationSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        // Handle notification click here if needed
+      },
+    );
 
     await flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
 
-    /// 📊 Analytics
-    await FirebaseAnalytics.instance.logAppOpen();
+    /// 🔥 Foreground Message Listener
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      RemoteNotification? notification = message.notification;
+      AndroidNotification? android = message.notification?.android;
+
+      if (notification != null && android != null) {
+        flutterLocalNotificationsPlugin.show(
+          id: notification.hashCode,
+          title: notification.title,
+          body: notification.body,
+          notificationDetails: NotificationDetails(
+            android: AndroidNotificationDetails(
+              channel.id, // channelId (positional)
+              channel.name, // channelName (positional)
+              channelDescription: channel.description,
+              icon: android.smallIcon ?? '@mipmap/ic_launcher',
+              importance: Importance.max,
+              priority: Priority.high,
+              playSound: true,
+            ),
+          ),
+        );
+      }
+    });
 
     /// 🔥 Background message handler
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    /// 📊 Analytics
+    await FirebaseAnalytics.instance.logAppOpen();
+
   } catch (e) {
     developer.log('Firebase Initialization Error: $e', error: e);
     print('❌ Firebase Initialization Error: $e');
   }
 
-  /// 🔇 Disable logs in release
   if (kReleaseMode) {
     debugPrint = (String? message, {int? wrapWidth}) {};
   }
