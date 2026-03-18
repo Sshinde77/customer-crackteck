@@ -13,6 +13,7 @@ class ApiConstants {
   static const String refreshToken = '$baseUrl/refresh-token';
   static const String signup = '$baseUrl/signup';
   static const String logout = '$baseUrl/logout';
+  static const String deviceToken = '$baseUrl/device-token';
   static const String productlist = '$baseUrl/product';
   static const String profile = '$baseUrl/profile';
   static const String addresses = '$baseUrl/addresses';
@@ -68,6 +69,9 @@ class ApiConstants {
   static const String googlelogin =
       '$baseUrl/google-login';
   static const String couponapply =
+      '$baseUrl/part-apply-coupon';
+      
+  static const String FCM  =
       '$baseUrl/part-apply-coupon';
 
   // Request Timeout

@@ -575,6 +575,91 @@ class ApiService {
     }
   }
 
+  /// Register or update the logged-in user's FCM device token.
+  Future<ApiResponse> registerDeviceToken({
+    required String fcmToken,
+    required String deviceType,
+    required String deviceId,
+    int? userId,
+    int? roleId,
+  }) async {
+    try {
+      final trimmedToken = fcmToken.trim();
+      final trimmedDeviceType = deviceType.trim();
+      final trimmedDeviceId = deviceId.trim();
+      if (trimmedToken.isEmpty ||
+          trimmedDeviceType.isEmpty ||
+          trimmedDeviceId.isEmpty) {
+        return ApiResponse(
+          success: false,
+          message: 'Missing device token payload.',
+        );
+      }
+
+      final authFields = await _resolvedAuthFields(
+        userId: userId,
+        roleId: roleId,
+      );
+      if (!authFields.containsKey('user_id') ||
+          !authFields.containsKey('role_id')) {
+        return ApiResponse(
+          success: false,
+          message: 'Missing user session. Please login again.',
+        );
+      }
+
+      final uri = Uri.parse(ApiConstants.deviceToken).replace(
+        queryParameters: {
+          'user_id': authFields['user_id']!,
+          'role_id': authFields['role_id']!,
+          'fcm_token': trimmedToken,
+          'device_type': trimmedDeviceType,
+          'device_id': trimmedDeviceId,
+        },
+      );
+
+      debugPrint('API Request: POST $uri');
+
+      final response = await _performAuthenticatedPost(uri, body: {});
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        return ApiResponse(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Device token updated',
+          data: jsonResponse['data'],
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse(
+        success: false,
+        message: jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Device token update failed'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(
+        success: false,
+        message: 'No internet connection. Please check your network.',
+      );
+    } on TimeoutException {
+      return ApiResponse(
+        success: false,
+        message: 'Request timeout. Please try again.',
+      );
+    } catch (e) {
+      debugPrint('Unexpected Error in registerDeviceToken: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
   // ========================================
   // Product List API
   // ========================================

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
@@ -46,6 +47,8 @@ class AuthService {
         message: 'Login succeeded but session setup failed. Please try again.',
       );
     }
+
+    await syncLoggedInDeviceToken();
 
     return response;
   }
@@ -122,6 +125,8 @@ class AuthService {
           );
         }
 
+        await syncLoggedInDeviceToken();
+
         return ApiResponse<Map<String, dynamic>>(
           success: true,
           message: _messageFromResponse(
@@ -170,6 +175,58 @@ class AuthService {
 
   Future<void> clearSession() {
     return SessionManager.clearSession();
+  }
+
+  Future<void> syncLoggedInDeviceToken() async {
+    try {
+      final session = await SessionManager.getSession();
+      if (!session.isAuthenticated) {
+        debugPrint('Skipping device token sync: session is incomplete.');
+        return;
+      }
+
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+      final trimmedToken = fcmToken?.trim() ?? '';
+      if (trimmedToken.isEmpty) {
+        debugPrint('Skipping device token sync: FCM token is unavailable.');
+        return;
+      }
+
+      final response = await _apiService.registerDeviceToken(
+        userId: session.userId,
+        roleId: session.roleId,
+        fcmToken: trimmedToken,
+        deviceType: _resolveDeviceType(),
+        deviceId: trimmedToken,
+      );
+
+      debugPrint(
+        'Device token sync result: success=${response.success}, message=${response.message}',
+      );
+    } catch (e) {
+      debugPrint('Unexpected error while syncing device token: $e');
+    }
+  }
+
+  String _resolveDeviceType() {
+    if (kIsWeb) {
+      return 'web';
+    }
+
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return 'android';
+      case TargetPlatform.iOS:
+        return 'ios';
+      case TargetPlatform.windows:
+        return 'windows';
+      case TargetPlatform.macOS:
+        return 'macos';
+      case TargetPlatform.linux:
+        return 'linux';
+      case TargetPlatform.fuchsia:
+        return 'fuchsia';
+    }
   }
 
   Map<String, dynamic> _safeJsonDecode(String body) {
