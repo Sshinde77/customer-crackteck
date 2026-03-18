@@ -104,6 +104,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final quickAddCrossAxisCount = screenWidth >= 420 ? 4 : 3;
+    final quickAddChildAspectRatio = screenWidth < 360 ? 0.78 : 0.88;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -223,11 +227,11 @@ class _HomeScreenState extends State<HomeScreen> {
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
                               gridDelegate:
-                                  const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 3,
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: quickAddCrossAxisCount,
                                     crossAxisSpacing: 12,
                                     mainAxisSpacing: 12,
-                                    childAspectRatio: 0.85,
+                                    childAspectRatio: quickAddChildAspectRatio,
                                   ),
                               itemCount: _visibleQuickAddItems.length,
                               itemBuilder: (context, index) {
@@ -313,7 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Container(
                           width: double.infinity,
                           height: 140,
-                          decoration: BoxDecoration(  
+                          decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(20),
                             color: const Color(0xFFFFE5D0),
                           ),
@@ -467,30 +471,34 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.flash_on, color: Colors.white, size: 28),
-              const SizedBox(width: 4),
-              const Text(
-                'CRACKTECK',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  fontStyle: FontStyle.italic,
-                  letterSpacing: 1.2,
+          Expanded(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.flash_on, color: Colors.white, size: 28),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    'CRACKTECK',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      fontStyle: FontStyle.italic,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
                 ),
-              ),
-              const Text(
-                '®',
-                style: TextStyle(color: Colors.white, fontSize: 10),
-              ),
-            ],
+                const Text(
+                  '®',
+                  style: TextStyle(color: Colors.white, fontSize: 10),
+                ),
+              ],
+            ),
           ),
           InkWell(
-
-
-              
             onTap: () {
               Navigator.pushNamed(context, AppRoutes.notification);
             },
@@ -535,6 +543,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _quickAddItem(BuildContext context, _QuickAddItem item) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final iconSize = screenWidth < 360 ? 68.0 : 80.0;
+
     return InkWell(
       onTap: () {
         Navigator.push(
@@ -552,8 +563,8 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         children: [
           Container(
-            height: 80,
-            width: 80,
+            height: iconSize,
+            width: iconSize,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: const Color(0xFFF5F5F5),
@@ -580,6 +591,8 @@ class _HomeScreenState extends State<HomeScreen> {
             item.label,
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
             textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -619,7 +632,6 @@ class _QuickServiceCard extends StatelessWidget {
   final String title;
   final String image;
   final QuickService? serviceData;
-  final double width = 190;
   final EdgeInsetsGeometry margin = const EdgeInsets.only(right: 12);
   final VoidCallback? onTap;
 
@@ -632,6 +644,9 @@ class _QuickServiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final cardWidth = screenWidth < 360 ? 160.0 : 190.0;
+
     return InkWell(
       onTap:
           onTap ??
@@ -648,7 +663,7 @@ class _QuickServiceCard extends StatelessWidget {
           },
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        width: width,
+        width: cardWidth,
         margin: margin,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),

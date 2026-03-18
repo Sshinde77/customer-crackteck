@@ -21,8 +21,21 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
   List<_DiagnosisGroup> _groups = const [];
   final Set<String> _completedPartActionKeys = <String>{};
   final Set<String> _completedPickingActionKeys = <String>{};
+  final Map<String, TextEditingController> _couponControllers =
+      <String, TextEditingController>{};
+  final Map<String, String> _appliedCoupons = <String, String>{};
+  final Map<String, double> _appliedDiscounts = <String, double>{};
+  String? _activeCouponApplyKey;
   String? _activePartActionKey;
   String? _activePickingActionKey;
+
+  @override
+  void dispose() {
+    for (final controller in _couponControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   void didChangeDependencies() {
@@ -51,6 +64,24 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
     if (value == null) return '';
     if (value is String) return value.trim();
     return value.toString().trim();
+  }
+
+  double? _tryDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is num) return value.toDouble();
+    final normalized = value.toString().replaceAll(RegExp(r'[^0-9.]'), '');
+    if (normalized.isEmpty) return null;
+    return double.tryParse(normalized);
+  }
+
+  String _formatPrice(double value) {
+    final rounded = value.toStringAsFixed(2);
+    if (rounded.endsWith('.00')) {
+      return 'Rs ${value.toStringAsFixed(0)}';
+    }
+    return 'Rs $rounded';
   }
 
   Map<String, dynamic>? _toMap(dynamic value) {
@@ -432,6 +463,93 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
       section.partId?.toString() ?? 'no_part',
       section.title.toLowerCase(),
     ].join('|');
+  }
+
+  TextEditingController _couponControllerFor(_DiagnosisPartSection section) {
+    final key = _partActionKey(section);
+    return _couponControllers.putIfAbsent(
+      key,
+      () => TextEditingController(text: _appliedCoupons[key] ?? ''),
+    );
+  }
+
+  Future<void> _applyCoupon(_DiagnosisPartSection section) async {
+    final key = _partActionKey(section);
+    final controller = _couponControllerFor(section);
+    final coupon = controller.text.trim();
+
+    if (coupon.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter a coupon code first.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_activeCouponApplyKey != null) return;
+
+    final roleId = await SecureStorageService.getRoleId();
+    final customerId = await SecureStorageService.getUserId();
+
+    if (roleId == null || customerId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Session expired. Please login again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _activeCouponApplyKey = key;
+    });
+
+    try {
+      final response = await ApiService.instance.applyPartCoupon(
+        roleId: roleId,
+        customerId: customerId,
+        couponCode: coupon,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _activeCouponApplyKey = null;
+        if (response.success) {
+          _appliedCoupons[key] = coupon;
+          final discountMap = _toMap(response.data?['discount']);
+          final discountValue = _tryDouble(discountMap?['discount']) ?? 0;
+          _appliedDiscounts[key] = discountValue;
+        }
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            response.message ??
+                (response.success
+                    ? 'Coupon applied successfully'
+                    : 'Failed to apply coupon'),
+          ),
+          backgroundColor: response.success ? Colors.green : Colors.red,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _activeCouponApplyKey = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to apply coupon.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Future<void> _submitPartAction({
@@ -940,9 +1058,12 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
 
   Widget _buildPartApprovalSection(_DiagnosisPartSection section) {
     final key = _partActionKey(section);
+    final isApplyingCoupon = _activeCouponApplyKey == key;
     final isSubmitting = _activePartActionKey == key;
     final hasActionCompleted = _completedPartActionKeys.contains(key);
     final showActionButtons = section.canTakeAction && !hasActionCompleted;
+    final couponController = _couponControllerFor(section);
+    final appliedCoupon = _appliedCoupons[key];
 
     return Column(
       children: [
@@ -995,14 +1116,46 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
                     ),
                     if (section.priceText.isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(
-                        section.priceText,
-                        style: const TextStyle(
-                          fontSize: 21,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF2E7D32),
-                        ),
+                    Text(
+                      (() {
+                        final appliedDiscount = _appliedDiscounts[key] ?? 0;
+                        final originalPrice = _tryDouble(section.priceText);
+                        final discountedPrice = originalPrice == null
+                            ? null
+                            : (originalPrice - appliedDiscount).clamp(
+                                0,
+                                double.infinity,
+                              );
+                        if (discountedPrice == null || appliedDiscount <= 0) {
+                          return section.priceText;
+                        }
+                        return _formatPrice(discountedPrice.toDouble());
+                      })(),
+                      style: const TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2E7D32),
                       ),
+                    ),
+                      if ((_appliedDiscounts[key] ?? 0) > 0) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Original: ${section.priceText}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                        Text(
+                          'Discount: ${_formatPrice(_appliedDiscounts[key]!)}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF1B5E20),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ],
                     const Text(
                       'Incl. Shipping & all Taxes',
@@ -1024,6 +1177,85 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
           ),
         ),
         if (showActionButtons) ...[
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: couponController,
+                  textCapitalization: TextCapitalization.characters,
+                  onChanged: (value) {
+                    if (_appliedCoupons[key] == value.trim()) return;
+                    if (_appliedCoupons.containsKey(key) ||
+                        _appliedDiscounts.containsKey(key)) {
+                      setState(() {
+                        _appliedCoupons.remove(key);
+                        _appliedDiscounts.remove(key);
+                      });
+                    }
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Enter coupon code',
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 14,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: const OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(10)),
+                      borderSide: BorderSide(color: AppColors.primary),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: isApplyingCoupon ? null : () => _applyCoupon(section),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: isApplyingCoupon
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Apply',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                ),
+              ),
+            ],
+          ),
+          if (appliedCoupon != null && appliedCoupon.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Applied coupon: $appliedCoupon',
+                style: const TextStyle(
+                  color: Color(0xFF1B5E20),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           Row(
             children: [

@@ -1786,6 +1786,64 @@ class ApiService {
     }
   }
 
+  Future<ApiResponse<Map<String, dynamic>>> applyPartCoupon({
+    required int roleId,
+    required int customerId,
+    required String couponCode,
+  }) async {
+    try {
+      final queryParameters = <String, String>{
+        'role_id': roleId.toString(),
+        'user_id': customerId.toString(),
+        'coupon_code': couponCode,
+      };
+
+      final url = Uri.parse(
+        ApiConstants.couponapply,
+      ).replace(queryParameters: queryParameters);
+
+      debugPrint('API Request: GET $url');
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final dynamic data = jsonResponse['data'] ?? jsonResponse;
+        return ApiResponse<Map<String, dynamic>>(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Coupon applied successfully',
+          data: data is Map<String, dynamic>
+              ? data
+              : (data is Map
+                    ? Map<String, dynamic>.from(data)
+                    : <String, dynamic>{}),
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to apply coupon'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in applyPartCoupon: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
   Future<ApiResponse<Map<String, dynamic>>> submitServiceRequestPickupApproval({
     required int requestId,
     required int roleId,

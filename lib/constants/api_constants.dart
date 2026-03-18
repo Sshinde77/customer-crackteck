@@ -67,6 +67,8 @@ class ApiConstants {
 
   static const String googlelogin =
       '$baseUrl/google-login';
+  static const String couponapply =
+      '$baseUrl/part-apply-coupon';
 
   // Request Timeout
   static const Duration requestTimeout = Duration(seconds: 30);
