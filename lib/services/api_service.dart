@@ -20,6 +20,7 @@ import '../models/banner_model.dart';
 import '../models/quick_service_model.dart';
 import '../models/product_category_model.dart';
 import '../models/order_model.dart';
+import '../models/reward_coupon_model.dart';
 import '../models/service_request_list_model.dart';
 
 /// API Service for handling HTTP requests
@@ -2314,6 +2315,82 @@ class ApiService {
     }
   }
 
+  Future<ApiResponse<List<RewardCoupon>>> getRewardsList({
+    int? userId,
+    int? roleId,
+  }) async {
+    try {
+      final query = await _resolvedAuthFields(userId: userId, roleId: roleId);
+      final url = query.isEmpty
+          ? Uri.parse(ApiConstants.rewardslist)
+          : Uri.parse(ApiConstants.rewardslist).replace(queryParameters: query);
+
+      debugPrint('API Request: GET $url');
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final dynamic dataRoot = jsonResponse['data'];
+        final Map<String, dynamic> payload = dataRoot is Map<String, dynamic>
+            ? Map<String, dynamic>.from(dataRoot)
+            : dataRoot is Map
+            ? Map<String, dynamic>.from(dataRoot)
+            : jsonResponse;
+
+        dynamic rewardsNode =
+            payload['rewards'] ??
+            payload['reward_list'] ??
+            payload['reward'] ??
+            payload['items'] ??
+            payload['data'];
+
+        if (rewardsNode == null && dataRoot is List) {
+          rewardsNode = dataRoot;
+        }
+
+        final rewards = rewardsNode is List
+            ? rewardsNode
+                  .whereType<Map>()
+                  .map(
+                    (item) => _mapRewardCouponFromApi(
+                      Map<String, dynamic>.from(item),
+                    ),
+                  )
+                  .toList()
+            : <RewardCoupon>[];
+
+        return ApiResponse<List<RewardCoupon>>(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Rewards fetched successfully',
+          data: rewards,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<List<RewardCoupon>>(
+        success: false,
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch rewards'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in getRewardsList: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
   // ========================================
   // Product Categories API
   // ========================================
@@ -3813,6 +3890,189 @@ class ApiService {
       refreshedInThisRequest = true;
       // Token refreshed successfully, loop will retry with new token.
     }
+  }
+
+  RewardCoupon _mapRewardCouponFromApi(Map<String, dynamic> json) {
+    final rewardDetails = json['reward_details'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(json['reward_details'] as Map<String, dynamic>)
+        : json['reward_details'] is Map
+        ? Map<String, dynamic>.from(json['reward_details'] as Map)
+        : const <String, dynamic>{};
+    final couponDetails = json['coupon_details'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(json['coupon_details'] as Map<String, dynamic>)
+        : json['coupon_details'] is Map
+        ? Map<String, dynamic>.from(json['coupon_details'] as Map)
+        : const <String, dynamic>{};
+
+    final sourceType = _pickRewardText([
+      json['source_type'],
+      json['reward_source_type'],
+      rewardDetails['source_type'],
+      rewardDetails['reward_type'],
+      json['type'],
+    ], fallback: 'reward');
+    final sourceId = _pickRewardText([
+      json['source_id'],
+      json['order_id'],
+      json['service_request_id'],
+      rewardDetails['source_id'],
+      rewardDetails['order_id'],
+      rewardDetails['service_request_id'],
+      json['id'],
+      rewardDetails['reward_id'],
+      couponDetails['id'],
+    ], fallback: '0');
+    final rawRewardId = _pickRewardText([
+      rewardDetails['reward_id'],
+      json['reward_id'],
+      json['id'],
+      couponDetails['id'],
+      sourceId,
+    ], fallback: sourceId);
+    final title = _pickRewardText([
+      json['title'],
+      json['reward_title'],
+      couponDetails['coupon_name'],
+      couponDetails['title'],
+      couponDetails['offer_title'],
+      rewardDetails['title'],
+    ], fallback: 'Reward');
+    final description = _pickRewardText([
+      json['description'],
+      json['reward_description'],
+      couponDetails['description'],
+      couponDetails['coupon_description'],
+      rewardDetails['description'],
+    ], fallback: 'Reward available for your account');
+    final code = _pickRewardText([
+      json['code'],
+      json['coupon_code'],
+      couponDetails['coupon_code'],
+      couponDetails['code'],
+    ], fallback: 'N/A');
+    final validTill = _pickRewardText([
+      json['valid_till'],
+      json['validTill'],
+      json['expiry_date'],
+      json['expires_at'],
+      rewardDetails['reward_end_date'],
+      couponDetails['end_date'],
+      couponDetails['valid_till'],
+    ], fallback: 'Limited time');
+    final createdAt = _pickRewardText([
+      json['created_at'],
+      json['createdAt'],
+      rewardDetails['created_at'],
+      couponDetails['created_at'],
+    ], fallback: DateTime.now().toIso8601String());
+    final scratched = _pickRewardBool([
+      json['scratched'],
+      json['is_scratched'],
+      json['is_revealed'],
+      json['claimed'],
+      json['is_claimed'],
+      json['status'],
+    ]);
+    final accentHex = _pickRewardColor([
+      json['accent_hex'],
+      json['accentHex'],
+      json['color'],
+      couponDetails['color'],
+      rewardDetails['color'],
+    ]);
+    final iconName = _pickRewardText([
+      json['icon_name'],
+      json['iconName'],
+      json['icon'],
+      rewardDetails['icon_name'],
+      couponDetails['icon_name'],
+    ], fallback: _iconForRewardType(sourceType, title));
+
+    return RewardCoupon(
+      id: 'reward_${sourceType}_$rawRewardId',
+      title: title,
+      description: description,
+      code: code,
+      sourceType: sourceType,
+      sourceId: sourceId,
+      scratched: scratched,
+      validTill: validTill,
+      accentHex: accentHex,
+      iconName: iconName,
+      createdAt: createdAt,
+    );
+  }
+
+  String _pickRewardText(List<dynamic> values, {String fallback = ''}) {
+    for (final value in values) {
+      final text = value?.toString().trim() ?? '';
+      if (text.isNotEmpty && text.toLowerCase() != 'null') {
+        return text;
+      }
+    }
+    return fallback;
+  }
+
+  bool _pickRewardBool(List<dynamic> values, {bool fallback = false}) {
+    for (final value in values) {
+      if (value is bool) return value;
+      if (value is num) return value != 0;
+      if (value is String) {
+        final normalized = value.trim().toLowerCase();
+        if (normalized.isEmpty) {
+          continue;
+        }
+        if (<String>{'true', '1', 'yes', 'claimed', 'scratched', 'revealed', 'unlocked'}
+            .contains(normalized)) {
+          return true;
+        }
+        if (<String>{'false', '0', 'no', 'pending', 'locked'}
+            .contains(normalized)) {
+          return false;
+        }
+      }
+    }
+    return fallback;
+  }
+
+  String _pickRewardColor(List<dynamic> values) {
+    final picked = _pickRewardText(values);
+    if (picked.isEmpty) {
+      return '#1A73E8';
+    }
+
+    final normalized = picked.replaceAll('#', '').trim();
+    if (RegExp(r'^[0-9a-fA-F]{6}$').hasMatch(normalized)) {
+      return '#$normalized';
+    }
+    if (RegExp(r'^[0-9a-fA-F]{8}$').hasMatch(normalized)) {
+      return '#${normalized.substring(2)}';
+    }
+    return '#1A73E8';
+  }
+
+  String _iconForRewardType(String sourceType, String title) {
+    final normalizedSource = sourceType.toLowerCase();
+    final normalizedTitle = title.toLowerCase();
+
+    if (normalizedSource.contains('service') ||
+        normalizedTitle.contains('service')) {
+      return 'build_circle';
+    }
+    if (normalizedTitle.contains('delivery') ||
+        normalizedTitle.contains('shipping')) {
+      return 'local_shipping';
+    }
+    if (normalizedTitle.contains('rs') ||
+        normalizedTitle.contains('rupee') ||
+        normalizedTitle.contains('cash') ||
+        normalizedTitle.contains('save')) {
+      return 'currency_rupee';
+    }
+    if (normalizedTitle.contains('reward')) {
+      return 'redeem';
+    }
+    return 'local_offer';
   }
 
   static Future<http.Response> _performAuthenticatedPut(

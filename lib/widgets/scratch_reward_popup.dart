@@ -72,7 +72,14 @@ class _ScratchRewardPopupState extends State<ScratchRewardPopup> {
   Future<void> _handleReveal() async {
     if (_reward.scratched) return;
 
-    final updatedReward = await RewardLocalService.instance.markRewardScratched(_reward.id);
+    RewardCoupon updatedReward;
+
+    try {
+      updatedReward = await RewardLocalService.instance.markRewardScratched(_reward.id);
+    } catch (_) {
+      updatedReward = _reward.copyWith(scratched: true);
+    }
+
     if (!mounted) return;
 
     setState(() {

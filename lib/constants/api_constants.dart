@@ -75,6 +75,9 @@ class ApiConstants {
       '$baseUrl/part-apply-coupon';
   static const String viewreward  =
       '$baseUrl/orders/{id}/claim-reward';
+      
+  static const String rewardslist  =
+      '$baseUrl/rewards';
 
   // Request Timeout
   static const Duration requestTimeout = Duration(seconds: 30);
