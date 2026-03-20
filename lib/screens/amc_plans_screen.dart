@@ -122,14 +122,27 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
     final coveredItems = planItem.coveredItems ?? [];
     final status = (plan?.status ?? 'inactive').trim().toLowerCase();
     final isActive = status == 'active';
-    final planName = (plan?.planName ?? '').trim().isNotEmpty
-        ? plan!.planName!
-        : 'N/A';
+    final hidePriceForOffline =
+        widget.supportTypeFilter?.trim().toLowerCase() == 'offline';
+    final planName =
+        (plan?.planName ?? '').trim().isNotEmpty ? plan!.planName! : 'N/A';
     final planCode = (plan?.planCode ?? '').trim();
     final description = (plan?.description ?? '').trim();
-    final totalCost = (plan?.totalCost ?? '').trim().isNotEmpty
-        ? plan!.totalCost!
-        : '0';
+    final totalCost =
+        (plan?.totalCost ?? '').trim().isNotEmpty ? plan!.totalCost! : '0';
+
+    void openPlanDetails() {
+      if (plan?.id == null) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AmcPlanDetailScreen(
+            planId: plan.id!,
+            requestButtonLabel: 'Request for AMC',
+          ),
+        ),
+      );
+    }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -137,19 +150,7 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          if (plan?.id != null) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => AmcPlanDetailScreen(
-                  planId: plan!.id!,
-                  requestButtonLabel: 'Request for AMC',
-                ),
-              ),
-            );
-          }
-        },
+        onTap: openPlanDetails,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -238,43 +239,34 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: hidePriceForOffline
+                      ? MainAxisAlignment.end
+                      : MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Total Cost',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '₹$totalCost',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    ElevatedButton(
-                      onPressed: () {
-                        if (plan?.id != null) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => AmcPlanDetailScreen(
-                                planId: plan!.id!,
-                                requestButtonLabel: 'Request for AMC',
-                              ),
+                    if (!hidePriceForOffline)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Total Cost',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
                             ),
-                          );
-                        }
-                      },
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Rs $totalCost',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ElevatedButton(
+                      onPressed: openPlanDetails,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         shape: RoundedRectangleBorder(

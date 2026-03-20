@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'hometab.dart';
-import 'amc_plans_screen.dart';
+import 'amc_mode_selection_screen.dart';
 import '../widgets/custom_bottom_nav.dart';
 
 class BottomNavigationScreen extends StatefulWidget {
@@ -15,7 +15,7 @@ class _BottomNavigationScreenState extends State<BottomNavigationScreen> {
 
   final List<Widget> _screens = [
     const HomeScreen(),
-    const AmcPlansScreen(),
+    const AmcModeSelectionScreen(),
     const Center(child: Text('Product Screen')),
     const Center(child: Text('Profile Screen')),
   ];
