@@ -54,7 +54,7 @@ class ApiConstants {
       '$baseUrl/service-request-quotations{id}/reject';
   static const String invoice_list = '$baseUrl/service-request-invoices';
   static const String invoice_detail =
-      '$baseUrl/service-request-invoice/{id}';
+      '$baseUrl/service-request-invoice/{id}'; 
   static const String invoice_accept =
       '$baseUrl/service-request-invoice/{id}/accept';
   static const String invoice_reject =
@@ -73,6 +73,8 @@ class ApiConstants {
       
   static const String FCM  =
       '$baseUrl/part-apply-coupon';
+  static const String viewreward  =
+      '$baseUrl/orders/{id}/claim-reward';
 
   // Request Timeout
   static const Duration requestTimeout = Duration(seconds: 30);

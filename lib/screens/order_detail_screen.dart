@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_strings.dart';
 import '../constants/core/secure_storage_service.dart';
+import '../models/api_response.dart';
 import '../models/order_model.dart';
 import '../models/reward_coupon_model.dart';
-import '../screens/rewards_screen.dart';
 import '../services/api_service.dart';
 import '../services/reward_local_service.dart';
 import '../utils/order_status_utils.dart';
@@ -35,6 +35,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   bool _isLoading = true;
   bool _isCancelling = false;
   bool _isReturning = false;
+  bool _isClaimingReward = false;
   String? _errorMessage;
   OrderModel? _order;
   OrderItemModel? _selectedItem;
@@ -419,10 +420,74 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   Future<void> _openRewardPopup() async {
-    final reward = await RewardLocalService.instance.createOrGetReward(
-      sourceType: 'order',
-      sourceId: _rewardSourceId,
-    );
+    if (_isClaimingReward) return;
+
+    RewardCoupon reward;
+    if (_reward != null) {
+      reward = _reward!;
+    } else {
+      final int roleId =
+          (await SecureStorageService.getRoleId()) ?? AppStrings.roleId;
+      final int? customerId = await SecureStorageService.getUserId();
+
+      if (customerId == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Customer id missing. Please login again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _isClaimingReward = true;
+      });
+
+      try {
+        final ApiResponse<Map<String, dynamic>> response =
+            await ApiService.instance.claimReward(
+              orderId: widget.orderId,
+              roleId: roleId,
+              userId: customerId,
+            );
+
+        if (!mounted) return;
+
+        if (!response.success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response.message ?? 'Failed to claim reward'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
+        reward = await RewardLocalService.instance.saveReward(
+          _buildRewardFromClaimResponse(
+            response.data ?? const <String, dynamic>{},
+            message: response.message,
+          ),
+        );
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response.message ?? 'Reward added successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isClaimingReward = false;
+          });
+        }
+      }
+    }
+
     if (!mounted) return;
 
     setState(() {
@@ -444,6 +509,76 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     setState(() {
       _reward = updatedReward;
     });
+  }
+
+  RewardCoupon _buildRewardFromClaimResponse(
+    Map<String, dynamic> payload, {
+    String? message,
+  }) {
+    final rewardDetails = payload['reward_details'] is Map<String, dynamic>
+        ? payload['reward_details'] as Map<String, dynamic>
+        : payload['reward_details'] is Map
+        ? Map<String, dynamic>.from(payload['reward_details'] as Map)
+        : const <String, dynamic>{};
+    final couponDetails = payload['coupon_details'] is Map<String, dynamic>
+        ? payload['coupon_details'] as Map<String, dynamic>
+        : payload['coupon_details'] is Map
+        ? Map<String, dynamic>.from(payload['coupon_details'] as Map)
+        : const <String, dynamic>{};
+
+    final couponCode = _pickFirstText([
+      couponDetails['coupon_code'],
+      couponDetails['code'],
+      payload['coupon_code'],
+    ], fallback: 'REWARD${widget.orderId}');
+    final couponTitle = _pickFirstText([
+      couponDetails['coupon_name'],
+      couponDetails['title'],
+      couponDetails['offer_title'],
+      payload['title'],
+    ], fallback: 'Order Reward');
+    final couponDescription = _pickFirstText([
+      couponDetails['description'],
+      couponDetails['coupon_description'],
+      message,
+    ], fallback: 'Reward unlocked for this order');
+    final validTill = _pickFirstText([
+      rewardDetails['reward_end_date'],
+      couponDetails['end_date'],
+      couponDetails['valid_till'],
+    ], fallback: 'Valid for limited time');
+    final rewardId = (rewardDetails['reward_id'] ?? payload['reward_id'] ?? widget.orderId)
+        .toString();
+    final createdAt = _pickFirstText([
+      rewardDetails['created_at'],
+      payload['created_at'],
+      DateTime.now().toIso8601String(),
+    ], fallback: DateTime.now().toIso8601String());
+    final alreadyScratched = _reward?.scratched == true;
+
+    return RewardCoupon(
+      id: 'reward_order_$rewardId',
+      title: couponTitle,
+      description: couponDescription,
+      code: couponCode,
+      sourceType: 'order',
+      sourceId: _rewardSourceId,
+      scratched: alreadyScratched,
+      validTill: validTill,
+      accentHex: '#1A73E8',
+      iconName: 'redeem',
+      createdAt: createdAt,
+    );
+  }
+
+  String _pickFirstText(List<dynamic> values, {String fallback = ''}) {
+    for (final value in values) {
+      final text = value?.toString().trim() ?? '';
+      if (text.isNotEmpty && text.toLowerCase() != 'null') {
+        return text;
+      }
+    }
+    return fallback;
   }
 
   Widget _buildActionButton({

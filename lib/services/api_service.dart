@@ -2251,6 +2251,69 @@ class ApiService {
     }
   }
 
+  Future<ApiResponse<Map<String, dynamic>>> claimReward({
+    required int orderId,
+    required int roleId,
+    required int userId,
+  }) async {
+    try {
+      final url =
+          Uri.parse(
+            _resolveInvoiceEndpoint(ApiConstants.viewreward, orderId),
+          ).replace(
+            queryParameters: {
+              'role_id': roleId.toString(),
+              'user_id': userId.toString(),
+            },
+          );
+
+      debugPrint('API Request: POST $url');
+
+      final response = await _performAuthenticatedPost(url, body: {});
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final payload = jsonResponse['data'] is Map<String, dynamic>
+            ? jsonResponse['data'] as Map<String, dynamic>
+            : jsonResponse['data'] is Map
+            ? Map<String, dynamic>.from(jsonResponse['data'] as Map)
+            : Map<String, dynamic>.from(jsonResponse);
+
+        return ApiResponse<Map<String, dynamic>>(
+          success: jsonResponse['success'] ?? jsonResponse['status'] ?? true,
+          message: _stringifyMessage(
+            jsonResponse['message'],
+            fallback: 'Reward claimed successfully',
+          ),
+          data: payload,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: _stringifyMessage(
+          jsonResponse['message'],
+          fallback: isHtml ? 'Server returned HTML' : 'Failed to claim reward',
+        ),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in claimReward: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
   // ========================================
   // Product Categories API
   // ========================================

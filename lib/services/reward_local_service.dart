@@ -79,6 +79,25 @@ class RewardLocalService {
     return reward;
   }
 
+  Future<RewardCoupon> saveReward(RewardCoupon reward) async {
+    await ensureInitialized();
+
+    final index = rewardsListenable.value.indexWhere(
+      (existing) => existing.id == reward.id,
+    );
+
+    final updatedRewards = List<RewardCoupon>.from(rewardsListenable.value);
+    if (index >= 0) {
+      updatedRewards[index] = reward;
+    } else {
+      updatedRewards.insert(0, reward);
+    }
+
+    await _saveRewards(updatedRewards);
+    rewardsListenable.value = updatedRewards;
+    return reward;
+  }
+
   Future<RewardCoupon> markRewardScratched(String rewardId) async {
     await ensureInitialized();
 
