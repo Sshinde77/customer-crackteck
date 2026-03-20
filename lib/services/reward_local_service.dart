@@ -200,6 +200,9 @@ class RewardLocalService {
       accentHex: template['accentHex']!,
       iconName: template['iconName']!,
       createdAt: DateTime.now().toIso8601String(),
+      applicableCategories: const <RewardRuleItem>[],
+      applicableBrands: const <RewardRuleItem>[],
+      excludedProducts: const <RewardRuleItem>[],
     );
   }
 

@@ -2085,37 +2085,101 @@ class ApiService {
     required int orderId,
   }) async {
     try {
-      final response = await getOrderList(
-        roleId: roleId,
-        customerId: customerId,
-      );
+      final url =
+          Uri.parse(
+            _resolveInvoiceEndpoint(ApiConstants.myorderdetail, orderId),
+          ).replace(
+            queryParameters: {
+              'role_id': roleId.toString(),
+              'user_id': customerId.toString(),
+            },
+          );
 
-      if (!response.success) {
+      debugPrint('API Request: GET $url');
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final dynamic dataRoot = jsonResponse['data'];
+        final Map<String, dynamic> payload = dataRoot is Map<String, dynamic>
+            ? Map<String, dynamic>.from(dataRoot)
+            : dataRoot is Map
+            ? Map<String, dynamic>.from(dataRoot)
+            : jsonResponse;
+
+        dynamic detailNode =
+            payload['order'] ??
+            payload['order_detail'] ??
+            payload['order_details'] ??
+            payload['details'] ??
+            payload['data'];
+
+        Map<String, dynamic>? detail;
+
+        if (detailNode is Map<String, dynamic>) {
+          detail = Map<String, dynamic>.from(detailNode);
+        } else if (detailNode is Map) {
+          detail = Map<String, dynamic>.from(detailNode);
+        }
+
+        final bool payloadLooksLikeOrder =
+            payload.containsKey('order_number') ||
+            payload.containsKey('order_products') ||
+            payload.containsKey('order_items') ||
+            payload.containsKey('grand_total') ||
+            payload.containsKey('payment_status');
+
+        if (detail == null && payloadLooksLikeOrder) {
+          detail = payload;
+        }
+
+        if (detail == null) {
+          return ApiResponse<OrderModel>(
+            success: false,
+            message: jsonResponse['message'] ?? 'Order details not found',
+            errors: jsonResponse['errors'],
+          );
+        }
+
+        if (!detail.containsKey('order_products') &&
+            !detail.containsKey('order_items') &&
+            !detail.containsKey('items')) {
+          final dynamic itemsNode =
+              payload['order_products'] ??
+              payload['order_items'] ??
+              payload['items'] ??
+              payload['products'];
+          if (itemsNode is List) {
+            detail['order_products'] = itemsNode;
+          }
+        }
+
         return ApiResponse<OrderModel>(
-          success: false,
-          message: response.message ?? 'Failed to fetch order details',
-          errors: response.errors,
-        );
-      }
-
-      final orders = response.data ?? <OrderModel>[];
-      final OrderModel? selectedOrder = orders.cast<OrderModel?>().firstWhere(
-        (order) => order?.id == orderId,
-        orElse: () => null,
-      );
-
-      if (selectedOrder == null) {
-        return ApiResponse<OrderModel>(
-          success: false,
-          message: 'Order details not found',
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Order details fetched successfully',
+          data: OrderModel.fromJson(detail),
+          errors: jsonResponse['errors'],
         );
       }
 
       return ApiResponse<OrderModel>(
-        success: true,
-        message: 'Order details fetched successfully',
-        data: selectedOrder,
+        success: false,
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch order details'),
+        errors: jsonResponse['errors'],
       );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
       debugPrint('Unexpected Error in getOrderDetail: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
@@ -3987,6 +4051,27 @@ class ApiService {
       rewardDetails['icon_name'],
       couponDetails['icon_name'],
     ], fallback: _iconForRewardType(sourceType, title));
+    final applicableCategories = _parseRewardRuleItems(
+      couponDetails['applicable_categories'] ??
+          rewardDetails['applicable_categories'] ??
+          json['applicable_categories'],
+      titleKeys: const ['name'],
+      subtitleKeys: const ['type', 'slug'],
+    );
+    final applicableBrands = _parseRewardRuleItems(
+      couponDetails['applicable_brands'] ??
+          rewardDetails['applicable_brands'] ??
+          json['applicable_brands'],
+      titleKeys: const ['name'],
+      subtitleKeys: const ['slug'],
+    );
+    final excludedProducts = _parseRewardRuleItems(
+      couponDetails['excluded_products'] ??
+          rewardDetails['excluded_products'] ??
+          json['excluded_products'],
+      titleKeys: const ['product_name', 'name'],
+      subtitleKeys: const ['sku'],
+    );
 
     return RewardCoupon(
       id: 'reward_${sourceType}_$rawRewardId',
@@ -4000,6 +4085,9 @@ class ApiService {
       accentHex: accentHex,
       iconName: iconName,
       createdAt: createdAt,
+      applicableCategories: applicableCategories,
+      applicableBrands: applicableBrands,
+      excludedProducts: excludedProducts,
     );
   }
 
@@ -4073,6 +4161,38 @@ class ApiService {
       return 'redeem';
     }
     return 'local_offer';
+  }
+
+  List<RewardRuleItem> _parseRewardRuleItems(
+    dynamic raw, {
+    required List<String> titleKeys,
+    List<String> subtitleKeys = const <String>[],
+  }) {
+    if (raw is! List) return const <RewardRuleItem>[];
+
+    return raw.whereType<Map>().map((item) {
+      final map = Map<String, dynamic>.from(item);
+      final title = _pickRewardText(
+        titleKeys.map((key) => map[key]).toList(),
+        fallback: 'Item',
+      );
+      final subtitle = _pickRewardText(
+        subtitleKeys.map((key) => map[key]).toList(),
+      );
+      final id = _pickRewardText([
+        map['id'],
+        map['product_id'],
+        map['brand_id'],
+        map['parent_category_id'],
+        title,
+      ], fallback: title);
+
+      return RewardRuleItem(
+        id: id,
+        title: title,
+        subtitle: subtitle,
+      );
+    }).toList();
   }
 
   static Future<http.Response> _performAuthenticatedPut(

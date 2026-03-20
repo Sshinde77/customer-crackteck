@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../constants/app_colors.dart';
 import '../models/reward_coupon_model.dart';
 import '../services/api_service.dart';
+import '../services/reward_scratch_state_service.dart';
 import '../widgets/reward_list_item.dart';
 import '../widgets/scratch_reward_popup.dart';
 
@@ -32,10 +33,18 @@ class _RewardsScreenState extends State<RewardsScreen> {
     });
 
     final response = await ApiService.instance.getRewardsList();
+    final scratchedRewardIds =
+        await RewardScratchStateService.instance.getScratchedRewardIds();
     if (!mounted) return;
 
     setState(() {
-      _rewards = response.data ?? <RewardCoupon>[];
+      _rewards = (response.data ?? <RewardCoupon>[])
+          .map(
+            (reward) => reward.copyWith(
+              scratched: reward.scratched || scratchedRewardIds.contains(reward.id),
+            ),
+          )
+          .toList();
       _errorMessage = response.success ? null : response.message ?? 'Failed to load rewards';
       _isLoading = false;
     });

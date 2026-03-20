@@ -98,6 +98,8 @@ class _MyProductOrdersScreenState extends State<MyProductOrdersScreen> {
               orderId: order.id,
               orderItemId: item.id,
               productId: item.productId ?? item.product?.id,
+              rewardAvailable: item.rewardAvailable ?? order.rewardAvailable ?? false,
+              rewardClaimed: item.rewardClaimed ?? order.rewardClaimed ?? false,
             ),
           );
         }
@@ -114,6 +116,8 @@ class _MyProductOrdersScreenState extends State<MyProductOrdersScreen> {
           orderId: order.id,
           orderItemId: null,
           productId: null,
+          rewardAvailable: order.rewardAvailable ?? false,
+          rewardClaimed: order.rewardClaimed ?? false,
         ),
       );
     }
@@ -175,6 +179,7 @@ class _MyProductOrdersScreenState extends State<MyProductOrdersScreen> {
   }
 
   Widget _buildOrderItem(_OrderDisplayItem item) {
+    final showRewardSection = item.rewardAvailable && !item.rewardClaimed;
     final status = item.status.isNotEmpty ? item.status : '—';
 
     return InkWell(
@@ -250,6 +255,40 @@ class _MyProductOrdersScreenState extends State<MyProductOrdersScreen> {
                   ],
                   const SizedBox(height: 8),
                   OrderStatusBadge(status: item.status),
+                  if (showRewardSection) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: AppColors.primary.withOpacity(0.14),
+                        ),
+                      ),
+                      child: Row(
+                        children: const <Widget>[
+                          Icon(
+                            Icons.card_giftcard_rounded,
+                            color: AppColors.primary,
+                            size: 18,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Reward available for this product',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -290,6 +329,8 @@ class _OrderDisplayItem {
   final int? orderId;
   final int? orderItemId;
   final int? productId;
+  final bool rewardAvailable;
+  final bool rewardClaimed;
 
   _OrderDisplayItem({
     required this.title,
@@ -300,5 +341,7 @@ class _OrderDisplayItem {
     required this.orderId,
     required this.orderItemId,
     required this.productId,
+    required this.rewardAvailable,
+    required this.rewardClaimed,
   });
 }

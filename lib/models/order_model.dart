@@ -37,6 +37,8 @@ class OrderModel {
   final String? invoiceNumber;
   final String? invoicePdf;
   final bool? isReturnable;
+  final bool? rewardAvailable;
+  final bool? rewardClaimed;
   final List<OrderItemModel>? items;
 
   OrderModel({
@@ -60,6 +62,8 @@ class OrderModel {
     this.invoiceNumber,
     this.invoicePdf,
     this.isReturnable,
+    this.rewardAvailable,
+    this.rewardClaimed,
     this.items,
   });
 
@@ -79,6 +83,11 @@ class OrderModel {
   }
 
   factory OrderModel.fromJson(Map<String, dynamic> json) {
+    final rewardMap = json['reward'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(json['reward'] as Map<String, dynamic>)
+        : json['reward'] is Map
+        ? Map<String, dynamic>.from(json['reward'] as Map)
+        : const <String, dynamic>{};
     final rawItems = json['order_products'] ??
         json['order_items'] ??
         json['orderItems'] ??
@@ -142,6 +151,18 @@ class OrderModel {
         json['is_returnable'] ??
             json['isReturnable'],
       ),
+      rewardAvailable: _tryParseBool(
+        rewardMap['reward_available'] ??
+            rewardMap['rewardAvailable'] ??
+            json['reward_available'] ??
+            json['rewardAvailable'],
+      ),
+      rewardClaimed: _tryParseBool(
+        rewardMap['reward_claimed'] ??
+            rewardMap['rewardClaimed'] ??
+            json['reward_claimed'] ??
+            json['rewardClaimed'],
+      ),
       items: rawItems is List
           ? rawItems
               .whereType<Map>()
@@ -160,6 +181,8 @@ class OrderItemModel {
   final String? productName;
   final int? quantity;
   final String? price;
+  final bool? rewardAvailable;
+  final bool? rewardClaimed;
   final OrderProductModel? product;
 
   OrderItemModel({
@@ -168,6 +191,8 @@ class OrderItemModel {
     this.productName,
     this.quantity,
     this.price,
+    this.rewardAvailable,
+    this.rewardClaimed,
     this.product,
   });
 
@@ -200,6 +225,12 @@ class OrderItemModel {
       productName: _readString(json['product_name'] ?? json['name'] ?? json['title']),
       quantity: _tryParseInt(json['qty'] ?? json['quantity'] ?? json['order_qty']),
       price: _readString(json['price'] ?? json['unit_price'] ?? json['final_price']),
+      rewardAvailable: _tryParseBool(
+        json['reward_available'] ?? json['rewardAvailable'],
+      ),
+      rewardClaimed: _tryParseBool(
+        json['reward_claimed'] ?? json['rewardClaimed'],
+      ),
       product: productMap != null ? OrderProductModel.fromJson(productMap) : null,
     );
   }

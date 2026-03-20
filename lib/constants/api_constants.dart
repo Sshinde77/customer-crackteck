@@ -41,7 +41,7 @@ class ApiConstants {
       '$baseUrl/service-request-details';
   static const String service_request_product_diagnostics =
       '$baseUrl/service-request-product-diagnostics';
-  static const String service_request_approval =
+  static const String service_request_approval =  
       '$baseUrl/customer-approve-reject-part';
   static const String service_request_pickup_approval =
       '$baseUrl/customer-approve-reject-pickup';
@@ -77,7 +77,10 @@ class ApiConstants {
       '$baseUrl/orders/{id}/claim-reward';
       
   static const String rewardslist  =
-      '$baseUrl/rewards';
+      '$baseUrl/rewards';    
+  static const String myorderdetail  =
+      '$baseUrl/order/{id}';
+      
 
   // Request Timeout
   static const Duration requestTimeout = Duration(seconds: 30);

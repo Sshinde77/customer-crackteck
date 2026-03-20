@@ -97,8 +97,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       final selectedItem = _resolveSelectedItem(order);
       final rawOrderStatus = order.status ?? order.orderStatus;
       final isDelivered = normalizeOrderStatus(rawOrderStatus) == 'delivered';
+      final canShowRewardSection =
+          isDelivered &&
+          order.rewardAvailable == true &&
+          order.rewardClaimed == false;
       RewardCoupon? reward;
-      if (isDelivered) {
+      if (canShowRewardSection) {
         reward = await RewardLocalService.instance.getRewardBySource(
           sourceType: 'order',
           sourceId: selectedItem?.id != null
@@ -568,6 +572,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       accentHex: '#1A73E8',
       iconName: 'redeem',
       createdAt: createdAt,
+      applicableCategories: const <RewardRuleItem>[],
+      applicableBrands: const <RewardRuleItem>[],
+      excludedProducts: const <RewardRuleItem>[],
     );
   }
 
@@ -632,6 +639,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final rawOrderStatus = order?.status ?? order?.orderStatus;
     final orderStatus = getOrderDisplayStatus(rawOrderStatus);
     final isDelivered = normalizeOrderStatus(rawOrderStatus) == 'delivered';
+    final showRewardSection =
+        isDelivered &&
+        order?.rewardAvailable == true &&
+        order?.rewardClaimed == false;
     final canCancel = canCancelOrder(rawOrderStatus);
     final canReplace = order?.isReturnable == true;
 
@@ -772,12 +783,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             ],
                           ),
                         ),
-                        if (isDelivered) ...[
+                        if (showRewardSection) ...[
                           const SizedBox(height: 16),
                           ClaimRewardButton(
                             hasClaimed: _reward != null,
                             onPressed: _openRewardPopup,
                           ),
+                        ],
+                        if (isDelivered) ...[
                           const SizedBox(height: 16),
                           _buildActionButton(
                             label: 'Download Invoice',
