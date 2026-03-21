@@ -2516,6 +2516,91 @@ class ApiService {
     }
   }
 
+  Future<ApiResponse<List<String>>> getDeviceTypes({int? roleId}) async {
+    try {
+      final query = <String, String>{};
+      if (roleId != null && roleId > 0) {
+        query['role_id'] = roleId.toString();
+      }
+
+      final url = query.isEmpty
+          ? Uri.parse(ApiConstants.devicetype)
+          : Uri.parse(ApiConstants.devicetype).replace(queryParameters: query);
+
+      final response = await _performAuthenticatedGet(url);
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        return ApiResponse<List<String>>(
+          success: true,
+          message: jsonResponse['message'] ?? 'Device types fetched successfully',
+          data: _extractDeviceTypeNames(jsonResponse),
+        );
+      }
+
+      return ApiResponse(
+        success: false,
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch device types'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in getDeviceTypes: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  List<String> _extractDeviceTypeNames(Map<String, dynamic> jsonResponse) {
+    final List<dynamic> candidates;
+    final dynamic data = jsonResponse['data'];
+
+    if (data is List) {
+      candidates = data;
+    } else if (data is Map<String, dynamic>) {
+      final dynamic nestedList =
+          data['device_types'] ??
+          data['devices_types'] ??
+          data['deviceTypes'] ??
+          data['items'];
+      candidates = nestedList is List ? nestedList : const [];
+    } else {
+      final dynamic nestedList =
+          jsonResponse['device_types'] ??
+          jsonResponse['devices_types'] ??
+          jsonResponse['deviceTypes'];
+      candidates = nestedList is List ? nestedList : const [];
+    }
+
+    final names = <String>{};
+    for (final item in candidates) {
+      if (item is String && item.trim().isNotEmpty) {
+        names.add(item.trim());
+        continue;
+      }
+      if (item is Map<String, dynamic>) {
+        final dynamic rawName =
+            item['name'] ??
+            item['title'] ??
+            item['type'] ??
+            item['device_type'] ??
+            item['deviceType'] ??
+            item['value'];
+        final name = rawName?.toString().trim() ?? '';
+        if (name.isNotEmpty) {
+          names.add(name);
+        }
+      }
+    }
+    return names.toList();
+  }
+
   // ========================================
   // Profile API
   // ========================================
@@ -3272,7 +3357,9 @@ class ApiService {
     required String serviceType,
     required List<Map<String, dynamic>> products,
     int? amcPlanId,
+    String? amcType,
     int? customerAddressId,
+    String? preferredDate,
   }) async {
     try {
       debugPrint('ðŸ”µ API Request: POST ${ApiConstants.submitQuickService}');
@@ -3301,6 +3388,14 @@ class ApiService {
       if (amcPlanId != null) {
         request.fields['amc_plan_id'] = amcPlanId.toString();
       }
+      final trimmedAmcType = amcType?.trim() ?? '';
+      if (trimmedAmcType.isNotEmpty) {
+        request.fields['amc_type'] = trimmedAmcType;
+      }
+      final trimmedPreferredDate = preferredDate?.trim() ?? '';
+      if (trimmedPreferredDate.isNotEmpty) {
+        request.fields['preferred_date'] = trimmedPreferredDate;
+      }
 
       for (int i = 0; i < products.length; i++) {
         final product = products[i];
@@ -3310,6 +3405,8 @@ class ApiService {
             .toString();
         request.fields['products[$i][model_no]'] = (product['model_no'] ?? '')
             .toString();
+        request.fields['products[$i][mac_address]'] =
+            (product['mac_address'] ?? '').toString();
         request.fields['products[$i][sku]'] = (product['sku'] ?? '')
             .toString(); // Optional
         request.fields['products[$i][hsn]'] = (product['hsn'] ?? '')

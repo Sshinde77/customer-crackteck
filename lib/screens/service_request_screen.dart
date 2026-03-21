@@ -20,6 +20,7 @@ class ServiceProductFormModel {
   final TextEditingController typeController = TextEditingController();
   final TextEditingController nameController = TextEditingController();
   final TextEditingController modelNoController = TextEditingController();
+  final TextEditingController macAddressController = TextEditingController();
   final TextEditingController purchaseDateController = TextEditingController();
   final TextEditingController brandController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
@@ -29,6 +30,7 @@ class ServiceProductFormModel {
     typeController.dispose();
     nameController.dispose();
     modelNoController.dispose();
+    macAddressController.dispose();
     purchaseDateController.dispose();
     brandController.dispose();
     descriptionController.dispose();
@@ -63,15 +65,63 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   static const int _maxImageBytesPerProduct = 20 * 1024 * 1024;
 
   final _formKey = GlobalKey<FormState>();
+  final TextEditingController _preferredDateController =
+      TextEditingController();
   final List<ServiceProductFormModel> _products = [ServiceProductFormModel()];
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
   bool _isPickingImage = false;
+  bool _isDeviceTypeLoading = false;
+  List<String> _deviceTypes = [];
 
   static const int _addAddressDropdownValue = -1;
   bool _isAddressLoading = false;
   List<AddressModel> _addresses = [];
   int? _selectedAddressId;
+
+  bool get _isAmcRequest => widget.amcPlanData != null;
+
+  int? get _selectedAmcPlanId {
+    final rawPlanId = widget.amcPlanData?['planId'];
+    if (rawPlanId is int) return rawPlanId;
+    return int.tryParse('${rawPlanId ?? ''}');
+  }
+
+  String get _selectedAmcPlanName {
+    return (widget.amcPlanData?['planName'] ?? 'Selected AMC Plan')
+        .toString()
+        .trim();
+  }
+
+  String? get _selectedAmcType {
+    final selectedAmcMode = (widget.amcPlanData?['selectedAmcMode'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    if (selectedAmcMode == 'offline') {
+      return 'onsite';
+    }
+    if (selectedAmcMode == 'online') {
+      return 'remote';
+    }
+
+    final supportType = (widget.amcPlanData?['supportType'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    if (supportType == 'offline' ||
+        supportType == 'off line' ||
+        supportType == 'onsite' ||
+        supportType == 'on site') {
+      return 'onsite';
+    }
+    if (supportType == 'online' ||
+        supportType == 'on line' ||
+        supportType == 'remote') {
+      return 'remote';
+    }
+    return null;
+  }
 
   @override
   void initState() {
@@ -79,10 +129,38 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _fetchAddresses();
-      context.read<QuickServiceProvider>().fetchRequestServices(
-            serviceType: _getServiceTypeFromTitle(),
-          );
+      _fetchDeviceTypes();
+      if (!_isAmcRequest) {
+        context.read<QuickServiceProvider>().fetchRequestServices(
+              serviceType: _getServiceTypeFromTitle(),
+            );
+      }
     });
+  }
+
+  Future<void> _fetchDeviceTypes() async {
+    setState(() => _isDeviceTypeLoading = true);
+    try {
+      final roleId = await SecureStorageService.getRoleId();
+      final response = await ApiService.instance.getDeviceTypes(roleId: roleId);
+      if (!mounted) return;
+
+      if (response.success) {
+        setState(() {
+          _deviceTypes = response.data ?? [];
+        });
+      } else {
+        _showSnackBar(response.message ?? 'Failed to load device types.');
+      }
+    } catch (_) {
+      if (mounted) {
+        _showSnackBar('Failed to load device types.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isDeviceTypeLoading = false);
+      }
+    }
   }
 
   String _getServiceTypeFromTitle() {
@@ -214,6 +292,20 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     });
   }
 
+  Future<void> _selectPreferredDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2101),
+    );
+    if (!mounted || picked == null) return;
+    setState(() {
+      _preferredDateController.text =
+          "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+    });
+  }
+
   void _addProduct() {
     setState(() {
       _products.add(ServiceProductFormModel());
@@ -240,7 +332,13 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   Future<void> _submitRequest() async {
     bool allValid = true;
     for (int i = 0; i < _products.length; i++) {
-      if (!_products[i].isValid) {
+      final product = _products[i];
+      final isProductValid =
+          (_isAmcRequest || product.selectedQuickService != null) &&
+          product.typeController.text.trim().isNotEmpty &&
+          product.nameController.text.trim().isNotEmpty &&
+          product.selectedImages.isNotEmpty;
+      if (!isProductValid) {
         allValid = false;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -302,8 +400,11 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
           'name': p.nameController.text.trim(),
           'type': p.typeController.text.trim(),
           'model_no': p.modelNoController.text.trim(),
-          'sku': p.selectedQuickService?.itemCode ?? '', // Mapping item code from selected service
-          'service_type_id': p.selectedQuickService?.id,
+          'mac_address': p.macAddressController.text.trim(),
+          'sku': _isAmcRequest
+              ? ''
+              : p.selectedQuickService?.itemCode ?? '',
+          'service_type_id': _isAmcRequest ? null : p.selectedQuickService?.id,
           'hsn': '', // HSN is not in UI, sending empty
           'purchase_date': p.purchaseDateController.text.trim(),
           'brand': p.brandController.text.trim(),
@@ -318,6 +419,9 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         serviceType: _getServiceTypeFromTitle(),
         customerAddressId: _selectedAddressId!,
         products: productData,
+        amcPlanId: _isAmcRequest ? _selectedAmcPlanId : null,
+        amcType: _isAmcRequest ? _selectedAmcType : null,
+        preferredDate: _preferredDateController.text.trim(),
       );
 
       if (mounted) {
@@ -350,6 +454,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
 
   @override
   void dispose() {
+    _preferredDateController.dispose();
     for (var product in _products) {
       _disposeProduct(product);
     }
@@ -405,8 +510,22 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                     }),
 
                      const SizedBox(height: 16),
-                      _buildLabel('Service Address'),
-                    _buildAddressSection(),
+                     _buildLabel('Preferred Date'),
+                     TextFormField(
+                       controller: _preferredDateController,
+                       readOnly: true,
+                       enabled: !_isLoading,
+                       onTap: () => _selectPreferredDate(context),
+                       decoration: _inputDecoration('Select preferred date').copyWith(
+                         suffixIcon: const Icon(
+                           Icons.calendar_today,
+                           color: AppColors.primary,
+                         ),
+                       ),
+                     ),
+                     const SizedBox(height: 16),
+                     _buildLabel('Service Address'),
+                     _buildAddressSection(),
                    
                     const SizedBox(height: 32),
 
@@ -638,41 +757,44 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
           ),
           const SizedBox(height: 16),
         ],
-        _buildLabel('Service Type'),
-        Consumer<QuickServiceProvider>(
-          builder: (context, provider, child) {
-            if (provider.isRequestLoading) {
-              return const Center(
-                  child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 20),
-                child: CircularProgressIndicator(),
-              ));
-            }
+        _buildLabel(_isAmcRequest ? 'Selected AMC Plan' : 'Service Type'),
+        if (_isAmcRequest)
+          _buildAmcPlanCard()
+        else
+          Consumer<QuickServiceProvider>(
+            builder: (context, provider, child) {
+              if (provider.isRequestLoading) {
+                return const Center(
+                    child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: CircularProgressIndicator(),
+                ));
+              }
 
-            if (provider.requestServices.isEmpty) {
-              return const Center(child: Text('No services available'));
-            }
+              if (provider.requestServices.isEmpty) {
+                return const Center(child: Text('No services available'));
+              }
 
-            return DropdownButtonFormField<QuickService>(
-              initialValue: provider.requestServices.contains(product.selectedQuickService) ? product.selectedQuickService : null,
-              hint: const Text('Select Service Type'),
-              isExpanded: true,
-              items: provider.requestServices.map((service) {
-                return DropdownMenuItem<QuickService>(
-                    value: service,
-                    child: Text(
-                      service.serviceName ?? 'Unnamed Service',
-                      overflow: TextOverflow.ellipsis,
-                    ));
-              }).toList(),
-              onChanged: _isLoading ? null : (value) => setState(() => product.selectedQuickService = value),
-              decoration: _inputDecoration('Select Service Type'),
-            );
-          },
-        ),
+              return DropdownButtonFormField<QuickService>(
+                initialValue: provider.requestServices.contains(product.selectedQuickService) ? product.selectedQuickService : null,
+                hint: const Text('Select Service Type'),
+                isExpanded: true,
+                items: provider.requestServices.map((service) {
+                  return DropdownMenuItem<QuickService>(
+                      value: service,
+                      child: Text(
+                        service.serviceName ?? 'Unnamed Service',
+                        overflow: TextOverflow.ellipsis,
+                      ));
+                }).toList(),
+                onChanged: _isLoading ? null : (value) => setState(() => product.selectedQuickService = value),
+                decoration: _inputDecoration('Select Service Type'),
+              );
+            },
+          ),
         const SizedBox(height: 16),
 
-        if (product.selectedQuickService != null) ...[
+        if (!_isAmcRequest && product.selectedQuickService != null) ...[
           _buildServiceDetailCard(product.selectedQuickService!),
           const SizedBox(height: 16),
         ],
@@ -686,10 +808,32 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         const SizedBox(height: 16),
 
         _buildLabel('Product Type'),
-        TextFormField(
-          controller: product.typeController,
-          enabled: !_isLoading,
-          decoration: _inputDecoration('Enter product type'),
+        DropdownButtonFormField<String>(
+          value: _deviceTypes.contains(product.typeController.text.trim())
+              ? product.typeController.text.trim()
+              : null,
+          isExpanded: true,
+          items: _deviceTypes
+              .map(
+                (type) => DropdownMenuItem<String>(
+                  value: type,
+                  child: Text(
+                    type,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: (_isLoading || _isDeviceTypeLoading || _deviceTypes.isEmpty)
+              ? null
+              : (value) {
+                  setState(() {
+                    product.typeController.text = value ?? '';
+                  });
+                },
+          decoration: _inputDecoration(
+            _isDeviceTypeLoading ? 'Loading product types...' : 'Select product type',
+          ),
         ),
         const SizedBox(height: 16),
 
@@ -706,6 +850,14 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
           controller: product.modelNoController,
           enabled: !_isLoading,
           decoration: _inputDecoration('Enter model number'),
+        ),
+        const SizedBox(height: 16),
+
+        _buildLabel('MAC Address'),
+        TextFormField(
+          controller: product.macAddressController,
+          enabled: !_isLoading,
+          decoration: _inputDecoration('Enter MAC address (optional)'),
         ),
         const SizedBox(height: 16),
 
@@ -892,6 +1044,70 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAmcPlanCard() {
+    final supportType = (widget.amcPlanData?['supportType'] ?? '')
+        .toString()
+        .trim();
+    final normalizedSupportType = supportType.toLowerCase();
+    final hidePriceForOffline =
+        normalizedSupportType == 'offline' ||
+        normalizedSupportType == 'off line' ||
+        normalizedSupportType == 'onsite' ||
+        normalizedSupportType == 'on site';
+    final duration = '${widget.amcPlanData?['duration'] ?? '-'}';
+    final totalVisits = '${widget.amcPlanData?['totalVisits'] ?? '-'}';
+    final totalCost = '${widget.amcPlanData?['totalCost'] ?? '-'}';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.grey.shade50,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _selectedAmcPlanName,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          if (supportType.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Support Type: $supportType',
+              style: TextStyle(color: Colors.grey.shade700),
+            ),
+          ],
+          const SizedBox(height: 6),
+          Text(
+            'Duration: $duration months',
+            style: TextStyle(color: Colors.grey.shade700),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Visits: $totalVisits',
+            style: TextStyle(color: Colors.grey.shade700),
+          ),
+          if (!hidePriceForOffline) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Total Cost: Rs $totalCost',
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ],
       ),
     );

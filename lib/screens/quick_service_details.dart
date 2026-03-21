@@ -17,6 +17,7 @@ class ProductFormModel {
   final TextEditingController typeController = TextEditingController();
   final TextEditingController nameController = TextEditingController();
   final TextEditingController modelNoController = TextEditingController();
+  final TextEditingController macAddressController = TextEditingController();
   final TextEditingController purchaseDateController = TextEditingController();
   final TextEditingController brandController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
@@ -26,6 +27,7 @@ class ProductFormModel {
     typeController.dispose();
     nameController.dispose();
     modelNoController.dispose();
+    macAddressController.dispose();
     purchaseDateController.dispose();
     brandController.dispose();
     descriptionController.dispose();
@@ -58,6 +60,8 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
   bool _isPickingImage = false;
+  bool _isDeviceTypeLoading = false;
+  List<String> _deviceTypes = [];
 
   static const int _addAddressDropdownValue = -1;
   bool _isAddressLoading = false;
@@ -73,7 +77,33 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchAddresses();
+      _fetchDeviceTypes();
     });
+  }
+
+  Future<void> _fetchDeviceTypes() async {
+    setState(() => _isDeviceTypeLoading = true);
+    try {
+      final roleId = await SecureStorageService.getRoleId();
+      final response = await ApiService.instance.getDeviceTypes(roleId: roleId);
+      if (!mounted) return;
+
+      if (response.success) {
+        setState(() {
+          _deviceTypes = response.data ?? [];
+        });
+      } else {
+        _showSnackBar(response.message ?? 'Failed to load device types.');
+      }
+    } catch (_) {
+      if (mounted) {
+        _showSnackBar('Failed to load device types.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isDeviceTypeLoading = false);
+      }
+    }
   }
 
   Future<void> _pickImage(ProductFormModel product) async {
@@ -235,6 +265,7 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
           'name': p.nameController.text.trim(),
           'type': p.typeController.text.trim(),
           'model_no': p.modelNoController.text.trim(),
+          'mac_address': p.macAddressController.text.trim(),
           if (serviceTypeId != null) 'service_type_id': serviceTypeId,
           'purchase_date': p.purchaseDateController.text.trim(),
           'brand': p.brandController.text.trim(),
@@ -509,11 +540,32 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
         const SizedBox(height: 16),
 
         _buildLabel('Product Type'),
-        TextFormField(
-          controller: product.typeController,
-          enabled: !_isLoading,
-          decoration: _inputDecoration('Enter product type'),
-          onChanged: (val) => setState(() {}),
+        DropdownButtonFormField<String>(
+          value: _deviceTypes.contains(product.typeController.text.trim())
+              ? product.typeController.text.trim()
+              : null,
+          isExpanded: true,
+          items: _deviceTypes
+              .map(
+                (type) => DropdownMenuItem<String>(
+                  value: type,
+                  child: Text(
+                    type,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: (_isLoading || _isDeviceTypeLoading || _deviceTypes.isEmpty)
+              ? null
+              : (value) {
+                  setState(() {
+                    product.typeController.text = value ?? '';
+                  });
+                },
+          decoration: _inputDecoration(
+            _isDeviceTypeLoading ? 'Loading product types...' : 'Select product type',
+          ),
         ),
         const SizedBox(height: 16),
 
@@ -531,6 +583,15 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
           controller: product.modelNoController,
           enabled: !_isLoading,
           decoration: _inputDecoration('Enter model number'),
+          onChanged: (val) => setState(() {}),
+        ),
+        const SizedBox(height: 16),
+
+        _buildLabel('MAC Address'),
+        TextFormField(
+          controller: product.macAddressController,
+          enabled: !_isLoading,
+          decoration: _inputDecoration('Enter MAC address (optional)'),
           onChanged: (val) => setState(() {}),
         ),
         const SizedBox(height: 16),

@@ -80,6 +80,8 @@ class ApiConstants {
       '$baseUrl/rewards';    
   static const String myorderdetail  =
       '$baseUrl/order/{id}';
+  static const String devicetype  =
+      '$baseUrl/devices-types';
       
 
   // Request Timeout

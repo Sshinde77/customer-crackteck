@@ -132,13 +132,15 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
         (plan?.totalCost ?? '').trim().isNotEmpty ? plan!.totalCost! : '0';
 
     void openPlanDetails() {
-      if (plan?.id == null) return;
+      final planId = plan?.id;
+      if (planId == null) return;
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => AmcPlanDetailScreen(
-            planId: plan.id!,
+            planId: planId,
             requestButtonLabel: 'Request for AMC',
+            selectedAmcMode: widget.supportTypeFilter,
           ),
         ),
       );
@@ -238,48 +240,62 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
                   color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Row(
-                  mainAxisAlignment: hidePriceForOffline
-                      ? MainAxisAlignment.end
-                      : MainAxisAlignment.spaceBetween,
-                  children: [
-                    if (!hidePriceForOffline)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Total Cost',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
+                child: hidePriceForOffline
+                    ? SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: openPlanDetails,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Rs $totalCost',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
+                          child: const Text(
+                            'View Details',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Total Cost',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Rs $totalCost',
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          ElevatedButton(
+                            onPressed: openPlanDetails,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              'View Details',
+                              style: TextStyle(color: Colors.white),
                             ),
                           ),
                         ],
                       ),
-                    ElevatedButton(
-                      onPressed: openPlanDetails,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Text(
-                        'View Details',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ],
           ),

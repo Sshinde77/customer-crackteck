@@ -27,6 +27,7 @@ class PaymentScreen extends StatefulWidget {
 
 class _PaymentScreenState extends State<PaymentScreen> {
   static const int _addAddressDropdownValue = -1;
+  static const int _cashOnDeliveryIndex = 2;
   int selectedIndex = -1;
   bool _isSubmitting = false;
   bool _isAddressLoading = false;
@@ -75,6 +76,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
     final unit = _resolvedUnitPrice;
     if (unit == null) return null;
     return unit * widget.quantity;
+  }
+
+  bool get _isCashOnDeliveryAvailable {
+    final total = _resolvedTotal;
+    return total != null && total < 2000;
   }
 
   String get _resolvedTitle {
@@ -395,7 +401,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         ),
 
         /// Body
-        body: Padding(
+        body: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -558,7 +564,34 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 ),
               ),
 
-              const Spacer(),
+              const SizedBox(height: 20),
+
+              const Text(
+                'Cash On Delivery',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.black12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: _paymentTile(
+                  index: _cashOnDeliveryIndex,
+                  icon: Icons.local_shipping_outlined,
+                  title: 'Cash on Delivery',
+                  amount: 'â‚¹ 2,500',
+                  enabled: _isCashOnDeliveryAvailable,
+                  subtitle: _isCashOnDeliveryAvailable
+                      ? 'Pay when your order is delivered'
+                      : 'Available only for orders below \u20B9 2000',
+                ),
+              ),
+
+              const SizedBox(height: 24),
 
               /// Done Button
               SizedBox(
@@ -604,37 +637,51 @@ class _PaymentScreenState extends State<PaymentScreen> {
     required IconData icon,
     required String title,
     required String amount,
+    bool enabled = true,
+    String? subtitle,
   }) {
     final total = _resolvedTotal;
     final String resolvedAmount =
         total != null ? '\u20B9 ${_formatAmount(total)}' : amount;
+    final Color? foregroundColor = enabled ? null : Colors.grey;
 
     return ListTile(
-      leading: Icon(icon, size: 28),
-      title: Text(title),
+      enabled: enabled,
+      leading: Icon(icon, size: 28, color: foregroundColor),
+      title: Text(title, style: TextStyle(color: foregroundColor)),
+      subtitle: subtitle == null
+          ? null
+          : Text(subtitle, style: TextStyle(color: foregroundColor)),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             resolvedAmount,
-            style: const TextStyle(fontWeight: FontWeight.w600),
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: foregroundColor,
+            ),
           ),
           const SizedBox(width: 12),
           Checkbox(
             value: selectedIndex == index,
-            onChanged: (val) {
-              setState(() {
-                selectedIndex = index;
-              });
-            },
+            onChanged: enabled
+                ? (val) {
+                    setState(() {
+                      selectedIndex = index;
+                    });
+                  }
+                : null,
           ),
         ],
       ),
-      onTap: () {
-        setState(() {
-          selectedIndex = index;
-        });
-      },
+      onTap: enabled
+          ? () {
+              setState(() {
+                selectedIndex = index;
+              });
+            }
+          : null,
     );
   }
 }

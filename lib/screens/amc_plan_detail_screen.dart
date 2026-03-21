@@ -8,11 +8,13 @@ import 'service_request_screen.dart';
 class AmcPlanDetailScreen extends StatefulWidget {
   final int planId;
   final String requestButtonLabel;
+  final String? selectedAmcMode;
 
   const AmcPlanDetailScreen({
     super.key,
     required this.planId,
     this.requestButtonLabel = 'Subscribe to Plan',
+    this.selectedAmcMode,
   });
 
   @override
@@ -20,6 +22,14 @@ class AmcPlanDetailScreen extends StatefulWidget {
 }
 
 class _AmcPlanDetailScreenState extends State<AmcPlanDetailScreen> {
+  bool _hidePriceForOffline(AmcPlan? plan) {
+    final supportType = plan?.supportType?.trim().toLowerCase() ?? '';
+    return supportType == 'offline' ||
+        supportType == 'off line' ||
+        supportType == 'onsite' ||
+        supportType == 'on site';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -113,15 +123,20 @@ class _AmcPlanDetailScreenState extends State<AmcPlanDetailScreen> {
                   const SizedBox(height: 16),
 
                   // Pricing Card
-                  _buildPricingCard(plan),
-                  const SizedBox(height: 16),
+                  if (!_hidePriceForOffline(plan)) ...[
+                    _buildPricingCard(plan),
+                    const SizedBox(height: 16),
+                  ],
 
                   // Plan Details Card
                   _buildPlanDetailsCard(plan),
                   const SizedBox(height: 16),
 
                   // Covered Services Section
-                  _buildCoveredServicesSection(coveredItems),
+                  _buildCoveredServicesSection(
+                    coveredItems,
+                    hidePrice: _hidePriceForOffline(plan),
+                  ),
                   const SizedBox(height: 16),
 
                   // Action Buttons
@@ -387,7 +402,10 @@ class _AmcPlanDetailScreenState extends State<AmcPlanDetailScreen> {
     );
   }
 
-  Widget _buildCoveredServicesSection(List<CoveredItem> coveredItems) {
+  Widget _buildCoveredServicesSection(
+    List<CoveredItem> coveredItems, {
+    required bool hidePrice,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -419,12 +437,14 @@ class _AmcPlanDetailScreenState extends State<AmcPlanDetailScreen> {
             ),
           )
         else
-          ...coveredItems.map((item) => _buildServiceCard(item)),
+          ...coveredItems.map(
+            (item) => _buildServiceCard(item, hidePrice: hidePrice),
+          ),
       ],
     );
   }
 
-  Widget _buildServiceCard(CoveredItem item) {
+  Widget _buildServiceCard(CoveredItem item, {required bool hidePrice}) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
@@ -588,6 +608,7 @@ class _AmcPlanDetailScreenState extends State<AmcPlanDetailScreen> {
                         'tax': plan.tax,
                         'totalCost': plan.totalCost,
                         'supportType': plan.supportType,
+                        'selectedAmcMode': widget.selectedAmcMode,
                         'description': plan.description,
                       },
                     ),
