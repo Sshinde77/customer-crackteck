@@ -813,10 +813,11 @@ class ApiService {
 
       if (!isHtml &&
           (response.statusCode == 200 || response.statusCode == 201)) {
+        final data = jsonResponse['data'] ?? jsonResponse;
         return ApiResponse(
           success: jsonResponse['success'] ?? true,
           message: jsonResponse['message'] ?? 'Product purchased successfully',
-          data: jsonResponse['data'],
+          data: data,
           errors: jsonResponse['errors'],
         );
       }
@@ -835,6 +836,243 @@ class ApiService {
     } catch (e) {
       debugPrint('ðŸ”´ Unexpected Error in buyProduct: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> createRazorpayOrder({
+    required int orderId,
+    required int userId,
+    required int roleId,
+  }) async {
+    try {
+      final url = Uri.parse('${ApiConstants.checkoutOrders}/$orderId/razorpay');
+      final body = <String, dynamic>{
+        'user_id': userId,
+        'role_id': roleId,
+      };
+
+      debugPrint('API Request: POST $url');
+
+      final response = await _performAuthenticatedPost(url, body: body);
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final data = (jsonResponse['data'] is Map<String, dynamic>)
+            ? jsonResponse['data'] as Map<String, dynamic>
+            : jsonResponse;
+        return ApiResponse<Map<String, dynamic>>(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Razorpay order created successfully',
+          data: data,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to create Razorpay order'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'No internet connection.',
+      );
+    } on TimeoutException {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Request timeout.',
+      );
+    } catch (e) {
+      debugPrint('Unexpected Error in createRazorpayOrder: $e');
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Unexpected error: $e',
+      );
+    }
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> verifyRazorpayPayment({
+    required int userId,
+    required int roleId,
+    required int orderId,
+    required String razorpayOrderId,
+    required String razorpayPaymentId,
+    required String razorpaySignature,
+  }) async {
+    try {
+      final url = Uri.parse(ApiConstants.razorpayVerify);
+      final body = <String, dynamic>{
+        'user_id': userId,
+        'role_id': roleId,
+        'order_id': orderId,
+        'razorpay_order_id': razorpayOrderId,
+        'razorpay_payment_id': razorpayPaymentId,
+        'razorpay_signature': razorpaySignature,
+      };
+
+      debugPrint('API Request: POST $url');
+
+      final response = await _performAuthenticatedPost(url, body: body);
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final data = (jsonResponse['data'] is Map<String, dynamic>)
+            ? jsonResponse['data'] as Map<String, dynamic>
+            : jsonResponse;
+        return ApiResponse<Map<String, dynamic>>(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Payment verified successfully',
+          data: data,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to verify payment'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'No internet connection.',
+      );
+    } on TimeoutException {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Request timeout.',
+      );
+    } catch (e) {
+      debugPrint('Unexpected Error in verifyRazorpayPayment: $e');
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Unexpected error: $e',
+      );
+    }
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> verifyRazorpayWebhook({
+    required Map<String, dynamic> payload,
+    required String webhookSignature,
+  }) async {
+    try {
+      final url = Uri.parse(ApiConstants.razorpayWebhook);
+      final response = await http
+          .post(
+            url,
+            headers: <String, String>{
+              ..._headers,
+              'X-Razorpay-Signature': webhookSignature,
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(ApiConstants.requestTimeout);
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final data = (jsonResponse['data'] is Map<String, dynamic>)
+            ? jsonResponse['data'] as Map<String, dynamic>
+            : jsonResponse;
+        return ApiResponse<Map<String, dynamic>>(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Webhook verified successfully',
+          data: data,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to verify webhook'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'No internet connection.',
+      );
+    } on TimeoutException {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Request timeout.',
+      );
+    } catch (e) {
+      debugPrint('Unexpected Error in verifyRazorpayWebhook: $e');
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Unexpected error: $e',
+      );
+    }
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> refundPayment({
+    required int paymentDbId,
+    required int userId,
+    required int roleId,
+  }) async {
+    try {
+      final url = Uri.parse('${ApiConstants.payments}/$paymentDbId/refund');
+      final body = <String, dynamic>{
+        'user_id': userId,
+        'role_id': roleId,
+      };
+
+      debugPrint('API Request: POST $url');
+
+      final response = await _performAuthenticatedPost(url, body: body);
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final data = (jsonResponse['data'] is Map<String, dynamic>)
+            ? jsonResponse['data'] as Map<String, dynamic>
+            : jsonResponse;
+        return ApiResponse<Map<String, dynamic>>(
+          success: jsonResponse['success'] ?? true,
+          message: jsonResponse['message'] ?? 'Payment refunded successfully',
+          data: data,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to refund payment'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'No internet connection.',
+      );
+    } on TimeoutException {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Request timeout.',
+      );
+    } catch (e) {
+      debugPrint('Unexpected Error in refundPayment: $e');
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Unexpected error: $e',
+      );
     }
   }
 

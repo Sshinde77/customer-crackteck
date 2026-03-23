@@ -13,7 +13,7 @@ class AppStrings {
   static const String salesPerson = 'Sales Person';
 
   // App Name
-  static const String appName = 'CrackTech';
+  static const String appName = 'CrackTeck';
 
   // Login Screen
   static const String welcomeBack = 'Welcome Back!';

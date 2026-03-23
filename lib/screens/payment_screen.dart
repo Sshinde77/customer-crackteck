@@ -36,6 +36,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   bool _isAddressLoading = false;
   List<AddressModel> _addresses = [];
   int? _selectedAddressId;
+  int? _pendingBackendOrderId;
   late final Razorpay _razorpay;
 
   static const String _imageBaseUrl = 'https://crackteck.co.in/';
@@ -112,6 +113,53 @@ class _PaymentScreenState extends State<PaymentScreen> {
     return _normalizeImageUrl(raw);
   }
 
+  int? _extractIntByKeys(dynamic source, List<String> keys) {
+    if (source is Map) {
+      for (final key in keys) {
+        final value = source[key];
+        if (value is int) return value;
+        if (value is num) return value.toInt();
+        if (value is String) {
+          final parsed = int.tryParse(value.trim());
+          if (parsed != null) return parsed;
+        }
+      }
+
+      for (final value in source.values) {
+        final nested = _extractIntByKeys(value, keys);
+        if (nested != null) return nested;
+      }
+    } else if (source is List) {
+      for (final value in source) {
+        final nested = _extractIntByKeys(value, keys);
+        if (nested != null) return nested;
+      }
+    }
+    return null;
+  }
+
+  String? _extractStringByKeys(dynamic source, List<String> keys) {
+    if (source is Map) {
+      for (final key in keys) {
+        final value = source[key];
+        if (value is String && value.trim().isNotEmpty) {
+          return value.trim();
+        }
+      }
+
+      for (final value in source.values) {
+        final nested = _extractStringByKeys(value, keys);
+        if (nested != null) return nested;
+      }
+    } else if (source is List) {
+      for (final value in source) {
+        final nested = _extractStringByKeys(value, keys);
+        if (nested != null) return nested;
+      }
+    }
+    return null;
+  }
+
   Future<void> _handleDone() async {
     if (_isSubmitting) return;
 
@@ -150,7 +198,105 @@ class _PaymentScreenState extends State<PaymentScreen> {
       return;
     }
 
-    await _openRazorpay();
+    await _startOnlinePayment(purchaseContext);
+  }
+
+  Future<void> _startOnlinePayment(
+    ({
+      int productId,
+      int roleId,
+      int quantity,
+      int customerId,
+      int shippingAddressId,
+    }) purchaseContext,
+  ) async {
+    if (mounted && !_isSubmitting) {
+      setState(() => _isSubmitting = true);
+    }
+
+    var checkoutOpened = false;
+    try {
+      final orderResponse = await ApiService.instance.buyProduct(
+        productId: purchaseContext.productId,
+        roleId: purchaseContext.roleId,
+        quantity: purchaseContext.quantity,
+        customerId: purchaseContext.customerId,
+        shippingAddressId: purchaseContext.shippingAddressId,
+      );
+
+      if (!mounted) return;
+
+      if (!orderResponse.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(orderResponse.message ?? 'Failed to create order'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final backendOrderId = _extractIntByKeys(orderResponse.data, const [
+        'order_id',
+        'orderId',
+        'id',
+      ]);
+      if (backendOrderId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Order created but no order id was returned.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      _pendingBackendOrderId = backendOrderId;
+
+      final razorpayOrderResponse = await ApiService.instance.createRazorpayOrder(
+        orderId: backendOrderId,
+        userId: purchaseContext.customerId,
+        roleId: purchaseContext.roleId,
+      );
+
+      if (!mounted) return;
+
+      if (!razorpayOrderResponse.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              razorpayOrderResponse.message ?? 'Failed to initialize Razorpay order',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final razorpayOrderId =
+          _extractStringByKeys(razorpayOrderResponse.data, const [
+            'razorpay_order_id',
+            'order_id',
+            'id',
+          ]);
+
+      if (razorpayOrderId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Razorpay order was created but no order id was returned.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      checkoutOpened = true;
+      await _openRazorpay(orderId: razorpayOrderId);
+    } finally {
+      if (!checkoutOpened && mounted && _isSubmitting) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   Future<void> _openRazorpay({String? orderId}) async {
@@ -275,9 +421,7 @@ Future<
     );
   }
 
-  Future<void> _callBuyProductApi({
-    Map<String, String?>? razorpayPaymentData,
-  }) async {
+  Future<void> _callBuyProductApi() async {
     final purchaseContext = await _resolvePurchaseContext();
     if (purchaseContext == null) {
       if (mounted) setState(() => _isSubmitting = false);
@@ -289,11 +433,6 @@ Future<
     }
 
     try {
-      if (razorpayPaymentData != null) {
-        // TODO: Send this payload to the backend once payment verification is available.
-        debugPrint('Razorpay verification payload: $razorpayPaymentData');
-      }
-
       final response = await ApiService.instance.buyProduct(
         productId: purchaseContext.productId,
         roleId: purchaseContext.roleId,
@@ -332,12 +471,61 @@ Future<
   Future<void> _handlePaymentSuccess(
     PaymentSuccessResponse response,
   ) async {
-    final razorpayPaymentData = <String, String?>{
-      'payment_id': response.paymentId,
-      'order_id': response.orderId,
-      'signature': response.signature,
-    };
-    await _callBuyProductApi(razorpayPaymentData: razorpayPaymentData);
+    final backendOrderId = _pendingBackendOrderId;
+    final customerId = await SecureStorageService.getUserId();
+    final roleId = (await SecureStorageService.getRoleId()) ?? 4;
+
+    if (backendOrderId == null ||
+        customerId == null ||
+        response.orderId == null ||
+        response.paymentId == null ||
+        response.signature == null) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Payment succeeded but verification payload is incomplete.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final verifyResponse = await ApiService.instance.verifyRazorpayPayment(
+      userId: customerId,
+      roleId: roleId,
+      orderId: backendOrderId,
+      razorpayOrderId: response.orderId!,
+      razorpayPaymentId: response.paymentId!,
+      razorpaySignature: response.signature!,
+    );
+
+    if (!mounted) return;
+
+    setState(() => _isSubmitting = false);
+
+    if (!verifyResponse.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(verifyResponse.message ?? 'Payment verification failed.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    _pendingBackendOrderId = null;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(verifyResponse.message ?? 'Payment successful'),
+        backgroundColor: const Color(0xFF1F8B00),
+      ),
+    );
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      AppRoutes.hometab,
+      (route) => false,
+    );
   }
 
   void _handlePaymentError(PaymentFailureResponse response) {
