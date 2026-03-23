@@ -12,6 +12,7 @@ import 'package:provider/provider.dart';
 
 import 'constants/app_strings.dart';
 import 'constants/core/navigation_service.dart';
+import 'constants/core/secure_storage_service.dart';
 import 'provider/document_provider.dart';
 import 'provider/company_provider.dart';
 import 'provider/banner_provider.dart';
@@ -55,10 +56,19 @@ Future<void> _logFcmToken() async {
     print('❌ Error fetching FCM token: $e');
   }
 }
+Future<void> testSecureStorage() async {
+  await SecureStorageService.saveAccessToken("TEST_123");
+
+  String? token = await SecureStorageService.getAccessToken();
+
+  print("SECURE TEST TOKEN: $token");
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+  await SecureStorageService.initialize();
+  await testSecureStorage();
+
   try {
     await Firebase.initializeApp();
 

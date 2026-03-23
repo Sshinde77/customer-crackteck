@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 
+import '../constants/app_strings.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/address_model.dart';
 import '../models/product_model.dart';
@@ -28,17 +30,23 @@ class PaymentScreen extends StatefulWidget {
 class _PaymentScreenState extends State<PaymentScreen> {
   static const int _addAddressDropdownValue = -1;
   static const int _cashOnDeliveryIndex = 2;
+  static const String _razorpayKeyId = 'rzp_test_STpRW3sZohBEmz';
   int selectedIndex = -1;
   bool _isSubmitting = false;
   bool _isAddressLoading = false;
   List<AddressModel> _addresses = [];
   int? _selectedAddressId;
+  late final Razorpay _razorpay;
 
   static const String _imageBaseUrl = 'https://crackteck.co.in/';
 
   @override
   void initState() {
     super.initState();
+    _razorpay = Razorpay()
+      ..on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess)
+      ..on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError)
+      ..on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
     if (widget.product != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _fetchAddresses();
@@ -46,11 +54,21 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
+  @override
+  void dispose() {
+    _razorpay.clear();
+    super.dispose();
+  }
+
   String _normalizeImageUrl(String raw) {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) return '';
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
-    if (trimmed.startsWith('/')) return '$_imageBaseUrl${trimmed.substring(1)}';
+     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    if (trimmed.startsWith('/')) {
+      return '$_imageBaseUrl${trimmed.substring(1)}';
+    }
     return '$_imageBaseUrl$trimmed';
   }
 
@@ -124,11 +142,91 @@ class _PaymentScreenState extends State<PaymentScreen> {
       return;
     }
 
-    if (_isAddressLoading) {
+    final purchaseContext = await _resolvePurchaseContext();
+    if (purchaseContext == null) return;
+
+    if (selectedIndex == _cashOnDeliveryIndex) {
+      await _callBuyProductApi();
+      return;
+    }
+
+    await _openRazorpay();
+  }
+
+  Future<void> _openRazorpay({String? orderId}) async {
+    final total = _resolvedTotal;
+    if (total == null || total <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please wait while addresses are loading.')),
+        const SnackBar(
+          content: Text('Unable to start payment. Invalid order total.'),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
+    }
+
+    final userData = await SecureStorageService.getUserData();
+    final prefillContact = _readUserValue(userData, const [
+      'phone',
+      'phone_number',
+      'mobile',
+      'contact',
+    ]);
+    final prefillEmail = _readUserValue(userData, const [
+      'email',
+      'email_id',
+      'mail',
+    ]);
+
+    final options = <String, Object?>{
+      'key': _razorpayKeyId,
+      'amount': (total * 100).round(),
+      'name': AppStrings.appName,
+      'description': 'Product payment',
+      'prefill': <String, String>{
+        if (prefillContact != null) 'contact': prefillContact,
+        if (prefillEmail != null) 'email': prefillEmail,
+      },
+      'notes': <String, String>{
+        'product_name': _resolvedTitle.isEmpty ? 'Product' : _resolvedTitle,
+      },
+      'external': <String, List<String>>{
+        'wallets': <String>['paytm'],
+      },
+      if (orderId != null && orderId.trim().isNotEmpty) 'order_id': orderId.trim(),
+    };
+
+    setState(() => _isSubmitting = true);
+    try {
+      _razorpay.open(options);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unable to open payment gateway: $error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+Future<
+      ({
+        int productId,
+        int roleId,
+        int quantity,
+        int customerId,
+        int shippingAddressId,
+      })?> _resolvePurchaseContext() async {
+    if (_isAddressLoading) {
+      ScaffoldMessenger.of(context).showSnackBar(
+         const SnackBar(
+          content: Text('Please wait while addresses are loading.'),
+        ),
+      );
+      return null;
     }
 
     if (_addresses.isEmpty) {
@@ -136,14 +234,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
         const SnackBar(content: Text('Please add an address to continue.')),
       );
       await _goToAddressScreen();
-      return;
+      return null;
     }
 
     if (_selectedAddressId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a delivery address.')),
       );
-      return;
+      return null;
     }
 
     final productId = widget.product?.id;
@@ -154,13 +252,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
           backgroundColor: Colors.red,
         ),
       );
-      return;
+      return null;
     }
 
-    final int quantity = widget.quantity < 1 ? 1 : widget.quantity;
-    final int roleId = (await SecureStorageService.getRoleId()) ?? 4;
-    final int? customerId = await SecureStorageService.getUserId();
-
+    final customerId = await SecureStorageService.getUserId();
     if (customerId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -168,17 +263,43 @@ class _PaymentScreenState extends State<PaymentScreen> {
           backgroundColor: Colors.red,
         ),
       );
+      return null;
+    }
+
+    return (
+      productId: productId,
+      roleId: (await SecureStorageService.getRoleId()) ?? 4,
+      quantity: widget.quantity < 1 ? 1 : widget.quantity,
+      customerId: customerId,
+      shippingAddressId: _selectedAddressId!,
+    );
+  }
+
+  Future<void> _callBuyProductApi({
+    Map<String, String?>? razorpayPaymentData,
+  }) async {
+    final purchaseContext = await _resolvePurchaseContext();
+    if (purchaseContext == null) {
+      if (mounted) setState(() => _isSubmitting = false);
       return;
     }
 
-    setState(() => _isSubmitting = true);
+    if (mounted && !_isSubmitting) {
+      setState(() => _isSubmitting = true);
+    }
+
     try {
+      if (razorpayPaymentData != null) {
+        // TODO: Send this payload to the backend once payment verification is available.
+        debugPrint('Razorpay verification payload: $razorpayPaymentData');
+      }
+
       final response = await ApiService.instance.buyProduct(
-        productId: productId,
-        roleId: roleId,
-        quantity: quantity,
-        customerId: customerId,
-        shippingAddressId: _selectedAddressId!,
+        productId: purchaseContext.productId,
+        roleId: purchaseContext.roleId,
+        quantity: purchaseContext.quantity,
+        customerId: purchaseContext.customerId,
+        shippingAddressId: purchaseContext.shippingAddressId,
       );
 
       if (!mounted) return;
@@ -206,6 +327,59 @@ class _PaymentScreenState extends State<PaymentScreen> {
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  Future<void> _handlePaymentSuccess(
+    PaymentSuccessResponse response,
+  ) async {
+    final razorpayPaymentData = <String, String?>{
+      'payment_id': response.paymentId,
+      'order_id': response.orderId,
+      'signature': response.signature,
+    };
+    await _callBuyProductApi(razorpayPaymentData: razorpayPaymentData);
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+    final message = response.message?.trim();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message == null || message.isEmpty
+              ? 'Payment failed. Please try again.'
+              : 'Payment failed: $message',
+        ),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+    final walletName = response.walletName?.trim();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          walletName == null || walletName.isEmpty
+              ? 'External wallet selected.'
+              : 'External wallet selected: $walletName',
+        ),
+      ),
+    );
+  }
+
+  String? _readUserValue(Map<String, dynamic>? userData, List<String> keys) {
+    if (userData == null) return null;
+    for (final key in keys) {
+      final value = userData[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+    return null;
   }
 
   Future<void> _fetchAddresses() async {
@@ -531,25 +705,43 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 child: Column(
                   children: [
 
-                    /// Google Pay
+                    /// Razorpay
                     _paymentTile(
                       index: 0,
-                      icon: Icons.account_balance_wallet,
-                      title: 'Google Pay',
+                      leading: Container(
+                        height: 36,
+                        width: 36,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0C2D72),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Text(
+                          'RZP',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ),
+                      title: 'Razorpay',
+                      subtitle: 'Pay securely with Razorpay',
                       amount: '₹ 2,500',
                     ),
 
                     const Divider(height: 1),
 
-                    /// PhonePe
-                    _paymentTile(
+                    if (false)
+                      _paymentTile(
                       index: 1,
                       icon: Icons.payment,
                       title: 'PhonePe',
                       amount: '₹ 2,500',
                     ),
 
-                    const Divider(height: 1),
+                    const SizedBox.shrink(),
 
                     /// Add new UPI
                     ListTile(
@@ -583,7 +775,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   index: _cashOnDeliveryIndex,
                   icon: Icons.local_shipping_outlined,
                   title: 'Cash on Delivery',
-                  amount: 'â‚¹ 2,500',
+                  amount: '\u20B9 2,500',
                   enabled: _isCashOnDeliveryAvailable,
                   subtitle: _isCashOnDeliveryAvailable
                       ? 'Pay when your order is delivered'
@@ -634,9 +826,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
   /// Payment Tile Widget
   Widget _paymentTile({
     required int index,
-    required IconData icon,
     required String title,
     required String amount,
+    IconData? icon,
+    Widget? leading,
     bool enabled = true,
     String? subtitle,
   }) {
@@ -647,7 +840,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
     return ListTile(
       enabled: enabled,
-      leading: Icon(icon, size: 28, color: foregroundColor),
+      leading: leading ??
+          Icon(
+            icon ?? Icons.payment,
+            size: 28,
+            color: foregroundColor,
+          ),
       title: Text(title, style: TextStyle(color: foregroundColor)),
       subtitle: subtitle == null
           ? null
