@@ -929,17 +929,6 @@ Future<
                       amount: '₹ 2,500',
                     ),
 
-                    const SizedBox.shrink(),
-
-                    /// Add new UPI
-                    ListTile(
-                      leading: const Icon(
-                        Icons.add_circle_outline,
-                        color: Colors.green,
-                      ),
-                      title: const Text('Add New UPI ID'),
-                      onTap: () {},
-                    ),
                   ],
                 ),
               ),

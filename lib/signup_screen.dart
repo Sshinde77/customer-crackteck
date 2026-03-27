@@ -17,6 +17,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController lastNameCtrl = TextEditingController();
   final TextEditingController phoneCtrl = TextEditingController();
   final TextEditingController emailCtrl = TextEditingController();
+  final TextEditingController passwordCtrl = TextEditingController();
 
   String? selectedGender;
 
@@ -32,6 +33,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     lastNameCtrl.dispose();
     phoneCtrl.dispose();
     emailCtrl.dispose();
+    passwordCtrl.dispose();
     super.dispose();
   }
 
@@ -53,6 +55,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         'last_name': lastNameCtrl.text.trim(),
         'phone': phoneCtrl.text.trim(),
         'email': emailCtrl.text.trim(),
+        'password': passwordCtrl.text,
         'gender': (selectedGender ?? '').toLowerCase(),
         'role_id': '4', // Default for customer
       };
@@ -159,6 +162,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   },
                 ),
 
+                _inputField(
+                  hint: "Password",
+                  controller: passwordCtrl,
+                  obscureText: true,
+                  validator: (v) {
+                    if (v == null || v.isEmpty) {
+                      return "Please enter password";
+                    }
+                    if (v.length < 6) {
+                      return "Password must be at least 6 characters";
+                    }
+                    return null;
+                  },
+                ),
+
                 _dropdownField(
                   hint: "Gender",
                   value: selectedGender,
@@ -244,6 +262,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     Widget? prefix,
     String? Function(String?)? validator,
     bool readOnly = false,
+    bool obscureText = false,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
@@ -252,6 +271,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         keyboardType: keyboardType,
         validator: validator,
         readOnly: readOnly,
+        obscureText: obscureText,
         decoration: InputDecoration(
           hintText: hint,
           prefixIcon: prefix,
