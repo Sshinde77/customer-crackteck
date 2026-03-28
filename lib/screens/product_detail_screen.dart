@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_html/flutter_html.dart';
 import '../models/product_model.dart';
 import '../services/api_service.dart';
 import 'payment_screen.dart';
@@ -46,6 +47,80 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   String _formatAmount(double value) {
     if (value == value.roundToDouble()) return value.toInt().toString();
     return value.toStringAsFixed(2);
+  }
+
+  bool _hasDisplayableHtml(String? value) {
+    if (value == null) return false;
+    final normalized = value
+        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'<[^>]*>'), ' ')
+        .replaceAll('&nbsp;', ' ')
+        .trim();
+    return normalized.isNotEmpty;
+  }
+
+  Widget _buildHtmlSection({
+    required String title,
+    required String? html,
+  }) {
+    if (!_hasDisplayableHtml(html)) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Html(
+          data: html ?? '',
+          style: {
+            'html': Style(
+              margin: Margins.zero,
+              padding: HtmlPaddings.zero,
+              fontSize: FontSize(15),
+              lineHeight: const LineHeight(1.6),
+              color: Colors.black87,
+            ),
+            'body': Style(
+              margin: Margins.zero,
+              padding: HtmlPaddings.zero,
+              fontSize: FontSize(15),
+              lineHeight: const LineHeight(1.6),
+              color: Colors.black87,
+            ),
+            'p': Style(
+              margin: Margins.only(bottom: 12),
+              fontSize: FontSize(15),
+              lineHeight: const LineHeight(1.6),
+            ),
+            'br': Style(margin: Margins.zero, padding: HtmlPaddings.zero),
+            'ul': Style(
+              margin: Margins.only(bottom: 12, left: 18),
+              padding: HtmlPaddings.zero,
+            ),
+            'ol': Style(
+              margin: Margins.only(bottom: 12, left: 18),
+              padding: HtmlPaddings.zero,
+            ),
+            'li': Style(
+              margin: Margins.only(bottom: 6),
+              fontSize: FontSize(15),
+              lineHeight: const LineHeight(1.5),
+            ),
+            'strong': Style(fontWeight: FontWeight.w600),
+          },
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
   }
 
   ProductData _mergeProducts(ProductData base, ProductData fetched) {
@@ -379,32 +454,18 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              if ((wp?.shortDescription ?? _product.ecommerceShortDescription ?? '').trim().isNotEmpty) ...[
-                const Text('About', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 6),
-                Text(
-                  (wp?.shortDescription ?? _product.ecommerceShortDescription ?? '').trim(),
-                  style: const TextStyle(fontSize: 13, height: 1.35, color: Colors.black87),
-                ),
-                const SizedBox(height: 16),
-              ],
-              if ((wp?.fullDescription ?? _product.ecommerceFullDescription ?? '').trim().isNotEmpty) ...[
-                const Text('Description', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 6),
-                Text(
-                  (wp?.fullDescription ?? _product.ecommerceFullDescription ?? '').trim(),
-                  style: const TextStyle(fontSize: 13, height: 1.35, color: Colors.black87),
-                ),
-                const SizedBox(height: 16),
-              ],
-              if ((wp?.technicalSpecification ?? _product.ecommerceTechnicalSpecification ?? '').trim().isNotEmpty) ...[
-                const Text('Technical Specs', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 6),
-                Text(
-                  (wp?.technicalSpecification ?? _product.ecommerceTechnicalSpecification ?? '').trim(),
-                  style: const TextStyle(fontSize: 13, height: 1.35, color: Colors.black87),
-                ),
-              ],
+              _buildHtmlSection(
+                title: 'About',
+                html: wp?.shortDescription ?? _product.ecommerceShortDescription,
+              ),
+              _buildHtmlSection(
+                title: 'Description',
+                html: wp?.fullDescription ?? _product.ecommerceFullDescription,
+              ),
+              _buildHtmlSection(
+                title: 'Technical Specs',
+                html: wp?.technicalSpecification ?? _product.ecommerceTechnicalSpecification,
+              ),
             ],
           ),
         ),

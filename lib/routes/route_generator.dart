@@ -3,6 +3,7 @@ import 'package:customer_cracktreck/screens/address_screen.dart';
 import 'package:customer_cracktreck/screens/company_screen.dart';
 import 'package:customer_cracktreck/screens/documents_screen.dart';
 import 'package:customer_cracktreck/screens/feedback_screen.dart';
+import 'package:customer_cracktreck/screens/forgot_password_flow.dart';
 import 'package:customer_cracktreck/screens/my_product_orders_screen.dart';
 import 'package:customer_cracktreck/screens/my_service_request_screen.dart';
 import 'package:customer_cracktreck/screens/notification.dart';
@@ -41,6 +42,32 @@ class RouteGenerator {
       case AppRoutes.login:
         return MaterialPageRoute(
           builder: (_) => const LoginScreen(roleId: AppStrings.roleId,),
+          settings: settings,
+        );
+
+      case AppRoutes.forgotPassword:
+        return MaterialPageRoute(
+          builder: (_) => const ForgotPasswordScreen(),
+          settings: settings,
+        );
+
+      case AppRoutes.forgotPasswordOtp:
+        final args = settings.arguments as ForgotPasswordOtpArguments?;
+        if (args == null) {
+          return _errorRoute('Forgot password OTP arguments missing');
+        }
+        return MaterialPageRoute(
+          builder: (_) => ForgotPasswordOtpScreen(args: args),
+          settings: settings,
+        );
+
+      case AppRoutes.resetPassword:
+        final args = settings.arguments as ResetPasswordArguments?;
+        if (args == null) {
+          return _errorRoute('Reset password arguments missing');
+        }
+        return MaterialPageRoute(
+          builder: (_) => ResetPasswordScreen(args: args),
           settings: settings,
         );
 

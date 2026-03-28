@@ -7,6 +7,9 @@ class AppRoutes {
 
   //Initial Route Login Route (unified for all roles)
   static const String login = '/login';
+  static const String forgotPassword = '/forgot-password';
+  static const String forgotPasswordOtp = '/forgot-password-otp';
+  static const String resetPassword = '/reset-password';
 
   // OTP Verification Route
   static const String otpVerification = '/otp-verification';

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:country_state_city_picker/country_state_city_picker.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
@@ -13,6 +14,7 @@ class CompanyScreen extends StatefulWidget {
 
 class _CompanyScreenState extends State<CompanyScreen> {
   bool _isEditing = false;
+  String? _gstErrorText;
 
   final TextEditingController _companyNameController = TextEditingController();
   final TextEditingController _gstNumberController = TextEditingController();
@@ -39,7 +41,7 @@ class _CompanyScreenState extends State<CompanyScreen> {
 
   void _updateControllers(dynamic details) {
     _companyNameController.text = details.companyName ?? "";
-    _gstNumberController.text = details.gstNo ?? "";
+    _gstNumberController.text = (details.gstNo ?? "").toString().toUpperCase();
     _address1Controller.text = details.compAddress1 ?? "";
     _address2Controller.text = details.compAddress2 ?? "";
     _pincodeController.text = details.compPincode ?? "";
@@ -49,7 +51,15 @@ class _CompanyScreenState extends State<CompanyScreen> {
   }
 
   Future<void> _handleSave() async {
-    final success = await context.read<CompanyProvider>().saveCompanyDetails(
+    final gstValidationMessage = _validateGstNumber(
+      _gstNumberController.text.trim(),
+    );
+    if (gstValidationMessage != null) {
+      setState(() => _gstErrorText = gstValidationMessage);
+      return;
+    }
+
+    final response = await context.read<CompanyProvider>().saveCompanyDetails(
       companyName: _companyNameController.text,
       address1: _address1Controller.text,
       address2: _address2Controller.text,
@@ -57,20 +67,34 @@ class _CompanyScreenState extends State<CompanyScreen> {
       state: _state,
       country: _country,
       pincode: _pincodeController.text,
-      gstNo: _gstNumberController.text,
+      gstNo: _normalizedGstNumber,
     );
 
-    if (success) {
+    if (response.success) {
       if (mounted) {
         setState(() => _isEditing = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Company details updated successfully')),
+          SnackBar(
+            content: Text(
+              response.message ?? 'Company details updated successfully',
+            ),
+          ),
         );
       }
     } else {
       if (mounted) {
+        final apiMessage = response.message?.trim();
+        if (apiMessage != null && _looksLikeGstError(apiMessage)) {
+          setState(() => _gstErrorText = apiMessage);
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update company details')),
+          SnackBar(
+            content: Text(
+              apiMessage?.isNotEmpty == true
+                  ? apiMessage!
+                  : 'Failed to update company details',
+            ),
+          ),
         );
       }
     }
@@ -140,10 +164,29 @@ class _CompanyScreenState extends State<CompanyScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildTextField("Company Name", _companyNameController),
-                    const SizedBox(height: 16),
-                    _buildTextField("Company GST Number", _gstNumberController),
-                    const SizedBox(height: 16),
+                     _buildTextField("Company Name", _companyNameController),
+                     const SizedBox(height: 16),
+                     _buildTextField(
+                       "Company GST Number",
+                       _gstNumberController,
+                       keyboardType: TextInputType.text,
+                       errorText: _gstErrorText,
+                       helperText:
+                           'GSTIN must be 15 characters, for example 22AAAAA0000A1Z5.',
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'[a-zA-Z0-9]'),
+                          ),
+                         LengthLimitingTextInputFormatter(15),
+                         UpperCaseTextFormatter(),
+                       ],
+                       onChanged: (_) {
+                         if (_gstErrorText != null) {
+                           setState(() => _gstErrorText = null);
+                         }
+                       },
+                     ),
+                     const SizedBox(height: 16),
                     _buildTextField("Address Line 1", _address1Controller),
                     const SizedBox(height: 16),
                     _buildTextField("Address Line 2", _address2Controller),
@@ -196,7 +239,15 @@ class _CompanyScreenState extends State<CompanyScreen> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller, {TextInputType? keyboardType}) {
+  Widget _buildTextField(
+    String label,
+    TextEditingController controller, {
+    TextInputType? keyboardType,
+    String? errorText,
+    String? helperText,
+    List<TextInputFormatter>? inputFormatters,
+    ValueChanged<String>? onChanged,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -205,11 +256,16 @@ class _CompanyScreenState extends State<CompanyScreen> {
         TextField(
           controller: controller,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
+          onChanged: onChanged,
           readOnly: !_isEditing,
           decoration: InputDecoration(
             isDense: true,
             filled: !_isEditing,
             fillColor: !_isEditing ? Colors.grey.shade50 : Colors.white,
+            errorText: errorText,
+            helperText: helperText,
+            helperMaxLines: 2,
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey.shade300)),
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey.shade300)),
@@ -217,6 +273,54 @@ class _CompanyScreenState extends State<CompanyScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  String get _normalizedGstNumber => _gstNumberController.text.trim().toUpperCase();
+
+  String? _validateGstNumber(String value) {
+    if (value.isEmpty) {
+      return 'Please enter GST number';
+    }
+
+    final normalized = value.toUpperCase();
+    if (normalized.length != 15) {
+      return 'GSTIN must be exactly 15 characters.';
+    }
+
+    final gstPattern = RegExp(
+      r'^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$',
+    );
+    if (!gstPattern.hasMatch(normalized)) {
+      return 'Enter a valid GSTIN, for example 22AAAAA0000A1Z5.';
+    }
+
+    return null;
+  }
+
+  bool _looksLikeGstError(String message) {
+    final lower = message.toLowerCase();
+    return lower.contains('gst') ||
+        lower.contains('gstin') ||
+        lower.contains('15 characters') ||
+        lower.contains('15 digit') ||
+        lower.contains('15-digit') ||
+        lower.contains('invalid');
+  }
+}
+
+class UpperCaseTextFormatter extends TextInputFormatter {
+  const UpperCaseTextFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return TextEditingValue(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
+      composing: TextRange.empty,
     );
   }
 }

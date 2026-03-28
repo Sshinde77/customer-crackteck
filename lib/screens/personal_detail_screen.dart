@@ -179,6 +179,7 @@ class _PersonalDetailScreenState extends State<PersonalDetailScreen> {
                     "Email Address",
                     _emailController,
                     keyboardType: TextInputType.emailAddress,
+                    isReadOnlyAlways: true,
                   ),
                   const SizedBox(height: 16),
                   _buildTextField(

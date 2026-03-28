@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/company_model.dart';
+import '../models/api_response.dart';
 import '../services/api_service.dart';
 
 class CompanyProvider extends ChangeNotifier {
@@ -26,7 +27,7 @@ class CompanyProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> saveCompanyDetails({
+  Future<ApiResponse> saveCompanyDetails({
     required String companyName,
     required String address1,
     required String address2,
@@ -54,12 +55,12 @@ class CompanyProvider extends ChangeNotifier {
 
       if (response.success) {
         await fetchCompanyDetails();
-        return true;
+        return response;
       }
-      return false;
+      return response;
     } catch (e) {
       debugPrint("Error saving company details: $e");
-      return false;
+      return ApiResponse(success: false, message: 'Failed to save company details');
     } finally {
       _isLoading = false;
       notifyListeners();

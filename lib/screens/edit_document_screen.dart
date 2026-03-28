@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -35,6 +36,7 @@ class _EditDocumentScreenState extends State<EditDocumentScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _isSaving = false;
   bool _isPickingImage = false;
+  String? _numberErrorText;
 
   @override
   void initState() {
@@ -99,10 +101,11 @@ class _EditDocumentScreenState extends State<EditDocumentScreen> {
   }
 
   Future<void> _handleSave() async {
-    if (_numberController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please enter ${widget.label}')),
-      );
+    final validationMessage = _validateDocumentNumber(
+      _numberController.text.trim(),
+    );
+    if (validationMessage != null) {
+      setState(() => _numberErrorText = validationMessage);
       return;
     }
 
@@ -122,7 +125,7 @@ class _EditDocumentScreenState extends State<EditDocumentScreen> {
           ? await api.uploadAadhar(
               userId: userId,
               roleId: roleId,
-              aadharNumber: _numberController.text.trim(),
+              aadharNumber: _normalizedDocumentNumber,
               frontImage: _frontImage,
               backImage: _backImage,
               documentId: widget.documentId,
@@ -130,14 +133,18 @@ class _EditDocumentScreenState extends State<EditDocumentScreen> {
           : await api.uploadPan(
               userId: userId,
               roleId: roleId,
-              panNumber: _numberController.text.trim(),
+              panNumber: _normalizedDocumentNumber,
               frontImage: _frontImage,
               backImage: _backImage,
               documentId: widget.documentId,
             );
 
       if (!result.success) {
-        throw Exception(result.message ?? 'Failed to save document');
+        final apiErrorMessage = result.message ?? 'Failed to save document';
+        setState(() {
+          _numberErrorText = _mapApiErrorToField(apiErrorMessage);
+        });
+        throw Exception(apiErrorMessage);
       }
 
       if (!mounted) return;
@@ -189,14 +196,29 @@ class _EditDocumentScreenState extends State<EditDocumentScreen> {
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    TextField(
-                      controller: _numberController,
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(vertical: 8),
-                      ),
-                      style: const TextStyle(
-                        fontSize: 16,
+                     TextField(
+                       controller: _numberController,
+                       keyboardType: _isAadhar
+                           ? TextInputType.number
+                           : TextInputType.text,
+                       inputFormatters: _documentInputFormatters,
+                       textCapitalization: _isAadhar
+                           ? TextCapitalization.none
+                           : TextCapitalization.characters,
+                       onChanged: (_) {
+                         if (_numberErrorText != null) {
+                           setState(() => _numberErrorText = null);
+                         }
+                       },
+                       decoration: InputDecoration(
+                         isDense: true,
+                         contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                         errorText: _numberErrorText,
+                         helperText: _documentHelperText,
+                         helperMaxLines: 2,
+                       ),
+                       style: const TextStyle(
+                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -347,6 +369,88 @@ class _EditDocumentScreenState extends State<EditDocumentScreen> {
           ],
         );
       },
+    );
+  }
+
+  bool get _isAadhar => widget.title.toLowerCase().contains('aadhar');
+
+  String get _normalizedDocumentNumber {
+    final value = _numberController.text.trim();
+    return _isAadhar ? value.replaceAll(RegExp(r'\s+'), '') : value.toUpperCase();
+  }
+
+  List<TextInputFormatter> get _documentInputFormatters {
+    if (_isAadhar) {
+      return <TextInputFormatter>[
+        FilteringTextInputFormatter.digitsOnly,
+        LengthLimitingTextInputFormatter(12),
+      ];
+    }
+
+    return <TextInputFormatter>[
+      FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+      LengthLimitingTextInputFormatter(10),
+      UpperCaseTextFormatter(),
+    ];
+  }
+
+  String get _documentHelperText {
+    if (_isAadhar) {
+      return 'Aadhaar number must be exactly 12 digits.';
+    }
+    return 'PAN must be 10 characters in the format ABCDE1234F.';
+  }
+
+  String? _validateDocumentNumber(String value) {
+    if (value.isEmpty) {
+      return 'Please enter ${widget.label}';
+    }
+
+    if (_isAadhar) {
+      if (!RegExp(r'^\d{12}$').hasMatch(value)) {
+        return 'Aadhaar number must be exactly 12 digits.';
+      }
+      return null;
+    }
+
+    final normalized = value.toUpperCase();
+    if (!RegExp(r'^[A-Z]{5}[0-9]{4}[A-Z]{1}$').hasMatch(normalized)) {
+      return 'PAN must be 10 characters in the format ABCDE1234F.';
+    }
+    return null;
+  }
+
+  String? _mapApiErrorToField(String message) {
+    final normalized = message.trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    final lower = normalized.toLowerCase();
+    if (_isAadhar &&
+        (lower.contains('aadhar') ||
+            lower.contains('aadhaar') ||
+            lower.contains('12 digit') ||
+            lower.contains('12-digit'))) {
+      return normalized;
+    }
+    if (!_isAadhar && lower.contains('pan')) {
+      return normalized;
+    }
+    return null;
+  }
+}
+
+class UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return TextEditingValue(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
+      composing: TextRange.empty,
     );
   }
 }

@@ -185,20 +185,58 @@
   
     Future<void> _handleEmailLogin() async {
       FocusScope.of(context).unfocus();
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
+      final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+      if (!emailRegex.hasMatch(email)) {
+        _showSnackBar('Enter a valid email address.', isError: true);
+        return;
+      }
+      if (password.trim().isEmpty) {
+        _showSnackBar('Enter your password.', isError: true);
+        return;
+      }
+
       setState(() {
         _isEmailLoading = true;
       });
-  
-      await Future<void>.delayed(const Duration(milliseconds: 250));
-  
-      if (!mounted) return;
-      setState(() {
-        _isEmailLoading = false;
-      });
-      _showSnackBar(
-        'Email login UI is ready, but no existing email/password auth handler was found in this project.',
-        isError: true,
-      );
+
+      try {
+        final response = await _authService.loginWithEmailPassword(
+          email: email,
+          password: password,
+          roleId: widget.roleId,
+        );
+
+        if (!mounted) return;
+
+        if (response.success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response.message ?? 'Login successful'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            AppRoutes.hometab,
+            (route) => false,
+          );
+          return;
+        }
+
+        _showSnackBar(
+          response.message ?? 'Email login failed',
+          isError: true,
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isEmailLoading = false;
+          });
+        }
+      }
     }
   
     Future<void> _handleFacebookLogin() async {
@@ -376,9 +414,9 @@
                                     });
                                   },
                                   onForgotPassword: () {
-                                    _showSnackBar(
-                                      'Forgot password flow is not configured in this project.',
-                                      isError: true,
+                                    Navigator.pushNamed(
+                                      context,
+                                      AppRoutes.forgotPassword,
                                     );
                                   },
                                   onSubmit: _handleEmailLogin,

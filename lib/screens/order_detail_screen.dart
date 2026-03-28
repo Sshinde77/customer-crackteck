@@ -644,7 +644,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         order?.rewardAvailable == true &&
         order?.rewardClaimed == false;
     final canCancel = canCancelOrder(rawOrderStatus);
-    final canReplace = order?.isReturnable == true;
+    final canReplace = canReplaceOrder(order);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -773,6 +773,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                 'Ordered On',
                                 _formatDateTime(order?.createdAt),
                               ),
+                              if (isDelivered &&
+                                  (order?.deliveredAt ?? '').trim().isNotEmpty)
+                                _buildInfoRow(
+                                  'Delivered On',
+                                  _formatDateTime(order?.deliveredAt),
+                                ),
                               _buildInfoRow(
                                 'Expected Delivery Date',
                                 _formatDateTime(

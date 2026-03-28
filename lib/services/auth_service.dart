@@ -173,6 +173,384 @@ class AuthService {
     }
   }
 
+  Future<ApiResponse<Map<String, dynamic>>> loginWithEmailPassword({
+    required String email,
+    required String password,
+    required int roleId,
+  }) async {
+    try {
+      final requestBody = <String, dynamic>{
+        'email': email.trim(),
+        'password': password,
+        'role_id': roleId,
+      };
+
+      final response = await http
+          .post(
+            Uri.parse(ApiConstants.emailPasswordLogin),
+            headers: const <String, String>{
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode(requestBody),
+          )
+          .timeout(ApiConstants.requestTimeout);
+
+      debugPrint('API Request: POST ${ApiConstants.emailPasswordLogin}');
+      debugPrint('API Request Body: ${jsonEncode(requestBody)}');
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final Map<String, dynamic> jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final bool success = _readBool(
+              jsonResponse['success'],
+            ) ??
+            _readBool(jsonResponse['status']) ??
+            true;
+
+        if (!success) {
+          return ApiResponse<Map<String, dynamic>>(
+            success: false,
+            message: _messageFromResponse(
+              jsonResponse,
+              fallback: 'Email login failed',
+            ),
+            data: _extractPayload(jsonResponse),
+            errors: jsonResponse['errors'],
+          );
+        }
+
+        final payload = _extractPayload(jsonResponse);
+        final user = _extractUserMap(jsonResponse);
+        final token = _extractToken(jsonResponse);
+        final refreshToken = _extractRefreshToken(jsonResponse);
+        final userId = _extractUserId(jsonResponse);
+        final resolvedRoleId = _extractRoleId(jsonResponse) ?? roleId;
+
+        await SecureStorageService.saveSession(
+          accessToken: token,
+          refreshToken: refreshToken,
+          userId: userId,
+          roleId: resolvedRoleId,
+          userData: user,
+        );
+
+        final session = await SessionManager.getSession();
+        if (!session.isAuthenticated) {
+          return ApiResponse<Map<String, dynamic>>(
+            success: false,
+            message: 'Login succeeded but session setup failed. Please try again.',
+            data: payload,
+          );
+        }
+
+        await syncLoggedInDeviceToken();
+
+        return ApiResponse<Map<String, dynamic>>(
+          success: true,
+          message: _messageFromResponse(
+            jsonResponse,
+            fallback: 'Login successful',
+          ),
+          data: payload,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: _messageFromResponse(
+          jsonResponse,
+          fallback: isHtml
+              ? 'Server returned HTML instead of JSON'
+              : 'Failed to login with email and password',
+        ),
+        data: _extractPayload(jsonResponse),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'No internet connection. Please check your network.',
+      );
+    } on TimeoutException {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Request timeout. Please try again.',
+      );
+    } on http.ClientException catch (e) {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Request failed: ${e.message}',
+      );
+    } catch (e) {
+      debugPrint('Unexpected error in loginWithEmailPassword: $e');
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Unexpected error: $e',
+      );
+    }
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> sendForgotPasswordCode({
+    required String email,
+    required int roleId,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        ApiConstants.forgotPasswordSendCode,
+      ).replace(
+        queryParameters: <String, String>{
+          'email': email.trim(),
+          'role_id': roleId.toString(),
+        },
+      );
+
+      final response = await http
+          .post(
+            uri,
+            headers: const <String, String>{
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(ApiConstants.requestTimeout);
+
+      debugPrint('API Request: POST $uri');
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+      final bool success = _readBool(jsonResponse['success']) ??
+          _readBool(jsonResponse['status']) ??
+          (response.statusCode == 200 || response.statusCode == 201);
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201) &&
+          success) {
+        return ApiResponse<Map<String, dynamic>>(
+          success: true,
+          message: _messageFromResponse(
+            jsonResponse,
+            fallback: 'Verification code sent successfully',
+          ),
+          data: _extractPayload(jsonResponse),
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: _messageFromResponse(
+          jsonResponse,
+          fallback: isHtml
+              ? 'Server returned HTML instead of JSON'
+              : 'Failed to send verification code',
+        ),
+        data: _extractPayload(jsonResponse),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'No internet connection. Please check your network.',
+      );
+    } on TimeoutException {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Request timeout. Please try again.',
+      );
+    } on http.ClientException catch (e) {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Request failed: ${e.message}',
+      );
+    } catch (e) {
+      debugPrint('Unexpected error in sendForgotPasswordCode: $e');
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Unexpected error: $e',
+      );
+    }
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> verifyForgotPasswordCode({
+    required String email,
+    required int roleId,
+    required String code,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        ApiConstants.forgotPasswordVerifyCode,
+      ).replace(
+        queryParameters: <String, String>{
+          'email': email.trim(),
+          'role_id': roleId.toString(),
+          'code': code.trim(),
+        },
+      );
+
+      final response = await http
+          .post(
+            uri,
+            headers: const <String, String>{
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(ApiConstants.requestTimeout);
+
+      debugPrint('API Request: POST $uri');
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+      final bool success = _readBool(jsonResponse['success']) ??
+          _readBool(jsonResponse['status']) ??
+          (response.statusCode == 200 || response.statusCode == 201);
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201) &&
+          success) {
+        return ApiResponse<Map<String, dynamic>>(
+          success: true,
+          message: _messageFromResponse(
+            jsonResponse,
+            fallback: 'Verification code verified successfully',
+          ),
+          data: _extractPayload(jsonResponse),
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: _messageFromResponse(
+          jsonResponse,
+          fallback: isHtml
+              ? 'Server returned HTML instead of JSON'
+              : 'Failed to verify code',
+        ),
+        data: _extractPayload(jsonResponse),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'No internet connection. Please check your network.',
+      );
+    } on TimeoutException {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Request timeout. Please try again.',
+      );
+    } on http.ClientException catch (e) {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Request failed: ${e.message}',
+      );
+    } catch (e) {
+      debugPrint('Unexpected error in verifyForgotPasswordCode: $e');
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Unexpected error: $e',
+      );
+    }
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> resetForgotPassword({
+    required String email,
+    required int roleId,
+    required String password,
+    required String passwordConfirmation,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        ApiConstants.forgotPasswordReset,
+      ).replace(
+        queryParameters: <String, String>{
+          'email': email.trim(),
+          'role_id': roleId.toString(),
+          'password': password,
+          'password_confirmation': passwordConfirmation,
+        },
+      );
+
+      final response = await http
+          .post(
+            uri,
+            headers: const <String, String>{
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(ApiConstants.requestTimeout);
+
+      debugPrint('API Request: POST $uri');
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+      final bool success = _readBool(jsonResponse['success']) ??
+          _readBool(jsonResponse['status']) ??
+          (response.statusCode == 200 || response.statusCode == 201);
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201) &&
+          success) {
+        return ApiResponse<Map<String, dynamic>>(
+          success: true,
+          message: _messageFromResponse(
+            jsonResponse,
+            fallback: 'Password reset successfully',
+          ),
+          data: _extractPayload(jsonResponse),
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: _messageFromResponse(
+          jsonResponse,
+          fallback: isHtml
+              ? 'Server returned HTML instead of JSON'
+              : 'Failed to reset password',
+        ),
+        data: _extractPayload(jsonResponse),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'No internet connection. Please check your network.',
+      );
+    } on TimeoutException {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Request timeout. Please try again.',
+      );
+    } on http.ClientException catch (e) {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Request failed: ${e.message}',
+      );
+    } catch (e) {
+      debugPrint('Unexpected error in resetForgotPassword: $e');
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Unexpected error: $e',
+      );
+    }
+  }
+
   Future<void> clearSession() {
     return SessionManager.clearSession();
   }

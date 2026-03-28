@@ -10,6 +10,12 @@ class ApiConstants {
   // Authentication Endpoints
   static const String login = '$baseUrl/send-otp';
   static const String verifyOtp = '$baseUrl/verify-otp';
+  static const String emailPasswordLogin = '$baseUrl/email-pass-login';
+  static const String forgotPasswordSendCode =
+      '$baseUrl/forgot-password/send-code';
+  static const String forgotPasswordVerifyCode =
+      '$baseUrl/forgot-password/verify-code';
+  static const String forgotPasswordReset = '$baseUrl/forgot-password/reset';
   static const String refreshToken = '$baseUrl/refresh-token';
   static const String signup = '$baseUrl/signup';
   static const String logout = '$baseUrl/logout';

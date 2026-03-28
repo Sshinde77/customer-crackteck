@@ -1866,6 +1866,47 @@ class ApiService {
     return fallback;
   }
 
+  String _extractFirstErrorMessage(dynamic errors, {required String fallback}) {
+    if (errors is Map) {
+      for (final dynamic value in errors.values) {
+        if (value is List && value.isNotEmpty) {
+          final dynamic first = value.first;
+          if (first is String && first.trim().isNotEmpty) {
+            return first.trim();
+          }
+        }
+        if (value is String && value.trim().isNotEmpty) {
+          return value.trim();
+        }
+        if (value is Map) {
+          final nested = _extractFirstErrorMessage(value, fallback: '');
+          if (nested.isNotEmpty) {
+            return nested;
+          }
+        }
+      }
+    }
+    if (errors is List && errors.isNotEmpty) {
+      final dynamic first = errors.first;
+      if (first is String && first.trim().isNotEmpty) {
+        return first.trim();
+      }
+    }
+    return fallback;
+  }
+
+  String _messageFromJsonResponse(
+    Map<String, dynamic> jsonResponse, {
+    required String fallback,
+  }) {
+    final message = _stringifyMessage(jsonResponse['message'], fallback: '');
+    if (message.isNotEmpty) {
+      return message;
+    }
+
+    return _extractFirstErrorMessage(jsonResponse['errors'], fallback: fallback);
+  }
+
   // ========================================
   // Service Request Detail API
   // ========================================
@@ -3239,6 +3280,7 @@ class ApiService {
     int? documentId,
   }) async {
     try {
+      final normalizedAadharNumber = aadharNumber.trim();
       Uri url;
       if (documentId != null) {
         url = Uri.parse("${ApiConstants.aadharCard}/$documentId");
@@ -3262,7 +3304,7 @@ class ApiService {
       }
 
       request.fields.addAll(authFields);
-      request.fields['aadhar_number'] = aadharNumber;
+      request.fields['aadhar_number'] = normalizedAadharNumber;
 
       if (documentId != null) {
         request.fields['_method'] = 'PUT';
@@ -3291,12 +3333,20 @@ class ApiService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         return ApiResponse(
           success: true,
-          message: jsonResponse['message'] ?? 'Aadhar saved',
+          message: _messageFromJsonResponse(
+            jsonResponse,
+            fallback: 'Aadhar saved',
+          ),
+          errors: jsonResponse['errors'],
         );
       }
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? 'Failed to save Aadhar',
+        message: _messageFromJsonResponse(
+          jsonResponse,
+          fallback: 'Failed to save Aadhar',
+        ),
+        errors: jsonResponse['errors'],
       );
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
@@ -3312,6 +3362,7 @@ class ApiService {
     int? documentId,
   }) async {
     try {
+      final normalizedPanNumber = panNumber.trim().toUpperCase();
       Uri url;
       if (documentId != null) {
         url = Uri.parse("${ApiConstants.panCard}/$documentId");
@@ -3335,7 +3386,7 @@ class ApiService {
       }
 
       request.fields.addAll(authFields);
-      request.fields['pan_number'] = panNumber;
+      request.fields['pan_number'] = normalizedPanNumber;
 
       if (documentId != null) {
         request.fields['_method'] = 'PUT';
@@ -3367,12 +3418,17 @@ class ApiService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         return ApiResponse(
           success: true,
-          message: jsonResponse['message'] ?? 'PAN saved',
+          message: _messageFromJsonResponse(jsonResponse, fallback: 'PAN saved'),
+          errors: jsonResponse['errors'],
         );
       }
       return ApiResponse(
         success: false,
-        message: jsonResponse['message'] ?? 'Failed to save PAN',
+        message: _messageFromJsonResponse(
+          jsonResponse,
+          fallback: 'Failed to save PAN',
+        ),
+        errors: jsonResponse['errors'],
       );
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
@@ -3437,6 +3493,7 @@ class ApiService {
     int? companyId,
   }) async {
     try {
+      final normalizedGstNo = gstNo.trim().toUpperCase();
       final authFields = await _resolvedAuthFields(
         userId: userId,
         roleId: roleId,
@@ -3465,7 +3522,7 @@ class ApiService {
             'comp_state': state,
             'comp_country': country,
             'comp_pincode': pincode,
-            'gst_no': gstNo,
+            'gst_no': normalizedGstNo,
           },
         );
 
@@ -3475,10 +3532,23 @@ class ApiService {
         if (response.statusCode == 200 || response.statusCode == 201) {
           return ApiResponse(
             success: true,
-            message: jsonResponse['message'] ?? 'Company details updated',
+            message: _messageFromJsonResponse(
+              jsonResponse,
+              fallback: 'Company details updated',
+            ),
             data: jsonResponse['company_details'],
+            errors: jsonResponse['errors'],
           );
         }
+
+        return ApiResponse(
+          success: false,
+          message: _messageFromJsonResponse(
+            jsonResponse,
+            fallback: 'Failed to update company details',
+          ),
+          errors: jsonResponse['errors'],
+        );
       } else {
         // For Store: POST request with body
         final url = Uri.parse(ApiConstants.company);
@@ -3492,7 +3562,7 @@ class ApiService {
           'comp_state': state,
           'comp_country': country,
           'comp_pincode': pincode,
-          'gst_no': gstNo,
+          'gst_no': normalizedGstNo,
         };
 
         final response = await _performAuthenticatedPost(url, body: body);
@@ -3501,16 +3571,24 @@ class ApiService {
         if (response.statusCode == 200 || response.statusCode == 201) {
           return ApiResponse(
             success: true,
-            message: jsonResponse['message'] ?? 'Company details saved',
+            message: _messageFromJsonResponse(
+              jsonResponse,
+              fallback: 'Company details saved',
+            ),
             data: jsonResponse['company_details'],
+            errors: jsonResponse['errors'],
           );
         }
-      }
 
-      return ApiResponse(
-        success: false,
-        message: 'Failed to save company details',
-      );
+        return ApiResponse(
+          success: false,
+          message: _messageFromJsonResponse(
+            jsonResponse,
+            fallback: 'Failed to save company details',
+          ),
+          errors: jsonResponse['errors'],
+        );
+      }
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
     }
