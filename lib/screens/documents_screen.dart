@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
 import '../provider/document_provider.dart';
+import '../widgets/app_loading_screen.dart';
 import 'edit_document_screen.dart';
 
 class DocumentsScreen extends StatefulWidget {
@@ -61,7 +62,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       body: Consumer<DocumentProvider>(
         builder: (context, provider, child) {
           if (provider.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppLoadingScreen(message: 'Loading your documents.');
           }
 
           final aadhar = provider.aadharCard;

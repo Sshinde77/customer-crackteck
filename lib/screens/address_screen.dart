@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/address_model.dart';
 import '../models/api_response.dart';
+import '../widgets/app_loading_screen.dart';
 import '../widgets/india_country_state_city_picker.dart';
 
 class AddressScreen extends StatefulWidget {
@@ -218,7 +219,7 @@ class _AddressScreenState extends State<AddressScreen> {
         title: const Text('My Addresses', style: TextStyle(color: Colors.white)),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoadingScreen(message: 'Loading your saved addresses.')
           : RefreshIndicator(
               onRefresh: _fetchAddresses,
               child: SingleChildScrollView(

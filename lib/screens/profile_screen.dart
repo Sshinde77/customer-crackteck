@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/user_model.dart';
 import '../models/api_response.dart';
+import '../widgets/app_loading_screen.dart';
 import 'invoice_list_screen.dart';
 import 'my_amc_services_screen.dart';
 import 'rewards_screen.dart';
@@ -70,7 +71,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
+      builder: (context) => const AppLoadingScreen(message: 'Signing you out.'),
     );
 
     try {

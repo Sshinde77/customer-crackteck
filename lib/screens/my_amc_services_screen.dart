@@ -4,6 +4,7 @@ import '../constants/app_colors.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/customer_amc_model.dart';
 import '../services/api_service.dart';
+import '../widgets/app_loading_screen.dart';
 import 'my_amc_service_detail_screen.dart';
 
 class MyAmcServicesScreen extends StatefulWidget {
@@ -160,7 +161,7 @@ class _MyAmcServicesScreenState extends State<MyAmcServicesScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppLoadingScreen(message: 'Loading your AMC services.');
     }
 
     if (_errorMessage != null) {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../services/api_service.dart';
+import '../widgets/app_loading_screen.dart';
 
 class GiveFeedbackScreen extends StatefulWidget {
   final Map<String, dynamic> service;
@@ -197,10 +198,7 @@ class _GiveFeedbackScreenState extends State<GiveFeedbackScreen> {
             ),
           ),
           if (_isLoading)
-            Container(
-              color: Colors.black12,
-              child: const Center(child: CircularProgressIndicator()),
-            ),
+            const AppLoadingScreen(message: 'Submitting your feedback.'),
         ],
       ),
     );

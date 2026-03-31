@@ -10,6 +10,7 @@ import '../models/reward_coupon_model.dart';
 import '../services/api_service.dart';
 import '../services/reward_local_service.dart';
 import '../utils/order_status_utils.dart';
+import '../widgets/app_loading_screen.dart';
 import '../widgets/claim_reward_button.dart';
 import '../widgets/order_status_badge.dart';
 import '../widgets/scratch_reward_popup.dart';
@@ -681,7 +682,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       ),
       body: SafeArea(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? const AppLoadingScreen(message: 'Loading your order details.')
             : _errorMessage != null
                 ? Center(
                     child: Padding(

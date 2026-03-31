@@ -9,6 +9,7 @@ import '../models/service_request_list_model.dart';
 import '../routes/app_routes.dart';
 import '../services/api_service.dart';
 import '../services/reward_local_service.dart';
+import '../widgets/app_loading_screen.dart';
 import '../widgets/scratch_reward_popup.dart';
 
 class MyServiceRequestScreen extends StatefulWidget {
@@ -167,7 +168,9 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
           _buildToggleTabs(),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const AppLoadingScreen(
+                    message: 'Loading your service requests.',
+                  )
                 : _errorMessage != null
                 ? Center(
                     child: Column(

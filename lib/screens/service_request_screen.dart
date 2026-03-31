@@ -14,6 +14,7 @@ import '../provider/quick_service_provider.dart';
 import '../routes/app_routes.dart';
 import '../services/api_service.dart';
 import '../services/image_capture_service.dart';
+import '../widgets/app_loading_screen.dart';
 import 'address_screen.dart';
 import 'payment_screen.dart';
 import 'service_detail_screen.dart';
@@ -670,9 +671,8 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
               ),
             ),
             if (_isLoading)
-              Container(
-                color: Colors.black12,
-                child: const Center(child: CircularProgressIndicator()),
+              const AppLoadingScreen(
+                message: 'Submitting your service request.',
               ),
           ],
         ),

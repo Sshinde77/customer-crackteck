@@ -5,6 +5,7 @@ import '../constants/app_strings.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/invoice_model.dart';
 import '../services/api_service.dart';
+import '../widgets/app_loading_screen.dart';
 import 'invoice_detail_screen.dart';
 
 class InvoiceListScreen extends StatefulWidget {
@@ -149,7 +150,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
           ),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const AppLoadingScreen(message: 'Loading your invoices.')
                 : _errorMessage != null
                 ? _buildErrorState()
                 : RefreshIndicator(

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/notification_item.dart';
 import '../services/api_service.dart';
+import '../widgets/app_loading_screen.dart';
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
@@ -123,7 +124,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         child: RefreshIndicator(
           onRefresh: _loadNotifications,
           child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
+              ? const AppLoadingScreen(message: 'Loading your notifications.')
               : _errorMessage != null
                   ? ListView(
                       padding: const EdgeInsets.all(16),

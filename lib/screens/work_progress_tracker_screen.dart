@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../constants/app_colors.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../services/api_service.dart';
+import '../widgets/app_loading_screen.dart';
 
 class WorkProgressTrackerScreen extends StatefulWidget {
   const WorkProgressTrackerScreen({super.key});
@@ -800,7 +801,7 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
         elevation: 0,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoadingScreen(message: 'Loading work progress updates.')
           : _errorMessage != null
           ? Center(
               child: Padding(

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
 import '../models/amc_plan_model.dart';
 import '../provider/amc_plan_provider.dart';
+import '../widgets/app_loading_screen.dart';
 import 'amc_plan_detail_screen.dart';
 
 class AmcPlansScreen extends StatefulWidget {
@@ -45,7 +46,7 @@ class _AmcPlansScreenState extends State<AmcPlansScreen> {
           final filteredPlans = _filteredPlans(provider.amcPlans);
 
           if (provider.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppLoadingScreen(message: 'Loading AMC plans.');
           }
 
           if (provider.errorMessage != null) {

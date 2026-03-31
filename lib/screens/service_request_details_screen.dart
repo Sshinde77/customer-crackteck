@@ -4,6 +4,7 @@ import '../constants/app_colors.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../routes/app_routes.dart';
 import '../services/api_service.dart';
+import '../widgets/app_loading_screen.dart';
 
 class ServiceRequestDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> requestData;
@@ -255,7 +256,7 @@ class _ServiceRequestDetailsScreenState extends State<ServiceRequestDetailsScree
         elevation: 0,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoadingScreen(message: 'Loading service request details.')
           : _errorMessage != null
               ? Center(
                   child: Padding(

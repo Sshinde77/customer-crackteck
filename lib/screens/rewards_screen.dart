@@ -5,6 +5,7 @@ import '../constants/app_colors.dart';
 import '../models/reward_coupon_model.dart';
 import '../services/api_service.dart';
 import '../services/reward_scratch_state_service.dart';
+import '../widgets/app_loading_screen.dart';
 import '../widgets/reward_list_item.dart';
 import '../widgets/scratch_reward_popup.dart';
 
@@ -100,7 +101,7 @@ class _RewardsScreenState extends State<RewardsScreen> {
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoadingScreen(message: 'Loading your rewards.')
           : _errorMessage != null && _rewards.isEmpty
           ? RefreshIndicator(
               onRefresh: _loadRewards,

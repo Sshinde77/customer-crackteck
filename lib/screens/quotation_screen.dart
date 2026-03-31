@@ -3,6 +3,7 @@ import '../constants/app_colors.dart';
 import '../constants/app_strings.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../services/api_service.dart';
+import '../widgets/app_loading_screen.dart';
 import 'quotation_detail_screen.dart';
 
 class QuotationScreen extends StatefulWidget {
@@ -89,7 +90,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoadingScreen(message: 'Loading your quotations.')
           : _errorMessage != null
           ? _ErrorState(
               message: _errorMessage!,

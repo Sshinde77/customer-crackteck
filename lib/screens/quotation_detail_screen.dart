@@ -4,6 +4,7 @@ import '../constants/app_colors.dart';
 import '../constants/app_strings.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../services/api_service.dart';
+import '../widgets/app_loading_screen.dart';
 
 class QuotationDetailScreen extends StatefulWidget {
   const QuotationDetailScreen({
@@ -168,7 +169,7 @@ class _QuotationDetailScreenState extends State<QuotationDetailScreen> {
             ),
           ),
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const AppLoadingScreen(message: 'Loading quotation details.'),
       );
     }
 

@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/user_model.dart';
 import '../models/api_response.dart';
+import '../widgets/app_loading_screen.dart';
 
 class PersonalDetailScreen extends StatefulWidget {
   const PersonalDetailScreen({super.key});
@@ -158,7 +159,7 @@ class _PersonalDetailScreenState extends State<PersonalDetailScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoadingScreen(message: 'Loading your profile details.')
           : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(

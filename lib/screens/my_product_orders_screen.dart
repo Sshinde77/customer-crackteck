@@ -5,6 +5,7 @@ import '../constants/app_strings.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/order_model.dart';
 import '../services/api_service.dart';
+import '../widgets/app_loading_screen.dart';
 import '../widgets/order_status_badge.dart';
 import 'order_detail_screen.dart';
 
@@ -143,7 +144,7 @@ class _MyProductOrdersScreenState extends State<MyProductOrdersScreen> {
         elevation: 0,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoadingScreen(message: 'Loading your product orders.')
           : _errorMessage != null
               ? Center(
                   child: Padding(

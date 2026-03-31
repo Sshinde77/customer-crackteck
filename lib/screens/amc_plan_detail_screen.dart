@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
-import '../provider/amc_plan_provider.dart';
 import '../models/amc_plan_model.dart';
+import '../provider/amc_plan_provider.dart';
+import '../widgets/app_loading_screen.dart';
 import 'service_request_screen.dart';
 
 class AmcPlanDetailScreen extends StatefulWidget {
@@ -75,7 +76,7 @@ class _AmcPlanDetailScreenState extends State<AmcPlanDetailScreen> {
       body: Consumer<AmcPlanProvider>(
         builder: (context, provider, child) {
           if (provider.isLoadingDetail) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppLoadingScreen(message: 'Loading AMC plan details.');
           }
 
           if (provider.detailErrorMessage != null) {

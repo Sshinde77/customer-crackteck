@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../models/product_category_model.dart';
 import '../models/product_model.dart';
+import '../widgets/app_loading_screen.dart';
 import 'product_detail_screen.dart';
 
 class ProductScreen extends StatefulWidget {
@@ -405,7 +406,7 @@ class _ProductScreenState extends State<ProductScreen> {
             /// PRODUCT GRID
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const AppLoadingScreen(message: 'Loading products.')
                   : _errorMessage != null
                   ? Center(
                       child: Column(
