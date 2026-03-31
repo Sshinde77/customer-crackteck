@@ -11,6 +11,7 @@ import '../constants/core/secure_storage_service.dart';
 import '../models/address_model.dart';
 import '../models/quick_service_model.dart';
 import '../provider/quick_service_provider.dart';
+import '../routes/app_routes.dart';
 import '../services/api_service.dart';
 import '../services/image_capture_service.dart';
 import 'address_screen.dart';
@@ -131,6 +132,77 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       return 'remote';
     }
     return null;
+  }
+
+  bool get _shouldSkipPaymentForAmc {
+    if (!_isAmcRequest) return false;
+
+    final normalizedAmcType = _selectedAmcType?.trim().toLowerCase();
+    if (normalizedAmcType == 'onsite') {
+      return true;
+    }
+
+    final selectedAmcMode = (widget.amcPlanData?['selectedAmcMode'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    if (selectedAmcMode == 'offline') {
+      return true;
+    }
+
+    final supportType = (widget.amcPlanData?['supportType'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    return supportType == 'offline' ||
+        supportType == 'off line' ||
+        supportType == 'onsite' ||
+        supportType == 'on site';
+  }
+
+  Future<void> _submitServiceRequestDirectly({
+    required int customerId,
+    required int roleId,
+    required String serviceType,
+    required List<Map<String, dynamic>> products,
+  }) async {
+    final submitResponse = await ApiService.instance.submitQuickServiceRequest(
+      customerId: customerId,
+      roleId: roleId,
+      serviceType: serviceType,
+      products: products,
+      amcPlanId: _isAmcRequest ? _selectedAmcPlanId : null,
+      amcType: _isAmcRequest ? _selectedAmcType : null,
+      customerAddressId: _selectedAddressId,
+    );
+
+    if (!mounted) return;
+
+    if (submitResponse.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            submitResponse.message ?? 'Service request submitted successfully',
+          ),
+          backgroundColor: const Color(0xFF1F8B00),
+        ),
+      );
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.hometab,
+        (route) => false,
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          submitResponse.message ?? 'Failed to submit request. Please try again.',
+        ),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
 
   @override
@@ -453,6 +525,17 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         };
       }).toList();
 
+      final serviceType = _getServiceTypeFromTitle();
+      if (_shouldSkipPaymentForAmc) {
+        await _submitServiceRequestDirectly(
+          customerId: customerId,
+          roleId: roleId,
+          serviceType: serviceType,
+          products: productData,
+        );
+        return;
+      }
+
       QuickService? selectedService;
       for (final product in _products) {
         if (product.selectedQuickService != null) {
@@ -467,19 +550,19 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       final serviceTitle = _pickFirstText([
         selectedService?.serviceName,
         _selectedAmcPlanName,
-        _getServiceTypeFromTitle(),
-      ], fallback: _getServiceTypeFromTitle());
+        serviceType,
+      ], fallback: serviceType);
 
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (context) => PaymentScreen(
             serviceTitle: serviceTitle,
-            serviceDescription: _getServiceTypeFromTitle(),
+            serviceDescription: serviceType,
             serviceAmount: amount,
             serviceQuantity: _products.length,
             pendingServiceRequestData: {
-              'service_type': _getServiceTypeFromTitle(),
+              'service_type': serviceType,
               'customer_address_id': _selectedAddressId,
               'amc_plan_id': _isAmcRequest ? _selectedAmcPlanId : null,
               'amc_type': _isAmcRequest ? _selectedAmcType : null,

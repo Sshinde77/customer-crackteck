@@ -97,7 +97,7 @@ class _MyAmcServicesScreenState extends State<MyAmcServicesScreen> {
     final text = (raw ?? '').trim();
     if (text.isEmpty) return 'Rs 0';
     final lower = text.toLowerCase();
-    if (lower.contains('rs') || text.contains('₹')) {
+    if (lower.contains('rs') || lower.contains('inr')) {
       return text;
     }
     return 'Rs $text';
@@ -111,11 +111,26 @@ class _MyAmcServicesScreenState extends State<MyAmcServicesScreen> {
     return Colors.blueGrey;
   }
 
+  String _toDisplayCase(String? raw) {
+    final text = (raw ?? '').trim();
+    if (text.isEmpty) return '-';
+
+    return text
+        .split(RegExp(r'[_\s-]+'))
+        .where((part) => part.isNotEmpty)
+        .map(
+          (part) => '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+        )
+        .join(' ');
+  }
+
   void _openAmcDetail(CustomerAmc amc) {
     final amcId = amc.id;
     if (amcId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('AMC details are not available for this item.')),
+        const SnackBar(
+          content: Text('AMC details are not available for this item.'),
+        ),
       );
       return;
     }
@@ -186,32 +201,222 @@ class _MyAmcServicesScreenState extends State<MyAmcServicesScreen> {
 
     return RefreshIndicator(
       onRefresh: _fetchAmcs,
-      child: ListView.builder(
+      child: ListView(
         padding: const EdgeInsets.all(16),
-        itemCount: _amcs.length,
-        itemBuilder: (context, index) => _buildAmcCard(_amcs[index]),
+        children: [
+          _buildOverviewBanner(),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Your AMC Plans',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Text(
+                '${_amcs.length} items',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Track request details, visit counts, and plan pricing in one view.',
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 14),
+          ..._amcs.map(_buildAmcCard),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOverviewBanner() {
+    final int activeCount = _amcs
+        .where(
+          (amc) => amc.displayStatus.trim().toLowerCase().contains('active'),
+        )
+        .length;
+    final int plannedVisits = _amcs.fold<int>(
+      0,
+      (sum, amc) => sum + (amc.scheduleMeetingsCount ?? 0),
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary,
+            AppColors.primary.withValues(alpha: 0.86),
+            const Color(0xFF1B365D),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.22),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'AMC Dashboard',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'A cleaner view of your AMC requests, service visits, and plan value.',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: _buildBannerStat('Total AMC', _amcs.length.toString()),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildBannerStat('Active', activeCount.toString()),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildBannerStat('Visits', plannedVisits.toString()),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBannerStat(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildAmcCard(CustomerAmc amc) {
     final statusColor = _statusColor(amc.displayStatus);
+    final planCode = (amc.amcPlan?.planCode ?? '').trim();
+    final List<_AmcSummaryItem> summaryItems = <_AmcSummaryItem>[
+      _AmcSummaryItem(
+        label: 'Request ID',
+        value: amc.displayRequestId,
+        icon: Icons.confirmation_number_outlined,
+      ),
+      _AmcSummaryItem(
+        label: 'AMC Type',
+        value: _toDisplayCase(amc.displayAmcType),
+        icon: Icons.settings_remote_outlined,
+      ),
+      _AmcSummaryItem(
+        label: 'Request Date',
+        value: _formatDate(amc.displayRequestDate),
+        icon: Icons.event_outlined,
+      ),
+      _AmcSummaryItem(
+        label: 'Scheduled Meetings',
+        value: amc.displayScheduledMeetingsCount,
+        icon: Icons.event_repeat_outlined,
+      ),
+      _AmcSummaryItem(
+        label: 'Total Visits',
+        value: amc.displayTotalVisits,
+        icon: Icons.support_agent_outlined,
+      ),
+      _AmcSummaryItem(
+        label: 'Plan Cost',
+        value: _formatMoney(amc.displayPlanCost),
+        icon: Icons.currency_rupee_outlined,
+      ),
+    ];
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
         onTap: () => _openAmcDetail(amc),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Container(
+                    height: 48,
+                    width: 48,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.miscellaneous_services_outlined,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -223,12 +428,12 @@ class _MyAmcServicesScreenState extends State<MyAmcServicesScreen> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        if (amc.displayCode.isNotEmpty) ...[
+                        if (planCode.isNotEmpty) ...[
                           const SizedBox(height: 4),
                           Text(
-                            amc.displayCode,
+                            'Plan Code: $planCode',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 13,
                               color: Colors.grey[600],
                             ),
                           ),
@@ -236,16 +441,20 @@ class _MyAmcServicesScreenState extends State<MyAmcServicesScreen> {
                       ],
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: statusColor.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(30),
                     ),
                     child: Text(
-                      amc.displayStatus.toUpperCase(),
+                      _toDisplayCase(amc.displayStatus),
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 11,
                         fontWeight: FontWeight.bold,
                         color: statusColor,
                       ),
@@ -253,72 +462,48 @@ class _MyAmcServicesScreenState extends State<MyAmcServicesScreen> {
                   ),
                 ],
               ),
-              if (amc.displayDescription.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(
-                  amc.displayDescription,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-                ),
-              ],
               const SizedBox(height: 16),
-              Wrap(
-                spacing: 10,
-                runSpacing: 8,
-                children: [
-                  _buildInfoChip(Icons.timelapse_outlined, '${amc.displayDuration} months'),
-                  _buildInfoChip(Icons.support_agent_outlined, '${amc.displayTotalVisits} visits'),
-                  _buildInfoChip(Icons.build_circle_outlined, amc.displaySupportType),
-                ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  const double spacing = 12;
+                  final int columns = constraints.maxWidth >= 720 ? 3 : 2;
+                  final double itemWidth =
+                      (constraints.maxWidth - (spacing * (columns - 1))) /
+                      columns;
+
+                  return Wrap(
+                    spacing: spacing,
+                    runSpacing: spacing,
+                    children: summaryItems
+                        .map(
+                          (item) => SizedBox(
+                            width: itemWidth,
+                            child: _buildSummaryTile(item),
+                          ),
+                        )
+                        .toList(),
+                  );
+                },
               ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'AMC Amount',
-                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatMoney(amc.displayTotalAmount),
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ],
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    'View details',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[700],
                     ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'Valid Till',
-                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatDate(amc.endDate),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 14,
+                    color: Colors.grey[700],
+                  ),
+                ],
               ),
             ],
           ),
@@ -327,24 +512,51 @@ class _MyAmcServicesScreenState extends State<MyAmcServicesScreen> {
     );
   }
 
-  Widget _buildInfoChip(IconData icon, String label) {
+  Widget _buildSummaryTile(_AmcSummaryItem item) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 14, color: Colors.grey[700]),
-          const SizedBox(width: 6),
+          Icon(item.icon, size: 18, color: AppColors.primary),
+          const SizedBox(height: 10),
           Text(
-            label,
-            style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+            item.label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            item.value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Colors.black87,
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+class _AmcSummaryItem {
+  const _AmcSummaryItem({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
 }
