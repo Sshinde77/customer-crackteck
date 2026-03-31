@@ -57,8 +57,10 @@ class QuickServicesScreen extends StatelessWidget {
                 title: 'Quick Service Request',
                 baseColor: Colors.teal,
                 icon: Icons.support_agent_outlined,
+                
               ),
             ],
+
           ),
         ),
       ),
@@ -74,6 +76,14 @@ class QuickServicesScreen extends StatelessWidget {
   }) {
     return GestureDetector(
       onTap: () {
+        final url = 'No API call from service_enquiry.dart';
+        final body = {'selected_service': title};
+        final response = 'Navigating to next screen';
+
+        print("API URL: $url");
+        print("Request Body: $body");
+        print("Response: $response");
+
         final Widget destination = title == 'AMC Service Request'
             ? const AmcModeSelectionScreen()
             : ServiceRequestScreen(title: title);

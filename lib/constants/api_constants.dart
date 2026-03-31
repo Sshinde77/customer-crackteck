@@ -34,8 +34,8 @@ class ApiConstants {
   static const String servicesList = '$baseUrl/services-list';
   static const String services = '$baseUrl/services';
   static const String givefeedback = '$baseUrl/give-feedback';
-  static const String getfeedback = '$baseUrl/get-feedback';
   static const String getallfeedback = '$baseUrl/get-all-feedback';
+  static const String notifications = '$baseUrl/notifications';
   static const String amcPlans = '$baseUrl/amc-plans';
   static const String amcPlanDetails = '$baseUrl/amc-plan-details';
   static const String product_category = '$baseUrl/product/categories';
@@ -49,6 +49,7 @@ class ApiConstants {
   static const String service_request_list = '$baseUrl/all-service-requests';
   static const String service_request_details =
       '$baseUrl/service-request-details';
+  static const String service_detail = '$baseUrl/service-details';
   static const String service_request_product_diagnostics =
       '$baseUrl/service-request-product-diagnostics';
   static const String service_request_approval =  
@@ -92,7 +93,9 @@ class ApiConstants {
       '$baseUrl/order/{id}';
   static const String devicetype  =
       '$baseUrl/devices-types';
-      
+
+  static const String servicedetails  =
+      '$baseUrl/service-details';      
 
   // Request Timeout
   static const Duration requestTimeout = Duration(seconds: 30);

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import '../constants/app_colors.dart';
 import '../constants/core/secure_storage_service.dart';
+import '../models/invoice_model.dart';
 import '../models/reward_coupon_model.dart';
 import '../models/service_request_list_model.dart';
 import '../routes/app_routes.dart';
@@ -20,6 +23,7 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   List<ServiceRequestListItem> _requests = [];
+  List<InvoiceModel> _invoices = [];
   final Map<String, RewardCoupon> _rewardsBySource = <String, RewardCoupon>{};
 
   @override
@@ -50,11 +54,18 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
         roleId: roleId,
         customerId: customerId,
       );
+      final invoiceResponse = await ApiService.instance.getInvoiceList(
+        roleId: roleId,
+        userId: customerId,
+      );
 
       if (!mounted) return;
 
       if (response.success && response.data != null) {
         final requests = response.data!;
+        final invoices = invoiceResponse.success && invoiceResponse.data != null
+            ? invoiceResponse.data!.map(InvoiceModel.fromJson).toList()
+            : <InvoiceModel>[];
         final Map<String, RewardCoupon> rewardsBySource = <String, RewardCoupon>{};
         for (final request in requests) {
           if (!request.isDone) continue;
@@ -69,6 +80,7 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
 
         setState(() {
           _requests = requests;
+          _invoices = invoices;
           _rewardsBySource
             ..clear()
             ..addAll(rewardsBySource);
@@ -271,6 +283,7 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
   Widget _buildRequestCard(ServiceRequestListItem request) {
     final isDone = request.isDone;
     final hasClaimedReward = _rewardsBySource.containsKey(_rewardSourceIdFor(request));
+    final invoice = _findInvoiceForRequest(request);
     return GestureDetector(
       onTap: () {
         Navigator.pushNamed(
@@ -297,13 +310,40 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              request.displayServiceType,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primary,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    request.displayServiceType,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+                if (isDone)
+                  OutlinedButton.icon(
+                    onPressed: invoice?.hasInvoicePdf == true
+                        ? () => _downloadInvoice(invoice!)
+                        : null,
+                    icon: const Icon(Icons.download_outlined),
+                    label: const Text('Download Invoice'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: BorderSide(
+                        color: invoice?.hasInvoicePdf == true
+                            ? AppColors.primary
+                            : Colors.grey.shade400,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const Divider(height: 24),
             _buildInfoRow('Service Type', request.displayServiceType),
@@ -313,6 +353,11 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
               _formatRequestDate(request.displayRequestDate),
             ),
             _buildInfoRow('Status', request.displayStatus),
+            if (invoice != null) _buildInfoRow('Invoice', invoice.invoiceNumber),
+            if (invoice != null) _buildInfoRow(
+              'Amount',
+              _formatAmount(invoice.grandTotal, invoice.currency),
+            ),
             if (isDone) ...[
               const SizedBox(height: 16),
               Row(
@@ -360,11 +405,49 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
                   ),
                 ],
               ),
-            ],
+
+          ],
           ],
         ),
       ),
     );
+  }
+
+  InvoiceModel? _findInvoiceForRequest(ServiceRequestListItem request) {
+    final requestId = (request.requestId ?? '').trim().replaceAll('#', '');
+    final serviceCode = (request.serviceCode ?? '').trim().replaceAll('#', '');
+
+    for (final invoice in _invoices) {
+      final leadNumber = invoice.leadNumber.trim().replaceAll('#', '');
+      if (requestId.isNotEmpty && leadNumber == requestId) {
+        return invoice;
+      }
+      if (serviceCode.isNotEmpty && leadNumber == serviceCode) {
+        return invoice;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _downloadInvoice(InvoiceModel invoice) async {
+    if (!invoice.hasInvoicePdf) return;
+
+    final uri = Uri.tryParse(invoice.invoicePdf);
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid invoice PDF link')),
+      );
+      return;
+    }
+
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!mounted) return;
+
+    if (!launched) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open invoice PDF')),
+      );
+    }
   }
 
   Future<void> _showFeedbackDialog(ServiceRequestListItem request) async {
@@ -452,6 +535,24 @@ class _MyServiceRequestScreenState extends State<MyServiceRequestScreen> {
         ],
       ),
     );
+  }
+
+  String _formatAmount(double amount, String currency) {
+    final symbol = _currencySymbol(currency);
+    return '$symbol ${amount.toStringAsFixed(2)}';
+  }
+
+  String _currencySymbol(String currency) {
+    switch (currency.toUpperCase()) {
+      case 'INR':
+        return 'Rs';
+      case 'USD':
+        return '\$';
+      case 'EUR':
+        return 'EUR';
+      default:
+        return currency.toUpperCase();
+    }
   }
 }
 

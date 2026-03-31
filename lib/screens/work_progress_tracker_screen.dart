@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../constants/app_colors.dart';
 import '../constants/core/secure_storage_service.dart';
@@ -18,6 +19,8 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   Map<String, dynamic> _args = const {};
+  Map<String, dynamic> _diagnosticsPayload = const {};
+  Map<String, dynamic> _serviceRequestDetail = const {};
   List<_DiagnosisGroup> _groups = const [];
   final Set<String> _completedPartActionKeys = <String>{};
   final Set<String> _completedPickingActionKeys = <String>{};
@@ -98,6 +101,27 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
     return fallback;
   }
 
+  Map<String, dynamic>? _findNestedMapByKeys(dynamic source, List<String> keys) {
+    if (source is Map) {
+      for (final key in keys) {
+        final value = source[key];
+        if (value is Map<String, dynamic>) return value;
+        if (value is Map) return Map<String, dynamic>.from(value);
+      }
+
+      for (final value in source.values) {
+        final nested = _findNestedMapByKeys(value, keys);
+        if (nested != null) return nested;
+      }
+    } else if (source is List) {
+      for (final value in source) {
+        final nested = _findNestedMapByKeys(value, keys);
+        if (nested != null) return nested;
+      }
+    }
+    return null;
+  }
+
   String _resolveImageUrl(dynamic value) {
     final raw = _toText(value);
     if (raw.isEmpty) return '';
@@ -172,6 +196,12 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
             customerId: customerId,
           );
 
+      final detailResponse = await ApiService.instance.getServiceRequestDetails(
+        requestId: requestId,
+        roleId: roleId,
+        customerId: customerId,
+      );
+
       if (!mounted) return;
 
       if (!response.success || response.data == null) {
@@ -184,6 +214,10 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
 
       final parsed = _parseGroups(response.data!);
       setState(() {
+        _diagnosticsPayload = response.data!;
+        _serviceRequestDetail = detailResponse.success && detailResponse.data != null
+            ? detailResponse.data!
+            : const <String, dynamic>{};
         _groups = parsed;
         _isLoading = false;
       });
@@ -803,6 +837,35 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
   }
 
   Widget _buildExecutiveCard() {
+    final detailSource =
+        _diagnosticsPayload.isNotEmpty
+            ? _diagnosticsPayload
+            : _serviceRequestDetail.isNotEmpty
+                ? _serviceRequestDetail
+                : (_toMap(_args['serviceDetail']) ?? const <String, dynamic>{});
+    final engineer = _findNestedMapByKeys(detailSource, const [
+      'engineer',
+      'assigned_engineer',
+      'staff',
+      'technician',
+    ]);
+    final engineerName = _pickFirstText([
+      engineer?['name'],
+      [
+        _toText(engineer?['first_name']),
+        _toText(engineer?['last_name']),
+      ].where((part) => part.isNotEmpty).join(' '),
+    ], fallback: 'Engineer not assigned');
+    final engineerEmail = _pickFirstText([
+      engineer?['email'],
+      engineer?['mail'],
+    ], fallback: 'No email available');
+    final engineerPhone = _pickFirstText([
+      engineer?['phone'],
+      engineer?['phone_number'],
+      engineer?['mobile'],
+    ]);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -811,19 +874,15 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
         border: Border.all(color: Colors.grey.shade300),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
             radius: 30,
-            backgroundColor: Colors.grey.shade200,
-            child: ClipOval(
-              child: Image.network(
-                'https://img.freepik.com/free-photo/young-bearded-man-with-striped-shirt_273609-5677.jpg',
-                width: 60,
-                height: 60,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    const Icon(Icons.person, color: Colors.grey),
-              ),
+            backgroundColor: const Color(0xFFEAF7EE),
+            child: const Icon(
+              Icons.account_circle_rounded,
+              color: AppColors.primary,
+              size: 42,
             ),
           ),
           const SizedBox(width: 12),
@@ -831,24 +890,48 @@ class _WorkProgressTrackerScreenState extends State<WorkProgressTrackerScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Field Executive',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
                 Text(
-                  'Assigned for service diagnostics',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                  engineerName,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  engineerEmail,
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  engineerPhone.isEmpty ? 'No phone number available' : engineerPhone,
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
                 ),
               ],
             ),
           ),
           IconButton(
             icon: const Icon(Icons.phone_outlined, color: Colors.green),
-            onPressed: () {},
+            onPressed: engineerPhone.isEmpty
+                ? null
+                : () => _dialPhoneNumber(engineerPhone),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _dialPhoneNumber(String phoneNumber) async {
+    final uri = Uri.parse('tel:${phoneNumber.trim()}');
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to open dialer.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Widget _buildDiagnosisGroup(_DiagnosisGroup group) {

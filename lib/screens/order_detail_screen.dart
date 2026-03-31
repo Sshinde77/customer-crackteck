@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../constants/app_colors.dart';
 import '../constants/app_strings.dart';
@@ -54,6 +55,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   String _normalizeImageUrl(String? raw) {
+    final trimmed = (raw ?? '').trim();
+    if (trimmed.isEmpty) return '';
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+    if (trimmed.startsWith('/')) return '$_imageBaseUrl${trimmed.substring(1)}';
+    return '$_imageBaseUrl$trimmed';
+  }
+
+  String _normalizeInvoiceUrl(String? raw) {
     final trimmed = (raw ?? '').trim();
     if (trimmed.isEmpty) return '';
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
@@ -407,20 +416,30 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final order = _order;
     if (order == null) return;
 
-    if (!order.hasInvoicePdf) {
+    final invoiceUrl = _normalizeInvoiceUrl(order.invoiceDownloadPath);
+    if (invoiceUrl.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Invoice is not available yet.')),
       );
       return;
     }
 
-    final fileName = _safeText(
-      order.invoiceNumber,
-      fallback: order.orderNumber ?? 'invoice',
-    );
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Downloading $fileName.pdf')),
-    );
+    final uri = Uri.tryParse(invoiceUrl);
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid invoice link')),
+      );
+      return;
+    }
+
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!mounted) return;
+
+    if (!launched) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open invoice PDF')),
+      );
+    }
   }
 
   Future<void> _openRewardPopup() async {

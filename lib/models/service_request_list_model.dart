@@ -52,6 +52,28 @@ class ServiceRequestListItem {
     return null;
   }
 
+  static String _humanize(dynamic value) {
+    final text = _tryString(value)?.trim() ?? '';
+    if (text.isEmpty) return '-';
+
+    final normalized = text
+        .replaceAll(RegExp(r'[_-]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    return normalized
+        .split(' ')
+        .map((word) {
+          if (word.isEmpty) return word;
+          if (word == word.toUpperCase() && word.length <= 4) {
+            return word;
+          }
+          final lower = word.toLowerCase();
+          return '${lower[0].toUpperCase()}${lower.substring(1)}';
+        })
+        .join(' ');
+  }
+
   factory ServiceRequestListItem.fromJson(Map<String, dynamic> json) {
     final customer = _tryMap(json['customer']) ??
         _tryMap(json['user']) ??
@@ -148,9 +170,9 @@ class ServiceRequestListItem {
 
   String get displayServiceType {
     final text = (serviceType ?? '').trim();
-    if (text.isNotEmpty) return text;
+    if (text.isNotEmpty) return _humanize(text);
     final title = (serviceName ?? '').trim();
-    if (title.isNotEmpty) return title;
+    if (title.isNotEmpty) return _humanize(title);
     return '-';
   }
 
@@ -180,5 +202,9 @@ class ServiceRequestListItem {
     return n.toStringAsFixed(2);
   }
 
-  String get displayStatus => (status ?? '').trim().isEmpty ? '-' : status!.trim();
+  String get displayStatus {
+    final text = (status ?? '').trim();
+    if (text.isEmpty) return '-';
+    return _humanize(text);
+  }
 }

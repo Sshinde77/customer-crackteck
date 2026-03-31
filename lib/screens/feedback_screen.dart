@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../services/api_service.dart';
-import 'feedback_detail_screen.dart';
 
 class FeedbackScreen extends StatefulWidget {
   const FeedbackScreen({super.key});
@@ -180,33 +179,11 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
           final String comment = _toText(
             feedback['comments'] ?? feedback['comment'],
           );
-          final String feedbackId = _toText(
-            feedback['id'] ?? feedback['feedback_id'],
-          );
-
           return _feedbackCard(
             name: name,
             date: date,
             rating: rating,
             comment: comment,
-            onTap: () {
-              if (feedbackId.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Feedback details are not available for this item.',
-                    ),
-                  ),
-                );
-                return;
-              }
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => FeedbackDetailScreen(feedbackId: feedbackId),
-                ),
-              );
-            },
           );
         },
       ),
@@ -218,76 +195,72 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     required String date,
     required int rating,
     required String comment,
-    required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.shade200),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            /// Name + Stars
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          /// Name + Stars
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                Row(
-                  children: List.generate(
-                    5,
-                    (i) => Icon(
-                      Icons.star,
-                      size: 16,
-                      color: i < rating ? Colors.amber : Colors.grey.shade300,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 4),
-
-            /// Date
-            Text(
-              date,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-            ),
-
-            const SizedBox(height: 10),
-
-            /// Comment
-            Text(
-              comment.isEmpty ? 'No comment provided' : comment,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade700,
-                height: 1.4,
               ),
+              Row(
+                children: List.generate(
+                  5,
+                  (i) => Icon(
+                    Icons.star,
+                    size: 16,
+                    color: i < rating ? Colors.amber : Colors.grey.shade300,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 4),
+
+          /// Date
+          Text(
+            date,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+          ),
+
+          const SizedBox(height: 10),
+
+          /// Comment
+          Text(
+            comment.isEmpty ? 'No comment provided' : comment,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade700,
+              height: 1.4,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

@@ -20,6 +20,7 @@ import '../models/banner_model.dart';
 import '../models/quick_service_model.dart';
 import '../models/product_category_model.dart';
 import '../models/order_model.dart';
+import '../models/notification_item.dart';
 import '../models/reward_coupon_model.dart';
 import '../models/service_request_list_model.dart';
 
@@ -2836,6 +2837,83 @@ class ApiService {
     }
   }
 
+  Future<ApiResponse<Map<String, dynamic>>> getServiceDetails({
+    required int serviceId,
+    required int roleId,
+    required int userId,
+  }) async {
+    try {
+      final url =
+          Uri.parse(
+            '${ApiConstants.service_detail}/$serviceId',
+
+          ).replace(
+            queryParameters: {
+              'role_id': roleId.toString(),
+              'user_id': userId.toString(),
+            },
+          );
+
+      debugPrint('API Request: GET $url');
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final dynamic dataRoot = jsonResponse['data'];
+        final Map<String, dynamic> payload = dataRoot is Map<String, dynamic>
+            ? dataRoot
+            : dataRoot is Map
+            ? Map<String, dynamic>.from(dataRoot)
+            : jsonResponse;
+
+        final dynamic detailNode =
+            payload['service_details'] ??
+            payload['serviceDetails'] ??
+            payload['service_detail'] ??
+            payload['serviceDetail'] ??
+            payload['service'] ??
+            payload['details'] ??
+            payload['data'];
+
+        final Map<String, dynamic> details = detailNode is Map<String, dynamic>
+            ? detailNode
+            : detailNode is Map
+            ? Map<String, dynamic>.from(detailNode)
+            : payload;
+
+        return ApiResponse<Map<String, dynamic>>(
+          success: jsonResponse['success'] ?? true,
+          message:
+              jsonResponse['message'] ?? 'Service details fetched successfully',
+          data: details,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch service details'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in getServiceDetails: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
   List<String> _extractDeviceTypeNames(Map<String, dynamic> jsonResponse) {
     final List<dynamic> candidates;
     final dynamic data = jsonResponse['data'];
@@ -3892,12 +3970,17 @@ class ApiService {
     }
   }
 
-  /// Get Individual Feedback
+  // Feedback detail flow removed.
   Future<ApiResponse> getFeedbackDetails({
     required int roleId,
     required int customerId,
     required String feedbackId,
   }) async {
+    return ApiResponse(
+      success: false,
+      message: 'Feedback details are no longer available.',
+    );
+    /*
     try {
       // Endpoint: https://crackteck.co.in/api/v1/get-feedback/2?role_id=4&user_id=3
       final url = Uri.parse("${ApiConstants.getfeedback}/$feedbackId").replace(
@@ -3936,6 +4019,7 @@ class ApiService {
       debugPrint('ðŸ”´ Unexpected Error in getFeedbackDetails: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
+    */
   }
 
   /// Get All Feedback
@@ -4002,6 +4086,86 @@ class ApiService {
       return ApiResponse(success: false, message: 'Request timeout.');
     } catch (e) {
       debugPrint('Unexpected Error in getAllFeedback: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+
+  }
+
+  Future<ApiResponse<List<NotificationItem>>> getNotifications({
+    required int roleId,
+    required int customerId,
+  }) async {
+    try {
+      final url = Uri.parse(ApiConstants.notifications).replace(
+        queryParameters: {
+          'role_id': roleId.toString(),
+          'user_id': customerId.toString(),
+        },
+      );
+
+      debugPrint('API Request: GET $url');
+
+      final response = await _performAuthenticatedGet(url);
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final dynamic dataRoot = jsonResponse['data'];
+        final Map<String, dynamic> payload = dataRoot is Map<String, dynamic>
+            ? dataRoot
+            : jsonResponse;
+
+        dynamic notificationsNode =
+            payload['notifications'] ??
+            payload['notification_list'] ??
+            payload['items'] ??
+            payload['results'];
+
+        if (notificationsNode == null && payload['data'] is List) {
+          notificationsNode = payload['data'];
+        }
+        if (notificationsNode == null && dataRoot is List) {
+          notificationsNode = dataRoot;
+        }
+
+        final List<NotificationItem> notifications =
+            notificationsNode is List
+                ? notificationsNode
+                    .whereType<Map>()
+                    .map(
+                      (item) => NotificationItem.fromJson(
+                        Map<String, dynamic>.from(item),
+                      ),
+                    )
+                    .toList()
+                : <NotificationItem>[];
+
+        return ApiResponse<List<NotificationItem>>(
+          success: jsonResponse['success'] ?? true,
+          message:
+              jsonResponse['message'] ?? 'Notifications fetched successfully',
+          data: notifications,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<List<NotificationItem>>(
+        success: false,
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch notifications'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in getNotifications: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
   }

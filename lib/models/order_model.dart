@@ -36,6 +36,7 @@ class OrderModel {
   final int? invoiceId;
   final String? invoiceNumber;
   final String? invoicePdf;
+  final String? invoiceDocumentPath;
   final bool? isReturnable;
   final bool? rewardAvailable;
   final bool? rewardClaimed;
@@ -61,6 +62,7 @@ class OrderModel {
     this.invoiceId,
     this.invoiceNumber,
     this.invoicePdf,
+    this.invoiceDocumentPath,
     this.isReturnable,
     this.rewardAvailable,
     this.rewardClaimed,
@@ -147,6 +149,11 @@ class OrderModel {
             json['pdf'] ??
             json['order_invoice_pdf'],
       ),
+      invoiceDocumentPath: _readString(
+        json['invoice_document_path'] ??
+            json['invoiceDocumentPath'] ??
+            json['order_invoice_document_path'],
+      ),
       isReturnable: _tryParseBool(
         json['is_returnable'] ??
             json['isReturnable'],
@@ -172,7 +179,15 @@ class OrderModel {
     );
   }
 
-  bool get hasInvoicePdf => (invoicePdf ?? '').trim().isNotEmpty;
+  String? get invoiceDownloadPath {
+    final documentPath = (invoiceDocumentPath ?? '').trim();
+    if (documentPath.isNotEmpty) return documentPath;
+
+    final pdfPath = (invoicePdf ?? '').trim();
+    return pdfPath.isEmpty ? null : pdfPath;
+  }
+
+  bool get hasInvoicePdf => invoiceDownloadPath != null;
 }
 
 class OrderItemModel {

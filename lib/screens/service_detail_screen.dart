@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../constants/api_constants.dart';
 import '../constants/app_colors.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/quick_service_model.dart';
@@ -29,6 +30,12 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
   Map<String, dynamic>? _detailData;
   RewardCoupon? _reward;
 
+  void _printApiLog(dynamic url, dynamic body, dynamic response) {
+    print("API URL: $url");
+    print("Request Body: $body");
+    print("Response: $response");
+  }
+
   @override
   void initState() {
     super.initState();
@@ -57,11 +64,25 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
         return;
       }
 
-      final response = await ApiService.instance.getServiceRequestDetails(
-        requestId: requestId,
+      final url = Uri.parse('${ApiConstants.service_detail}/$requestId').replace(
+        queryParameters: {
+          'role_id': roleId.toString(),
+          'user_id': customerId.toString(),
+        },
+      ).toString();
+      final body = {
+        'service_id': requestId,
+        'role_id': roleId,
+        'user_id': customerId,
+      };
+      _printApiLog(url, body, 'Request started');
+
+      final response = await ApiService.instance.getServiceDetails(
+        serviceId: requestId,
         roleId: roleId,
-        customerId: customerId,
+        userId: customerId,
       );
+      _printApiLog(url, body, response);
 
       if (!mounted) return;
 

@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../constants/api_constants.dart';
 import '../constants/app_colors.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/address_model.dart';
@@ -54,6 +56,9 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
   static const int _maxImagesPerProduct = 10;
   static const int _maxTotalImages = 20;
   static const int _maxImageBytesPerProduct = 20 * 1024 * 1024;
+  static final Uri _macAddressPdfUri = Uri.parse(
+    'https://crackteck.co.in/assets/files/MAC%20Address%20Instructions.pdf',
+  );
 
   final _formKey = GlobalKey<FormState>();
   final List<ProductFormModel> _products = [ProductFormModel()];
@@ -72,6 +77,14 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
     return _products.every((product) => product.isValid);
   }
 
+  void _logApiCall(String label, String method, String url, {Object? payload}) {
+    debugPrint('[QuickServiceDetails] API Call: $label');
+    debugPrint('[QuickServiceDetails] $method $url');
+    if (payload != null) {
+      debugPrint('[QuickServiceDetails] Payload: $payload');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -85,6 +98,16 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
     setState(() => _isDeviceTypeLoading = true);
     try {
       final roleId = await SecureStorageService.getRoleId();
+      final deviceTypesUrl = roleId != null && roleId > 0
+          ? Uri.parse(ApiConstants.devicetype).replace(
+              queryParameters: {'role_id': roleId.toString()},
+            )
+          : Uri.parse(ApiConstants.devicetype);
+      _logApiCall(
+        'getDeviceTypes',
+        'GET',
+        deviceTypesUrl.toString(),
+      );
       final response = await ApiService.instance.getDeviceTypes(roleId: roleId);
       if (!mounted) return;
 
@@ -166,11 +189,18 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
   }
 
   Future<void> _selectDate(BuildContext context, ProductFormModel product) async {
+    final now = DateTime.now();
+    final lastDate = DateTime(now.year, now.month, now.day).subtract(
+      const Duration(days: 1),
+    );
+    final initialDate = lastDate.isAfter(DateTime(2000))
+        ? lastDate
+        : DateTime(2000);
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: initialDate,
       firstDate: DateTime(2000),
-      lastDate: DateTime(2101),
+      lastDate: lastDate,
     );
     if (!mounted || picked == null) return;
     setState(() {
@@ -274,32 +304,37 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
         };
       }).toList();
 
-      final response = await ApiService.instance.submitQuickServiceRequest(
-        customerId: customerId,
-        roleId: roleId,
-        serviceType: serviceType,
-        products: productData,
-        amcPlanId: serviceType == 'amc' ? amcPlanId : null,
-        customerAddressId: _selectedAddressId!,
+      final amount = _tryParseAmount(
+        _pickFirstText([
+          service?.serviceCharge,
+          widget.serviceData['service_charge'],
+          widget.serviceData['amount'],
+          widget.serviceData['price'],
+        ]),
       );
+      final serviceTitle = _pickFirstText([
+        service?.serviceName,
+        widget.serviceData['title'],
+        widget.serviceData['name'],
+      ], fallback: 'Service Request');
 
-      if (mounted) {
-        if (response.success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(response.message ?? 'Request submitted successfully')),
-          );
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const PaymentScreen(),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(response.message ?? 'Failed to submit request')),
-          );
-        }
-      }
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PaymentScreen(
+            serviceTitle: serviceTitle,
+            serviceDescription: serviceType,
+            serviceAmount: amount,
+            serviceQuantity: _products.length,
+            pendingServiceRequestData: {
+              'service_type': serviceType,
+              'amc_plan_id': serviceType == 'amc' ? amcPlanId : null,
+              'customer_address_id': _selectedAddressId,
+              'products': productData,
+            },
+          ),
+        ),
+      );
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -309,6 +344,30 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  String _pickFirstText(List<dynamic> values, {String fallback = ''}) {
+    for (final value in values) {
+      final text = value?.toString().trim() ?? '';
+      if (text.isNotEmpty) {
+        return text;
+      }
+    }
+    return fallback;
+  }
+
+  double? _tryParseAmount(dynamic raw) {
+    if (raw == null) return null;
+    final cleaned = raw.toString().replaceAll(RegExp(r'[^0-9.]'), '');
+    if (cleaned.isEmpty) return null;
+    return double.tryParse(cleaned);
+  }
+
+  int? _tryParseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString().trim());
   }
 
   @override
@@ -594,6 +653,31 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
           decoration: _inputDecoration('Enter MAC address (optional)'),
           onChanged: (val) => setState(() {}),
         ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const Text(
+                'Please Refer Following Instructions to Find MAC Address of Your System. ',
+                style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+              InkWell(
+                onTap: _openMacAddressPdf,
+                child: const Text(
+                  'Download PDF',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.primary,
+                    decoration: TextDecoration.underline,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 16),
 
         _buildLabel('Purchase Date'),
@@ -608,12 +692,12 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
         ),
         const SizedBox(height: 16),
 
-        _buildLabel('Description'),
+        _buildLabel('Issue Description'),
         TextFormField(
           controller: product.descriptionController,
           enabled: !_isLoading,
           maxLines: 3,
-          decoration: _inputDecoration('Enter Description'),
+          decoration: _inputDecoration('Enter issue description'),
           onChanged: (val) => setState(() {}),
         ),
         const SizedBox(height: 16),
@@ -721,6 +805,18 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
         });
         return;
       }
+
+      final addressesUrl = Uri.parse(ApiConstants.addresses).replace(
+        queryParameters: {
+          'user_id': userId.toString(),
+          'role_id': roleId.toString(),
+        },
+      );
+      _logApiCall(
+        'getAddresses',
+        'GET',
+        addressesUrl.toString(),
+      );
 
       final response = await ApiService.instance.getAddresses(userId: userId, roleId: roleId);
 
@@ -921,6 +1017,12 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
+  }
+
+  Future<void> _openMacAddressPdf() async {
+    if (!await launchUrl(_macAddressPdfUri, mode: LaunchMode.externalApplication)) {
+      _showSnackBar('Unable to open MAC address instructions PDF.');
+    }
   }
 
   Future<void> _showPermissionDialog(String permissionName) async {
