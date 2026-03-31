@@ -6,6 +6,7 @@ import '../constants/core/secure_storage_service.dart';
 import '../models/user_model.dart';
 import '../models/api_response.dart';
 import 'invoice_list_screen.dart';
+import 'my_amc_services_screen.dart';
 import 'rewards_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -184,6 +185,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     'My service request',
                     onTap: () {
                       Navigator.pushNamed(context, AppRoutes.myServiceRequest);
+                    },
+                  ),
+                  _buildProfileOption(
+                    Icons.miscellaneous_services_outlined,
+                    'My AMC Service',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const MyAmcServicesScreen(),
+                        ),
+                      );
                     },
                   ),
                   _buildProfileOption(

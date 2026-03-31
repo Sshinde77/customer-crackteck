@@ -38,6 +38,8 @@ class ApiConstants {
   static const String notifications = '$baseUrl/notifications';
   static const String amcPlans = '$baseUrl/amc-plans';
   static const String amcPlanDetails = '$baseUrl/amc-plan-details';
+  static const String customerAmcs = '$baseUrl/customer-amcs';
+  static const String customerAmcDetail = '$baseUrl/customer-amc';
   static const String product_category = '$baseUrl/product/categories';
   static const String productdetail = '$baseUrl/product';
   static const String product_buy = '$baseUrl/buy-product';

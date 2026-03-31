@@ -90,6 +90,23 @@ class OrderModel {
         : json['reward'] is Map
         ? Map<String, dynamic>.from(json['reward'] as Map)
         : const <String, dynamic>{};
+    final invoiceMap = json['invoice'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(json['invoice'] as Map<String, dynamic>)
+        : json['invoice'] is Map
+        ? Map<String, dynamic>.from(json['invoice'] as Map)
+        : json['invoice_detail'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(json['invoice_detail'] as Map<String, dynamic>)
+        : json['invoice_detail'] is Map
+        ? Map<String, dynamic>.from(json['invoice_detail'] as Map)
+        : json['invoice_details'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(json['invoice_details'] as Map<String, dynamic>)
+        : json['invoice_details'] is Map
+        ? Map<String, dynamic>.from(json['invoice_details'] as Map)
+        : json['order_invoice'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(json['order_invoice'] as Map<String, dynamic>)
+        : json['order_invoice'] is Map
+        ? Map<String, dynamic>.from(json['order_invoice'] as Map)
+        : const <String, dynamic>{};
     final rawItems = json['order_products'] ??
         json['order_items'] ??
         json['orderItems'] ??
@@ -135,24 +152,42 @@ class OrderModel {
       invoiceId: _tryParseInt(
         json['invoice_id'] ??
             json['invoiceId'] ??
-            json['order_invoice_id'],
+            json['order_invoice_id'] ??
+            invoiceMap['invoice_id'] ??
+            invoiceMap['invoiceId'] ??
+            invoiceMap['id'],
       ),
       invoiceNumber: _readString(
         json['invoice_number'] ??
             json['invoiceNumber'] ??
-            json['order_invoice_number'],
+            json['order_invoice_number'] ??
+            invoiceMap['invoice_number'] ??
+            invoiceMap['invoiceNumber'] ??
+            invoiceMap['number'],
       ),
       invoicePdf: _readString(
         json['invoice_pdf'] ??
             json['invoicePdf'] ??
             json['pdf_url'] ??
             json['pdf'] ??
-            json['order_invoice_pdf'],
+            json['order_invoice_pdf'] ??
+            invoiceMap['invoice_pdf'] ??
+            invoiceMap['invoicePdf'] ??
+            invoiceMap['pdf_url'] ??
+            invoiceMap['pdf'] ??
+            invoiceMap['url'],
       ),
       invoiceDocumentPath: _readString(
         json['invoice_document_path'] ??
             json['invoiceDocumentPath'] ??
-            json['order_invoice_document_path'],
+            json['order_invoice_document_path'] ??
+            invoiceMap['invoice_document_path'] ??
+            invoiceMap['invoiceDocumentPath'] ??
+            invoiceMap['document_path'] ??
+            invoiceMap['documentPath'] ??
+            invoiceMap['path'] ??
+            invoiceMap['file'] ??
+            invoiceMap['url'],
       ),
       isReturnable: _tryParseBool(
         json['is_returnable'] ??

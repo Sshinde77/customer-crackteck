@@ -16,6 +16,7 @@ import 'payment_screen.dart';
 import 'service_detail_screen.dart';
 
 class ProductFormModel {
+  int? selectedDeviceTypeId;
   final TextEditingController typeController = TextEditingController();
   final TextEditingController nameController = TextEditingController();
   final TextEditingController modelNoController = TextEditingController();
@@ -36,7 +37,7 @@ class ProductFormModel {
   }
 
   bool get isValid {
-    return typeController.text.trim().isNotEmpty &&
+    return selectedDeviceTypeId != null &&
         nameController.text.trim().isNotEmpty &&
         brandController.text.trim().isNotEmpty &&
         descriptionController.text.trim().isNotEmpty;
@@ -66,7 +67,7 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
   bool _isLoading = false;
   bool _isPickingImage = false;
   bool _isDeviceTypeLoading = false;
-  List<String> _deviceTypes = [];
+  List<DeviceTypeOption> _deviceTypes = [];
 
   static const int _addAddressDropdownValue = -1;
   bool _isAddressLoading = false;
@@ -127,6 +128,16 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
         setState(() => _isDeviceTypeLoading = false);
       }
     }
+  }
+
+  DeviceTypeOption? _findDeviceTypeById(int? id) {
+    if (id == null) return null;
+    for (final deviceType in _deviceTypes) {
+      if (deviceType.id == id) {
+        return deviceType;
+      }
+    }
+    return null;
   }
 
   Future<void> _pickImage(ProductFormModel product) async {
@@ -293,7 +304,8 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
       final List<Map<String, dynamic>> productData = _products.map((p) {
         return {
           'name': p.nameController.text.trim(),
-          'type': p.typeController.text.trim(),
+          'type': p.selectedDeviceTypeId,
+          'device_type_id': p.selectedDeviceTypeId,
           'model_no': p.modelNoController.text.trim(),
           'mac_address': p.macAddressController.text.trim(),
           if (serviceTypeId != null) 'service_type_id': serviceTypeId,
@@ -599,17 +611,16 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
         const SizedBox(height: 16),
 
         _buildLabel('Product Type'),
-        DropdownButtonFormField<String>(
-          value: _deviceTypes.contains(product.typeController.text.trim())
-              ? product.typeController.text.trim()
-              : null,
+        DropdownButtonFormField<int>(
+          value: _findDeviceTypeById(product.selectedDeviceTypeId)?.id,
           isExpanded: true,
           items: _deviceTypes
+              .where((type) => type.id != null)
               .map(
-                (type) => DropdownMenuItem<String>(
-                  value: type,
+                (type) => DropdownMenuItem<int>(
+                  value: type.id,
                   child: Text(
-                    type,
+                    type.deviceType,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -618,8 +629,10 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
           onChanged: (_isLoading || _isDeviceTypeLoading || _deviceTypes.isEmpty)
               ? null
               : (value) {
+                  final selectedType = _findDeviceTypeById(value);
                   setState(() {
-                    product.typeController.text = value ?? '';
+                    product.selectedDeviceTypeId = value;
+                    product.typeController.text = selectedType?.deviceType ?? '';
                   });
                 },
           decoration: _inputDecoration(

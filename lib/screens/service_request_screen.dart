@@ -19,6 +19,7 @@ import 'service_detail_screen.dart';
 
 class ServiceProductFormModel {
   QuickService? selectedQuickService;
+  int? selectedDeviceTypeId;
   final TextEditingController typeController = TextEditingController();
   final TextEditingController nameController = TextEditingController();
   final TextEditingController modelNoController = TextEditingController();
@@ -40,7 +41,7 @@ class ServiceProductFormModel {
 
   bool get isValid {
     return selectedQuickService != null &&
-        typeController.text.trim().isNotEmpty &&
+        selectedDeviceTypeId != null &&
         nameController.text.trim().isNotEmpty &&
         selectedImages.isNotEmpty;
   }
@@ -75,7 +76,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   bool _isLoading = false;
   bool _isPickingImage = false;
   bool _isDeviceTypeLoading = false;
-  List<String> _deviceTypes = [];
+  List<DeviceTypeOption> _deviceTypes = [];
 
   static const int _addAddressDropdownValue = -1;
   bool _isAddressLoading = false;
@@ -196,6 +197,16 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         setState(() => _isDeviceTypeLoading = false);
       }
     }
+  }
+
+  DeviceTypeOption? _findDeviceTypeById(int? id) {
+    if (id == null) return null;
+    for (final deviceType in _deviceTypes) {
+      if (deviceType.id == id) {
+        return deviceType;
+      }
+    }
+    return null;
   }
 
   String _getServiceTypeFromTitle() {
@@ -363,7 +374,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       final product = _products[i];
       final isProductValid =
           (_isAmcRequest || product.selectedQuickService != null) &&
-          product.typeController.text.trim().isNotEmpty &&
+          product.selectedDeviceTypeId != null &&
           product.nameController.text.trim().isNotEmpty &&
           product.selectedImages.isNotEmpty;
       if (!isProductValid) {
@@ -426,7 +437,8 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       final List<Map<String, dynamic>> productData = _products.map((p) {
         return {
           'name': p.nameController.text.trim(),
-          'type': p.typeController.text.trim(),
+          'type': p.selectedDeviceTypeId,
+          'device_type_id': p.selectedDeviceTypeId,
           'model_no': p.modelNoController.text.trim(),
           'mac_address': p.macAddressController.text.trim(),
           'sku': _isAmcRequest
@@ -841,17 +853,16 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         const SizedBox(height: 16),
 
         _buildLabel('Product Type'),
-        DropdownButtonFormField<String>(
-          value: _deviceTypes.contains(product.typeController.text.trim())
-              ? product.typeController.text.trim()
-              : null,
+        DropdownButtonFormField<int>(
+          value: _findDeviceTypeById(product.selectedDeviceTypeId)?.id,
           isExpanded: true,
           items: _deviceTypes
+              .where((type) => type.id != null)
               .map(
-                (type) => DropdownMenuItem<String>(
-                  value: type,
+                (type) => DropdownMenuItem<int>(
+                  value: type.id,
                   child: Text(
-                    type,
+                    type.deviceType,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -860,8 +871,10 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
           onChanged: (_isLoading || _isDeviceTypeLoading || _deviceTypes.isEmpty)
               ? null
               : (value) {
+                  final selectedType = _findDeviceTypeById(value);
                   setState(() {
-                    product.typeController.text = value ?? '';
+                    product.selectedDeviceTypeId = value;
+                    product.typeController.text = selectedType?.deviceType ?? '';
                   });
                 },
           decoration: _inputDecoration(

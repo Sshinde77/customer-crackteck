@@ -13,6 +13,7 @@ import '../models/api_response.dart';
 import '../models/product_model.dart';
 import '../models/user_model.dart';
 import '../models/address_model.dart';
+import '../models/customer_amc_model.dart';
 import '../models/aadhar_card_model.dart';
 import '../models/pan_card_model.dart';
 import '../models/company_model.dart';
@@ -2428,6 +2429,87 @@ class ApiService {
           );
         }
 
+        final dynamic invoiceNode =
+            detail['invoice'] ??
+            detail['invoice_detail'] ??
+            detail['invoice_details'] ??
+            detail['order_invoice'] ??
+            payload['invoice'] ??
+            payload['invoice_detail'] ??
+            payload['invoice_details'] ??
+            payload['order_invoice'];
+        final Map<String, dynamic>? invoice =
+            invoiceNode is Map<String, dynamic>
+                ? Map<String, dynamic>.from(invoiceNode)
+                : invoiceNode is Map
+                ? Map<String, dynamic>.from(invoiceNode)
+                : null;
+
+        void assignDetailIfMissing(String key, List<dynamic> candidates) {
+          final existing = detail![key];
+          if (existing is String && existing.trim().isNotEmpty) {
+            return;
+          }
+          if (existing != null && existing is! String) {
+            return;
+          }
+
+          for (final candidate in candidates) {
+            if (candidate is String) {
+              if (candidate.trim().isEmpty) {
+                continue;
+              }
+              detail[key] = candidate;
+              return;
+            }
+            if (candidate != null) {
+              detail[key] = candidate;
+              return;
+            }
+          }
+        }
+
+        assignDetailIfMissing('invoice_id', [
+          payload['invoice_id'],
+          payload['invoiceId'],
+          payload['order_invoice_id'],
+          invoice?['invoice_id'],
+          invoice?['invoiceId'],
+          invoice?['id'],
+        ]);
+        assignDetailIfMissing('invoice_number', [
+          payload['invoice_number'],
+          payload['invoiceNumber'],
+          payload['order_invoice_number'],
+          invoice?['invoice_number'],
+          invoice?['invoiceNumber'],
+          invoice?['number'],
+        ]);
+        assignDetailIfMissing('invoice_pdf', [
+          payload['invoice_pdf'],
+          payload['invoicePdf'],
+          payload['pdf_url'],
+          payload['pdf'],
+          payload['order_invoice_pdf'],
+          invoice?['invoice_pdf'],
+          invoice?['invoicePdf'],
+          invoice?['pdf_url'],
+          invoice?['pdf'],
+          invoice?['url'],
+        ]);
+        assignDetailIfMissing('invoice_document_path', [
+          payload['invoice_document_path'],
+          payload['invoiceDocumentPath'],
+          payload['order_invoice_document_path'],
+          invoice?['invoice_document_path'],
+          invoice?['invoiceDocumentPath'],
+          invoice?['document_path'],
+          invoice?['documentPath'],
+          invoice?['path'],
+          invoice?['file'],
+          invoice?['url'],
+        ]);
+
         if (!detail.containsKey('order_products') &&
             !detail.containsKey('order_items') &&
             !detail.containsKey('items')) {
@@ -2796,7 +2878,7 @@ class ApiService {
     }
   }
 
-  Future<ApiResponse<List<String>>> getDeviceTypes({int? roleId}) async {
+  Future<ApiResponse<List<DeviceTypeOption>>> getDeviceTypes({int? roleId}) async {
     try {
       final query = <String, String>{};
       if (roleId != null && roleId > 0) {
@@ -2807,16 +2889,21 @@ class ApiService {
           ? Uri.parse(ApiConstants.devicetype)
           : Uri.parse(ApiConstants.devicetype).replace(queryParameters: query);
 
+      debugPrint('API Request: GET $url');
+
       final response = await _performAuthenticatedGet(url);
       final jsonResponse = _safeJsonDecode(response.body);
       final bool isHtml = jsonResponse['isHtml'] == true;
 
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
       if (!isHtml &&
           (response.statusCode == 200 || response.statusCode == 201)) {
-        return ApiResponse<List<String>>(
+        return ApiResponse<List<DeviceTypeOption>>(
           success: true,
           message: jsonResponse['message'] ?? 'Device types fetched successfully',
-          data: _extractDeviceTypeNames(jsonResponse),
+          data: _extractDeviceTypes(jsonResponse),
         );
       }
 
@@ -2914,7 +3001,7 @@ class ApiService {
     }
   }
 
-  List<String> _extractDeviceTypeNames(Map<String, dynamic> jsonResponse) {
+  List<DeviceTypeOption> _extractDeviceTypes(Map<String, dynamic> jsonResponse) {
     final List<dynamic> candidates;
     final dynamic data = jsonResponse['data'];
 
@@ -2935,27 +3022,27 @@ class ApiService {
       candidates = nestedList is List ? nestedList : const [];
     }
 
-    final names = <String>{};
+    final deviceTypes = <DeviceTypeOption>[];
+    final seen = <String>{};
     for (final item in candidates) {
       if (item is String && item.trim().isNotEmpty) {
-        names.add(item.trim());
+        final option = DeviceTypeOption(id: null, deviceType: item.trim());
+        if (seen.add(option.deviceType.toLowerCase())) {
+          deviceTypes.add(option);
+        }
         continue;
       }
       if (item is Map<String, dynamic>) {
-        final dynamic rawName =
-            item['name'] ??
-            item['title'] ??
-            item['type'] ??
-            item['device_type'] ??
-            item['deviceType'] ??
-            item['value'];
-        final name = rawName?.toString().trim() ?? '';
-        if (name.isNotEmpty) {
-          names.add(name);
+        final option = DeviceTypeOption.fromJson(item);
+        if (option.deviceType.isNotEmpty) {
+          final key = option.id?.toString() ?? option.deviceType.toLowerCase();
+          if (seen.add(key)) {
+            deviceTypes.add(option);
+          }
         }
       }
     }
-    return names.toList();
+    return deviceTypes;
   }
 
   // ========================================
@@ -3793,9 +3880,11 @@ class ApiService {
 
       for (int i = 0; i < products.length; i++) {
         final product = products[i];
+        final dynamic productTypeValue =
+            product['device_type_id'] ?? product['type'];
         request.fields['products[$i][name]'] = (product['name'] ?? '')
             .toString();
-        request.fields['products[$i][type]'] = (product['type'] ?? '')
+        request.fields['products[$i][type]'] = (productTypeValue ?? '')
             .toString();
         request.fields['products[$i][model_no]'] = (product['model_no'] ?? '')
             .toString();
@@ -4173,6 +4262,118 @@ class ApiService {
   // ========================================
   // AMC Plans API
   // ========================================
+
+  Future<ApiResponse<List<CustomerAmc>>> getCustomerAmcs({
+    required int roleId,
+    required int userId,
+  }) async {
+    try {
+      final url = Uri.parse(ApiConstants.customerAmcs).replace(
+        queryParameters: {
+          'role_id': roleId.toString(),
+          'user_id': userId.toString(),
+        },
+      );
+
+      debugPrint('API Request: GET $url');
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final parsed = CustomerAmcListResponse.fromJson(jsonResponse);
+        return ApiResponse<List<CustomerAmc>>(
+          success: jsonResponse['success'] ?? true,
+          message:
+              jsonResponse['message'] ?? 'Customer AMC list fetched successfully',
+          data: parsed.amcs,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<List<CustomerAmc>>(
+        success: false,
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch customer AMC list'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in getCustomerAmcs: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
+
+  Future<ApiResponse<CustomerAmc>> getCustomerAmcDetail({
+    required int amcId,
+    required int roleId,
+    required int userId,
+  }) async {
+    try {
+      final url = Uri.parse('${ApiConstants.customerAmcDetail}/$amcId').replace(
+        queryParameters: {
+          'role_id': roleId.toString(),
+          'user_id': userId.toString(),
+        },
+      );
+
+      debugPrint('API Request: GET $url');
+
+      final response = await _performAuthenticatedGet(url);
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (!isHtml &&
+          (response.statusCode == 200 || response.statusCode == 201)) {
+        final parsed = CustomerAmcDetailResponse.fromJson(jsonResponse);
+        if (parsed.amc == null) {
+          return ApiResponse<CustomerAmc>(
+            success: false,
+            message: jsonResponse['message'] ?? 'Customer AMC details not found',
+            errors: jsonResponse['errors'],
+          );
+        }
+
+        return ApiResponse<CustomerAmc>(
+          success: jsonResponse['success'] ?? true,
+          message:
+              jsonResponse['message'] ??
+              'Customer AMC details fetched successfully',
+          data: parsed.amc,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<CustomerAmc>(
+        success: false,
+        message:
+            jsonResponse['message'] ??
+            (isHtml ? 'Server returned HTML' : 'Failed to fetch customer AMC details'),
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse(success: false, message: 'No internet connection.');
+    } on TimeoutException {
+      return ApiResponse(success: false, message: 'Request timeout.');
+    } catch (e) {
+      debugPrint('Unexpected Error in getCustomerAmcDetail: $e');
+      return ApiResponse(success: false, message: 'Unexpected error: $e');
+    }
+  }
 
   Future<ApiResponse<List<AmcPlanItem>>> getAmcPlans({
     int? roleId,

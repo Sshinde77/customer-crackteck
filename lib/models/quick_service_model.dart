@@ -14,6 +14,44 @@ class QuickServiceResponse {
   }
 }
 
+class DeviceTypeOption {
+  final int? id;
+  final String deviceType;
+
+  const DeviceTypeOption({
+    required this.id,
+    required this.deviceType,
+  });
+
+  static int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString().trim());
+  }
+
+  factory DeviceTypeOption.fromJson(Map<String, dynamic> json) {
+    final name =
+        (json['device_type'] ??
+                json['deviceType'] ??
+                json['name'] ??
+                json['title'] ??
+                json['type'] ??
+                json['value'] ??
+                '')
+            .toString()
+            .trim();
+
+    return DeviceTypeOption(
+      id: _parseInt(json['id'] ?? json['device_type_id'] ?? json['deviceTypeId']),
+      deviceType: name,
+    );
+  }
+
+  @override
+  String toString() => 'DeviceTypeOption(id: $id, deviceType: $deviceType)';
+}
+
 class QuickService {
   final int? id;
   final String? itemCode;
