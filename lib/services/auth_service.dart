@@ -18,6 +18,32 @@ class AuthService {
   static final AuthService instance = AuthService._();
   final ApiService _apiService = ApiService.instance;
 
+  Future<void> _persistAuthenticatedSession({
+    required String? accessToken,
+    required String? refreshToken,
+    required int? userId,
+    required int? roleId,
+    Map<String, dynamic>? user,
+  }) async {
+    if (accessToken != null && accessToken.trim().isNotEmpty) {
+      await SecureStorageService.saveToken(accessToken);
+    }
+
+    if (refreshToken != null && refreshToken.trim().isNotEmpty) {
+      await SecureStorageService.saveRefreshToken(refreshToken);
+    }
+
+    if (userId != null && userId > 0 && roleId != null && roleId > 0) {
+      await SecureStorageService.saveUserData(
+        userId: userId,
+        roleId: roleId,
+        userData: user,
+      );
+    } else if (user != null && user.isNotEmpty) {
+      await SecureStorageService.saveSession(userData: user);
+    }
+  }
+
   Future<ApiResponse> sendOtp({
     required int roleId,
     required String phoneNumber,
@@ -108,12 +134,12 @@ class AuthService {
         final userId = _extractUserId(jsonResponse);
         final resolvedRoleId = _extractRoleId(jsonResponse) ?? roleId;
 
-        await SecureStorageService.saveSession(
+        await _persistAuthenticatedSession(
           accessToken: token,
           refreshToken: refreshToken,
           userId: userId,
           roleId: resolvedRoleId,
-          userData: user,
+          user: user,
         );
 
         final session = await SessionManager.getSession();
@@ -231,12 +257,12 @@ class AuthService {
         final userId = _extractUserId(jsonResponse);
         final resolvedRoleId = _extractRoleId(jsonResponse) ?? roleId;
 
-        await SecureStorageService.saveSession(
+        await _persistAuthenticatedSession(
           accessToken: token,
           refreshToken: refreshToken,
           userId: userId,
           roleId: resolvedRoleId,
-          userData: user,
+          user: user,
         );
 
         final session = await SessionManager.getSession();

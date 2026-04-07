@@ -12,6 +12,7 @@ import 'package:customer_cracktreck/screens/quick_service_details.dart';
 import 'package:customer_cracktreck/screens/quotation_screen.dart';
 import 'package:customer_cracktreck/screens/service_enquiry.dart';
 import 'package:customer_cracktreck/screens/service_request_details_screen.dart';
+import 'package:customer_cracktreck/screens/splash_screen.dart';
 import 'package:customer_cracktreck/screens/work_progress_tracker_screen.dart';
 import 'package:customer_cracktreck/signup_screen.dart';
 import 'package:flutter/material.dart';
@@ -31,14 +32,12 @@ class RouteGenerator {
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
-      // Handle the default root route
-      case '/':
+      case AppRoutes.splash:
+        return MaterialPageRoute(
+          builder: (_) => const SplashScreen(),
+          settings: settings,
+        );
 
-      // case AppRoutes.login:
-      //   return MaterialPageRoute(
-      //     builder: (_) => const DashboardScreen(),
-      //     settings: settings,
-      //   );
       case AppRoutes.login:
         return MaterialPageRoute(
           builder: (_) => const LoginScreen(roleId: AppStrings.roleId,),
@@ -83,7 +82,15 @@ class RouteGenerator {
 
       case AppRoutes.hometab:
         return MaterialPageRoute(
-          builder: (_) => DashboardScreen(),
+          builder: (_) => const DashboardScreen(),
+          settings: settings,
+        );
+
+      case AppRoutes.adminDashboard:
+      case AppRoutes.residentDashboard:
+      case AppRoutes.salespersonDashboard:
+        return MaterialPageRoute(
+          builder: (_) => const DashboardScreen(),
           settings: settings,
         );
 

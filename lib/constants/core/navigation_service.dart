@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../routes/app_routes.dart';
+import 'secure_storage_service.dart';
 
 
 
@@ -26,6 +27,31 @@ class NavigationService {
 
     navigator.pushNamedAndRemoveUntil(
       AppRoutes.login,
+      (route) => false,
+    );
+  }
+
+  static String resolveHomeRoute({int? roleId}) {
+    switch (roleId) {
+      case 1:
+        return AppRoutes.adminDashboard;
+      case 2:
+        return AppRoutes.residentDashboard;
+      case 3:
+        return AppRoutes.salespersonDashboard;
+      case 4:
+      default:
+        return AppRoutes.hometab;
+    }
+  }
+
+  static Future<void> navigateToHomeRoot({int? roleId}) async {
+    final navigator = navigatorKey.currentState;
+    if (navigator == null) return;
+
+    final resolvedRoleId = roleId ?? await SecureStorageService.getRoleId();
+    navigator.pushNamedAndRemoveUntil(
+      resolveHomeRoute(roleId: resolvedRoleId),
       (route) => false,
     );
   }

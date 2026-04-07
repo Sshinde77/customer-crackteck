@@ -107,6 +107,7 @@ class ApiService {
     String? accessToken;
     String? refreshToken;
     int? userId;
+    Map<String, dynamic>? userData;
 
     if (data is Map<String, dynamic>) {
       final sources = _flattenCandidateMaps(data);
@@ -129,6 +130,7 @@ class ApiService {
         for (final source in sources) {
           if (source['user'] is Map<String, dynamic>) {
             final user = source['user'] as Map<String, dynamic>;
+            userData ??= Map<String, dynamic>.from(user);
             userId = _tryParseInt(user['user_id'] ?? user['id']);
             if (userId != null) {
               break;
@@ -136,18 +138,28 @@ class ApiService {
           }
         }
       }
+
+      userData ??= _extractUserDataFromSources(sources);
     } else if (data is String) {
       // Some APIs may return the token directly as a string.
       accessToken = data;
     }
 
-    // Persist any available auth payload in one write flow.
-    await SecureStorageService.saveSession(
-      accessToken: accessToken,
-      refreshToken: refreshToken,
-      userId: userId,
-      roleId: roleId,
-    );
+    if (accessToken != null && accessToken.isNotEmpty) {
+      await SecureStorageService.saveToken(accessToken);
+    }
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      await SecureStorageService.saveRefreshToken(refreshToken);
+    }
+    if (userId != null && userId > 0 && roleId > 0) {
+      await SecureStorageService.saveUserData(
+        userId: userId,
+        roleId: roleId,
+        userData: userData,
+      );
+    } else if (userData != null && userData.isNotEmpty) {
+      await SecureStorageService.saveSession(userData: userData);
+    }
   }
 
   List<Map<String, dynamic>> _flattenCandidateMaps(
@@ -194,6 +206,21 @@ class ApiService {
         if (parsed != null) {
           return parsed;
         }
+      }
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _extractUserDataFromSources(
+    Iterable<Map<String, dynamic>> sources,
+  ) {
+    for (final source in sources) {
+      final rawUser = source['user'];
+      if (rawUser is Map<String, dynamic>) {
+        return Map<String, dynamic>.from(rawUser);
+      }
+      if (rawUser is Map) {
+        return Map<String, dynamic>.from(rawUser);
       }
     }
     return null;
@@ -4835,7 +4862,7 @@ class ApiService {
     late Future<void> authFailureFuture;
     authFailureFuture =
         () async {
-          await SecureStorageService.clearTokens();
+          await SecureStorageService.clearStorage();
           await NavigationService.navigateToAuthRoot();
         }().whenComplete(() {
           if (identical(_ongoingAuthFailureHandling, authFailureFuture)) {

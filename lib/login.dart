@@ -4,9 +4,10 @@
   import 'package:customer_cracktreck/services/google_auth_service.dart';
   import 'package:customer_cracktreck/widgets/error_dialog.dart';
   import 'package:flutter/material.dart';
-  
-  import 'constants/app_colors.dart';
-  import 'constants/app_strings.dart';
+   
+   import 'constants/app_colors.dart';
+   import 'constants/app_strings.dart';
+  import 'constants/core/navigation_service.dart';
   
   /// Unified Login Screen for all roles
   class LoginScreen extends StatefulWidget {
@@ -152,11 +153,7 @@
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.pushNamedAndRemoveUntil(
-            context,
-            AppRoutes.hometab,
-            (route) => false,
-          );
+          await NavigationService.navigateToHomeRoot(roleId: widget.roleId);
           return;
         }
   
@@ -218,11 +215,7 @@
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.pushNamedAndRemoveUntil(
-            context,
-            AppRoutes.hometab,
-            (route) => false,
-          );
+          await NavigationService.navigateToHomeRoot(roleId: widget.roleId);
           return;
         }
 

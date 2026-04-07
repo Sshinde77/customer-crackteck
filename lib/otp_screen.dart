@@ -285,6 +285,7 @@ import 'package:flutter/material.dart';
 import 'package:sms_autofill/sms_autofill.dart';
 
 import 'constants/app_colors.dart';
+import 'constants/core/navigation_service.dart';
 import 'constants/app_spacing.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
@@ -386,37 +387,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
 
   // ================= NAVIGATION =================
   void _navigateByRole(int roleId) {
-    switch (roleId) {
-      case 1:
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          AppRoutes.adminDashboard,
-          (_) => false,
-        );
-        break;
-      case 2:
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          AppRoutes.residentDashboard,
-          (_) => false,
-        );
-        break;
-      case 3:
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          AppRoutes.salespersonDashboard,
-          (_) => false,
-        );
-      case 4:
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          AppRoutes.hometab,
-          (_) => false,
-        );
-        break;
-      default:
-        _showSnack("Unknown role");
-    }
+    NavigationService.navigateToHomeRoot(roleId: roleId);
   }
 
   // ================= RESEND OTP =================

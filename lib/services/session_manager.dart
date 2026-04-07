@@ -27,12 +27,14 @@ class SessionManager {
     String? refreshToken,
     int? userId,
     int? roleId,
+    Map<String, dynamic>? userData,
   }) async {
     await SecureStorageService.saveSession(
       accessToken: accessToken,
       refreshToken: refreshToken,
       userId: userId,
       roleId: roleId,
+      userData: userData,
     );
   }
 
@@ -50,6 +52,11 @@ class SessionManager {
   }
 
   static Future<void> clearSession() async {
-    await SecureStorageService.clearTokens();
+    await SecureStorageService.clearStorage();
+  }
+
+  static Future<bool> hasAuthenticatedSession() async {
+    final session = await getSession();
+    return session.hasToken;
   }
 }

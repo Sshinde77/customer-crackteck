@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
-import '../routes/app_routes.dart';
 import '../services/api_service.dart';
 import '../constants/core/secure_storage_service.dart';
+import '../constants/core/navigation_service.dart';
+import '../routes/app_routes.dart';
 import '../models/user_model.dart';
 import '../models/api_response.dart';
 import '../widgets/app_loading_screen.dart';
@@ -84,14 +85,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
 
-      await SecureStorageService.clearTokens();
+      await SecureStorageService.clearStorage();
       if (!mounted) return;
       Navigator.pop(context); // Close loading indicator
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        AppRoutes.login,
-        (route) => false,
-      );
+      await NavigationService.navigateToAuthRoot();
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context);

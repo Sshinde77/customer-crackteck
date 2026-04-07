@@ -14,12 +14,12 @@ class ApiConstants {
   static const String staticTermsAndConditionorder =
       '$baseUrl/static/t_n_c_ecommerce_order';
   static const String staticTermsAndConditionquick =
-      '$baseUrl/static/t_n_c_quick';
+      '$baseUrl/static/ t_n_c_quick';
   static const String staticTermsAndConditioninstallation =
       '$baseUrl/static/t_n_c_installation';
   static const String staticTermsAndConditionrepair =
       '$baseUrl/static/t_n_c_repair';
-
+      
 
 
   // Authentication Endpoints

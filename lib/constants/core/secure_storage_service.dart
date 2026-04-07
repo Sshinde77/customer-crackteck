@@ -26,6 +26,11 @@ class SecureStorageService {
   static Future<void> _ensureInitialized() async {
     if (_initialized) return;
     await _migrateLegacySessionFromSharedPreferences();
+    await refreshSessionFromStorage();
+    _initialized = true;
+  }
+
+  static Future<void> refreshSessionFromStorage() async {
     final values = await Future.wait<String?>([
       _storage.read(key: _accessTokenKey),
       _storage.read(key: _refreshTokenKey),
@@ -38,12 +43,12 @@ class SecureStorageService {
     _userId = _parsePositiveInt(values[2]);
     _roleId = _parsePositiveInt(values[3]);
     _userData = _decodeUserData(values[4]);
-    _initialized = true;
   }
 
   /// Get the currently stored access token (if any).
   static Future<String?> getAccessToken() async {
     await _ensureInitialized();
+    _accessToken = _normalizedString(await _storage.read(key: _accessTokenKey));
     return _accessToken;
   }
 
@@ -58,6 +63,7 @@ class SecureStorageService {
   /// Get the currently stored refresh token (if any).
   static Future<String?> getRefreshToken() async {
     await _ensureInitialized();
+    _refreshToken = _normalizedString(await _storage.read(key: _refreshTokenKey));
     return _refreshToken;
   }
 
@@ -72,6 +78,7 @@ class SecureStorageService {
   /// Get the currently stored user id (if any).
   static Future<int?> getUserId() async {
     await _ensureInitialized();
+    _userId = _parsePositiveInt(await _storage.read(key: _userIdKey));
     return _userId;
   }
 
@@ -84,6 +91,7 @@ class SecureStorageService {
 
   static Future<int?> getRoleId() async {
     await _ensureInitialized();
+    _roleId = _parsePositiveInt(await _storage.read(key: _roleIdKey));
     return _roleId;
   }
 
@@ -95,13 +103,34 @@ class SecureStorageService {
 
   static Future<Map<String, dynamic>?> getUserData() async {
     await _ensureInitialized();
+    _userData = _decodeUserData(await _storage.read(key: _userDataKey));
     return _userData == null ? null : Map<String, dynamic>.from(_userData!);
   }
 
-  static Future<void> saveUserData(Map<String, dynamic> userData) async {
+  static Future<void> saveUserData({
+    required int userId,
+    required int roleId,
+    Map<String, dynamic>? userData,
+  }) async {
     await _ensureInitialized();
-    _userData = Map<String, dynamic>.from(userData);
-    await _storage.write(key: _userDataKey, value: jsonEncode(_userData));
+    if (userId <= 0 || roleId <= 0) {
+      throw ArgumentError('userId and roleId must be positive integers.');
+    }
+
+    _userId = userId;
+    _roleId = roleId;
+    _userData = userData == null ? null : Map<String, dynamic>.from(userData);
+
+    final writes = <Future<void>>[
+      _storage.write(key: _userIdKey, value: userId.toString()),
+      _storage.write(key: _roleIdKey, value: roleId.toString()),
+    ];
+    if (_userData != null) {
+      writes.add(
+        _storage.write(key: _userDataKey, value: jsonEncode(_userData)),
+      );
+    }
+    await Future.wait(writes);
   }
 
   /// Persist a full or partial auth session atomically.
@@ -161,6 +190,17 @@ class SecureStorageService {
       _storage.delete(key: _userDataKey),
     ]);
     await _clearLegacySharedPreferences();
+  }
+
+  static Future<void> saveToken(String token) => saveAccessToken(token);
+
+  static Future<String?> getToken() => getAccessToken();
+
+  static Future<void> clearStorage() => clearTokens();
+
+  static Future<bool> hasStoredToken() async {
+    final token = await getToken();
+    return token != null && token.isNotEmpty;
   }
 
   static Future<void> _migrateLegacySessionFromSharedPreferences() async {

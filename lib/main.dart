@@ -56,18 +56,10 @@ Future<void> _logFcmToken() async {
     print('❌ Error fetching FCM token: $e');
   }
 }
-Future<void> testSecureStorage() async {
-  await SecureStorageService.saveAccessToken("TEST_123");
-
-  String? token = await SecureStorageService.getAccessToken();
-
-  print("SECURE TEST TOKEN: $token");
-}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SecureStorageService.initialize();
-  await testSecureStorage();
 
   try {
     await Firebase.initializeApp();
@@ -156,8 +148,41 @@ Future<void> main() async {
   );
 }
 
-class CrackCustomerTechApp extends StatelessWidget {
+class CrackCustomerTechApp extends StatefulWidget {
   const CrackCustomerTechApp({super.key});
+
+  @override
+  State<CrackCustomerTechApp> createState() => _CrackCustomerTechAppState();
+}
+
+class _CrackCustomerTechAppState extends State<CrackCustomerTechApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _syncSessionOnResume();
+    }
+  }
+
+  Future<void> _syncSessionOnResume() async {
+    await SecureStorageService.refreshSessionFromStorage();
+    final hasToken = await SecureStorageService.hasStoredToken();
+    if (!hasToken) {
+      await NavigationService.navigateToAuthRoot();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -170,7 +195,7 @@ class CrackCustomerTechApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
         useMaterial3: true,
       ),
-      initialRoute: AppRoutes.login,
+      initialRoute: AppRoutes.splash,
       onGenerateRoute: RouteGenerator.generateRoute,
     );
   }
