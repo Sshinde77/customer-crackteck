@@ -5,7 +5,22 @@ class ApiConstants {
   // Base URL Configuration
 
   // Current Configuration: Android Emulator
+  static const String siteUrl = 'https://crackteck.co.in';
   static const String baseUrl = 'https://crackteck.co.in/api/v1';
+  static const String staticTermsAndConditions =
+      '$baseUrl/static/t_n_c_amc_remote';
+  static const String staticTermsAndConditionsonsite =
+      '$baseUrl/static/t_n_c_amc_Onsite';
+  static const String staticTermsAndConditionorder =
+      '$baseUrl/static/t_n_c_ecommerce_order';
+  static const String staticTermsAndConditionquick =
+      '$baseUrl/static/t_n_c_quick';
+  static const String staticTermsAndConditioninstallation =
+      '$baseUrl/static/t_n_c_installation';
+  static const String staticTermsAndConditionrepair =
+      '$baseUrl/static/t_n_c_repair';
+
+
 
   // Authentication Endpoints
   static const String login = '$baseUrl/send-otp';

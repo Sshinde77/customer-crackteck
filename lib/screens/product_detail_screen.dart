@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import '../models/product_model.dart';
@@ -57,6 +58,95 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         .replaceAll('&nbsp;', ' ')
         .trim();
     return normalized.isNotEmpty;
+  }
+
+  bool _looksLikeHtml(String value) {
+    return RegExp(r'<[a-z][\s\S]*>', caseSensitive: false).hasMatch(value);
+  }
+
+  String _extractTermsContent(Map<String, dynamic>? data) {
+    final rawContent = data?['content'];
+    if (rawContent is String) {
+      return rawContent.trim();
+    }
+
+    if (rawContent is! List) {
+      return '';
+    }
+
+    final buffer = StringBuffer();
+    for (final item in rawContent) {
+      if (item is! Map) continue;
+
+      final map = item.map((key, value) => MapEntry(key.toString(), value));
+      final type = map['type']?.toString().trim().toLowerCase() ?? '';
+      final text = (map['text'] ?? map['content'] ?? map['value'] ?? '')
+          .toString()
+          .trim();
+      if (text.isEmpty) continue;
+
+      if (type == 'heading') {
+        final rawLevel = int.tryParse('${map['level'] ?? ''}') ?? 1;
+        final level = rawLevel.clamp(1, 4);
+        if (buffer.isNotEmpty) {
+          buffer.writeln();
+        }
+        buffer.write('<h$level>$text</h$level>');
+        continue;
+      }
+
+      if (type == 'paragraph') {
+        if (buffer.isNotEmpty) {
+          buffer.writeln();
+        }
+        buffer.write('<p>$text</p>');
+        continue;
+      }
+
+      if (buffer.isNotEmpty) {
+        buffer.writeln();
+        buffer.writeln();
+      }
+      buffer.write(text);
+    }
+
+    return buffer.toString().trim();
+  }
+
+  Future<void> _openTermsAndConditions() async {
+    final response = await ApiService.instance.getStaticOrderTermsAndConditions();
+    if (!mounted) return;
+
+    final terms = _extractTermsContent(response.data);
+    if (!response.success || terms.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            response.message ?? 'Terms & Conditions are not available.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _ProductTermsAndConditionsScreen(
+          title:
+              response.data?['title']?.toString().trim().isNotEmpty == true
+                  ? response.data!['title'].toString().trim()
+                  : 'Terms & Conditions',
+          productName:
+              (widget.product.warehouseProduct?.productName ??
+                      widget.product.metaTitle ??
+                      'Product')
+                  .trim(),
+          termsAndConditions: terms,
+        ),
+      ),
+    );
   }
 
   Widget _buildHtmlSection({
@@ -288,62 +378,74 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             color: Colors.white,
             border: Border(top: BorderSide(color: Colors.black12)),
           ),
-          child: Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                height: 48,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.black12),
-                  borderRadius: BorderRadius.circular(12),
-                  color: outOfStock ? Colors.grey.shade100 : Colors.white,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      tooltip: 'Decrease quantity',
-                      onPressed: (!outOfStock && _quantity > minQty)
-                          ? () => setState(() => _quantity--)
-                          : null,
-                      icon: const Icon(Icons.remove),
+              Row(
+                children: [
+                  Container(
+                    height: 48,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.black12),
+                      borderRadius: BorderRadius.circular(12),
+                      color: outOfStock ? Colors.grey.shade100 : Colors.white,
                     ),
-                    SizedBox(
-                      width: 38,
-                      child: Text(
-                        '$_quantity',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Increase quantity',
-                      onPressed: (!outOfStock && _quantity < maxQty)
-                          ? () => setState(() => _quantity++)
-                          : null,
-                      icon: const Icon(Icons.add),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: 48,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1F8B00),
-                      disabledBackgroundColor: Colors.grey.shade400,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: outOfStock
-                        ? null
-                        : () => _buyNow(context, title: title, unitPrice: unitPrice),
-                    child: const Text(
-                      'Buy Now',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Decrease quantity',
+                          onPressed: (!outOfStock && _quantity > minQty)
+                              ? () => setState(() => _quantity--)
+                              : null,
+                          icon: const Icon(Icons.remove),
+                        ),
+                        SizedBox(
+                          width: 38,
+                          child: Text(
+                            '$_quantity',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Increase quantity',
+                          onPressed: (!outOfStock && _quantity < maxQty)
+                              ? () => setState(() => _quantity++)
+                              : null,
+                          icon: const Icon(Icons.add),
+                        ),
+                      ],
                     ),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1F8B00),
+                          disabledBackgroundColor: Colors.grey.shade400,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: outOfStock
+                            ? null
+                            : () =>
+                                _buyNow(context, title: title, unitPrice: unitPrice),
+                        child: const Text(
+                          'Buy Now',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -466,8 +568,188 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 title: 'Technical Specs',
                 html: wp?.technicalSpecification ?? _product.ecommerceTechnicalSpecification,
               ),
+              const SizedBox(height: 8),
+              RichText(
+                text: TextSpan(
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.6,
+                    color: Colors.grey.shade700,
+                  ),
+                  children: [
+                    const TextSpan(
+                      text: 'By proceeding, you agree to our ',
+                    ),
+                    TextSpan(
+                      text: 'Terms & Condition',
+                      style: const TextStyle(
+                        color: Color(0xFF1F8B00),
+                        fontWeight: FontWeight.w700,
+                        decoration: TextDecoration.underline,
+                      ),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = _openTermsAndConditions,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductTermsAndConditionsScreen extends StatelessWidget {
+  const _ProductTermsAndConditionsScreen({
+    required this.title,
+    required this.productName,
+    required this.termsAndConditions,
+  });
+
+  final String title;
+  final String productName;
+  final String termsAndConditions;
+
+  bool _hasDisplayableHtml(String value) {
+    final normalized = value
+        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'<[^>]*>'), ' ')
+        .replaceAll('&nbsp;', ' ')
+        .trim();
+    return normalized.isNotEmpty;
+  }
+
+  bool _looksLikeHtml(String value) {
+    return RegExp(r'<[a-z][\s\S]*>', caseSensitive: false).hasMatch(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasHtml = _looksLikeHtml(termsAndConditions) &&
+        _hasDisplayableHtml(termsAndConditions);
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF1F8B00),
+        title: Text(title, style: const TextStyle(color: Colors.white)),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.green.shade100),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    productName.isEmpty ? 'Product' : productName,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Please review the order terms before continuing with your purchase.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.5,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.black12),
+              ),
+              child: hasHtml
+                  ? Html(
+                      data: termsAndConditions,
+                      style: {
+                        'html': Style(
+                          margin: Margins.zero,
+                          padding: HtmlPaddings.zero,
+                          fontSize: FontSize(15),
+                          lineHeight: const LineHeight(1.6),
+                          color: Colors.black87,
+                        ),
+                        'body': Style(
+                          margin: Margins.zero,
+                          padding: HtmlPaddings.zero,
+                          fontSize: FontSize(15),
+                          lineHeight: const LineHeight(1.6),
+                          color: Colors.black87,
+                        ),
+                        'h1': Style(
+                          margin: Margins.only(bottom: 12),
+                          fontSize: FontSize(18),
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                        'h2': Style(
+                          margin: Margins.only(top: 12, bottom: 10),
+                          fontSize: FontSize(17),
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF1F8B00),
+                        ),
+                        'h3': Style(
+                          margin: Margins.only(top: 10, bottom: 8),
+                          fontSize: FontSize(16),
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                        'p': Style(
+                          margin: Margins.only(bottom: 14),
+                          fontSize: FontSize(15),
+                          lineHeight: const LineHeight(1.7),
+                          color: Colors.black87,
+                        ),
+                        'ul': Style(
+                          margin: Margins.only(bottom: 14, left: 18),
+                          padding: HtmlPaddings.zero,
+                        ),
+                        'ol': Style(
+                          margin: Margins.only(bottom: 14, left: 18),
+                          padding: HtmlPaddings.zero,
+                        ),
+                        'li': Style(
+                          margin: Margins.only(bottom: 8),
+                          fontSize: FontSize(15),
+                          lineHeight: const LineHeight(1.6),
+                        ),
+                      },
+                    )
+                  : Text(
+                      termsAndConditions.trim(),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        height: 1.7,
+                        color: Colors.black87,
+                      ),
+                    ),
+            ),
+          ],
         ),
       ),
     );

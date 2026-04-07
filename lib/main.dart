@@ -163,6 +163,7 @@ class CrackCustomerTechApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: NavigationService.navigatorKey,
+      scaffoldMessengerKey: NavigationService.scaffoldMessengerKey,
       title: AppStrings.appName,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(

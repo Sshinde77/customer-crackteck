@@ -3841,6 +3841,7 @@ class ApiService {
     String? amcType,
     int? customerAddressId,
     String? preferredDate,
+    String? macAddress,
   }) async {
     try {
       debugPrint('ðŸ”µ API Request: POST ${ApiConstants.submitQuickService}');
@@ -3877,6 +3878,14 @@ class ApiService {
       if (trimmedPreferredDate.isNotEmpty) {
         request.fields['preferred_date'] = trimmedPreferredDate;
       }
+      final trimmedMacAddress = (macAddress?.trim() ?? '').isNotEmpty
+          ? macAddress!.trim()
+          : products
+              .map((product) => (product['mac_address'] ?? '').toString().trim())
+              .firstWhere((value) => value.isNotEmpty, orElse: () => '');
+      if (trimmedMacAddress.isNotEmpty) {
+        request.fields['mac_address'] = trimmedMacAddress;
+      }
 
       for (int i = 0; i < products.length; i++) {
         final product = products[i];
@@ -3905,17 +3914,22 @@ class ApiService {
               product['service_type_id'].toString();
         }
 
-        // Add images if any
-        if (product['images'] != null && product['images'] is List<File>) {
-          final List<File> images = product['images'];
-          for (var img in images) {
-            request.files.add(
-              await http.MultipartFile.fromPath(
-                'products[$i][images][]',
-                img.path,
-              ),
+        // Add images if any.
+        final imageFiles = _coerceImageFiles(product['images']);
+        for (final img in imageFiles) {
+          if (!await img.exists()) {
+            debugPrint(
+              'Skipping missing quick service image for product $i: ${img.path}',
             );
+            continue;
           }
+
+          request.files.add(
+            await http.MultipartFile.fromPath(
+              'products[$i][images][]',
+              img.path,
+            ),
+          );
         }
       }
 
@@ -3958,6 +3972,24 @@ class ApiService {
       debugPrint('ðŸ”´ Unexpected Error in submitQuickServiceRequest: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
+  }
+
+  List<File> _coerceImageFiles(dynamic rawImages) {
+    if (rawImages is! Iterable) return const [];
+
+    final files = <File>[];
+    for (final rawImage in rawImages) {
+      if (rawImage is File) {
+        files.add(rawImage);
+        continue;
+      }
+
+      final path = rawImage?.toString().trim() ?? '';
+      if (path.isNotEmpty) {
+        files.add(File(path));
+      }
+    }
+    return files;
   }
 
   /// Get Services List (Filtered by role_id and service_type)
@@ -4490,6 +4522,127 @@ class ApiService {
       debugPrint('ðŸ”´ Unexpected Error in getAmcPlanDetails: $e');
       return ApiResponse(success: false, message: 'Unexpected error: $e');
     }
+  }
+
+  List<Map<String, dynamic>> _normalizeTermsContent(dynamic rawContent) {
+    if (rawContent is List) {
+      return rawContent
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    }
+
+    if (rawContent is String && rawContent.trim().isNotEmpty) {
+      return <Map<String, dynamic>>[
+        <String, dynamic>{
+          'type': 'paragraph',
+          'text': rawContent.trim(),
+        },
+      ];
+    }
+
+    return const <Map<String, dynamic>>[];
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> _getStaticTermsContent(
+    String endpoint,
+  ) async {
+    try {
+      final url = Uri.parse(endpoint);
+      debugPrint('API Request: GET $url');
+
+      final response = await http
+          .get(url, headers: _headers)
+          .timeout(ApiConstants.requestTimeout);
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
+      final trimmedBody = response.body.trim();
+      final jsonResponse = _safeJsonDecode(response.body);
+      final bool isHtml = jsonResponse['isHtml'] == true;
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final payload = jsonResponse['data'] is Map<String, dynamic>
+            ? jsonResponse['data'] as Map<String, dynamic>
+            : jsonResponse;
+        final title = payload['title']?.toString().trim();
+        final lastUpdated = payload['last_updated']?.toString().trim();
+        final contentItems = isHtml
+            ? _normalizeTermsContent(trimmedBody)
+            : _normalizeTermsContent(payload['content']);
+
+        return ApiResponse<Map<String, dynamic>>(
+          success: contentItems.isNotEmpty,
+          message: contentItems.isNotEmpty
+              ? (jsonResponse['message']?.toString() ??
+                    'Terms & Conditions fetched successfully')
+              : 'Terms & Conditions content is empty',
+          data: contentItems.isNotEmpty
+              ? <String, dynamic>{
+                  'title': (title == null || title.isEmpty)
+                      ? 'Terms & Conditions'
+                      : title,
+                  'last_updated': lastUpdated,
+                  'content': contentItems,
+                }
+              : null,
+          errors: jsonResponse['errors'],
+        );
+      }
+
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: jsonResponse['message']?.toString() ??
+            'Failed to fetch Terms & Conditions',
+        errors: jsonResponse['errors'],
+      );
+    } on SocketException {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'No internet connection.',
+      );
+    } on TimeoutException {
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Request timeout.',
+      );
+    } catch (e) {
+      debugPrint('Unexpected Error in _getStaticTermsContent: $e');
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Unexpected error: $e',
+      );
+    }
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> getStaticTermsAndConditions({
+    bool useOnsiteTerms = false,
+  }) async {
+    return _getStaticTermsContent(
+      useOnsiteTerms
+          ? ApiConstants.staticTermsAndConditionsonsite
+          : ApiConstants.staticTermsAndConditions,
+    );
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> getStaticOrderTermsAndConditions()
+      async {
+    return _getStaticTermsContent(ApiConstants.staticTermsAndConditionorder);
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> getStaticServiceTermsAndConditions({
+    required String serviceType,
+  }) async {
+    final normalizedType = serviceType.trim().toLowerCase();
+
+    final endpoint = normalizedType == 'installation'
+        ? ApiConstants.staticTermsAndConditioninstallation
+        : normalizedType == 'repair' || normalizedType == 'repairing'
+            ? ApiConstants.staticTermsAndConditionrepair
+            : ApiConstants.staticTermsAndConditionquick;
+
+    return _getStaticTermsContent(endpoint);
   }
   // ========================================
   // Sales Dashboard API Methods

@@ -56,7 +56,73 @@ class ImageCaptureService {
         return const ImageCaptureResult(cancelled: true);
       }
 
-      final File sourceFile = File(picked.path);
+      return _processPickedFile(
+        picked.path,
+        quality: quality,
+        maxDimension: maxDimension,
+        maxBytes: maxBytes,
+      );
+    } on PlatformException {
+      return const ImageCaptureResult(
+        message: 'Unable to access camera/gallery right now. Please try again.',
+      );
+    } catch (_) {
+      return const ImageCaptureResult(
+        message: 'Failed to process image. Please try again.',
+      );
+    }
+  }
+
+  static Future<ImageCaptureResult?> retrieveLostImage({
+    ImagePicker? picker,
+    int maxDimension = defaultMaxDimension,
+    int quality = defaultQuality,
+    int maxBytes = defaultMaxBytes,
+  }) async {
+    try {
+      final activePicker = picker ?? ImagePicker();
+      final LostDataResponse response = await activePicker.retrieveLostData();
+      if (response.isEmpty) {
+        return null;
+      }
+
+      if (response.exception != null) {
+        return ImageCaptureResult(
+          message: response.exception!.message ??
+              'Unable to restore the captured image. Please try again.',
+        );
+      }
+
+      final XFile? file = response.file;
+      if (file == null) {
+        return const ImageCaptureResult(cancelled: true);
+      }
+
+      return _processPickedFile(
+        file.path,
+        quality: quality,
+        maxDimension: maxDimension,
+        maxBytes: maxBytes,
+      );
+    } on PlatformException {
+      return const ImageCaptureResult(
+        message: 'Unable to restore the captured image. Please try again.',
+      );
+    } catch (_) {
+      return const ImageCaptureResult(
+        message: 'Failed to restore the captured image. Please try again.',
+      );
+    }
+  }
+
+  static Future<ImageCaptureResult> _processPickedFile(
+    String filePath, {
+    required int quality,
+    required int maxDimension,
+    required int maxBytes,
+  }) async {
+    try {
+      final File sourceFile = File(filePath);
       File processed = sourceFile;
       bool processedIsTempFile = false;
 

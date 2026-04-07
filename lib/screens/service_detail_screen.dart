@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_html/flutter_html.dart';
 import '../constants/api_constants.dart';
 import '../constants/app_colors.dart';
 import '../constants/core/secure_storage_service.dart';
@@ -29,6 +30,68 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
   String? _errorMessage;
   Map<String, dynamic>? _detailData;
   RewardCoupon? _reward;
+
+  bool _hasDisplayableHtml(String value) {
+    final normalized = value
+        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'<[^>]*>'), ' ')
+        .replaceAll('&nbsp;', ' ')
+        .trim();
+    return normalized.isNotEmpty;
+  }
+
+  bool _looksLikeHtml(String value) {
+    return RegExp(r'<[a-z][\s\S]*>', caseSensitive: false).hasMatch(value);
+  }
+
+  String _extractTermsContent(Map<String, dynamic>? data) {
+    final rawContent = data?['content'];
+    if (rawContent is String) {
+      return rawContent.trim();
+    }
+
+    if (rawContent is! List) {
+      return '';
+    }
+
+    final buffer = StringBuffer();
+    for (final item in rawContent) {
+      if (item is! Map) continue;
+
+      final map = item.map((key, value) => MapEntry(key.toString(), value));
+      final type = map['type']?.toString().trim().toLowerCase() ?? '';
+      final text = (map['text'] ?? map['content'] ?? map['value'] ?? '')
+          .toString()
+          .trim();
+      if (text.isEmpty) continue;
+
+      if (type == 'heading') {
+        final rawLevel = int.tryParse('${map['level'] ?? ''}') ?? 1;
+        final level = rawLevel.clamp(1, 4);
+        if (buffer.isNotEmpty) {
+          buffer.writeln();
+        }
+        buffer.write('<h$level>$text</h$level>');
+        continue;
+      }
+
+      if (type == 'paragraph') {
+        if (buffer.isNotEmpty) {
+          buffer.writeln();
+        }
+        buffer.write('<p>$text</p>');
+        continue;
+      }
+
+      if (buffer.isNotEmpty) {
+        buffer.writeln();
+        buffer.writeln();
+      }
+      buffer.write(text);
+    }
+
+    return buffer.toString().trim();
+  }
 
   void _printApiLog(dynamic url, dynamic body, dynamic response) {
     print("API URL: $url");
@@ -233,6 +296,55 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
     });
   }
 
+  String _normalizeServiceType(String value) {
+    final normalized = value.trim().toLowerCase().replaceAll(' ', '_');
+    if (normalized.contains('installation')) return 'installation';
+    if (normalized.contains('repair')) return 'repair';
+    return 'quick_service';
+  }
+
+  Future<void> _openTermsAndConditions(String serviceType) async {
+    final response = await ApiService.instance.getStaticServiceTermsAndConditions(
+      serviceType: _normalizeServiceType(serviceType),
+    );
+    if (!mounted) return;
+
+    final terms = _extractTermsContent(response.data);
+    if (!response.success || terms.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            response.message ?? 'Terms & Conditions are not available.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _ServiceTermsAndConditionsScreen(
+          title:
+              response.data?['title']?.toString().trim().isNotEmpty == true
+                  ? response.data!['title'].toString().trim()
+                  : 'Terms & Conditions',
+          serviceName: _pickFirstText(
+            [
+              _detailData?['service_name'],
+              _detailData?['name'],
+              _detailData?['title'],
+              widget.service?.serviceName,
+            ],
+            fallback: 'Service',
+          ),
+          termsAndConditions: terms,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final Map<String, dynamic> detail = _detailData ?? <String, dynamic>{};
@@ -392,6 +504,39 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
             _buildInfoRow('Service Charge', ' $serviceCharge'),
             const SizedBox(height: 12),
             _buildInfoRow('Status', status),
+            const SizedBox(height: 16),
+            Wrap(
+              children: [
+                Text(
+                  'By continuing, you confirm that you have read and agree to our ',
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.6,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => _openTermsAndConditions(serviceType),
+                  child: const Text(
+                    'Terms & Conditions',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+                Text(
+                  '.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.6,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ],
+            ),
             if (isCompleted) ...[
               const SizedBox(height: 20),
               ClaimRewardButton(
@@ -491,6 +636,160 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ServiceTermsAndConditionsScreen extends StatelessWidget {
+  const _ServiceTermsAndConditionsScreen({
+    required this.title,
+    required this.serviceName,
+    required this.termsAndConditions,
+  });
+
+  final String title;
+  final String serviceName;
+  final String termsAndConditions;
+
+  bool _hasDisplayableHtml(String value) {
+    final normalized = value
+        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'<[^>]*>'), ' ')
+        .replaceAll('&nbsp;', ' ')
+        .trim();
+    return normalized.isNotEmpty;
+  }
+
+  bool _looksLikeHtml(String value) {
+    return RegExp(r'<[a-z][\s\S]*>', caseSensitive: false).hasMatch(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasHtml = _looksLikeHtml(termsAndConditions) &&
+        _hasDisplayableHtml(termsAndConditions);
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: AppColors.primary,
+        title: Text(title, style: const TextStyle(color: Colors.white)),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.green.shade100),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    serviceName,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Please review the service terms carefully before moving ahead.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.5,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.black12),
+              ),
+              child: hasHtml
+                  ? Html(
+                      data: termsAndConditions,
+                      style: {
+                        'html': Style(
+                          margin: Margins.zero,
+                          padding: HtmlPaddings.zero,
+                          fontSize: FontSize(15),
+                          lineHeight: const LineHeight(1.6),
+                          color: Colors.black87,
+                        ),
+                        'body': Style(
+                          margin: Margins.zero,
+                          padding: HtmlPaddings.zero,
+                          fontSize: FontSize(15),
+                          lineHeight: const LineHeight(1.6),
+                          color: Colors.black87,
+                        ),
+                        'h1': Style(
+                          margin: Margins.only(bottom: 12),
+                          fontSize: FontSize(18),
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                        'h2': Style(
+                          margin: Margins.only(top: 12, bottom: 10),
+                          fontSize: FontSize(17),
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                        'h3': Style(
+                          margin: Margins.only(top: 10, bottom: 8),
+                          fontSize: FontSize(16),
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                        'p': Style(
+                          margin: Margins.only(bottom: 14),
+                          fontSize: FontSize(15),
+                          lineHeight: const LineHeight(1.7),
+                          color: Colors.black87,
+                        ),
+                        'ul': Style(
+                          margin: Margins.only(bottom: 14, left: 18),
+                          padding: HtmlPaddings.zero,
+                        ),
+                        'ol': Style(
+                          margin: Margins.only(bottom: 14, left: 18),
+                          padding: HtmlPaddings.zero,
+                        ),
+                        'li': Style(
+                          margin: Margins.only(bottom: 8),
+                          fontSize: FontSize(15),
+                          lineHeight: const LineHeight(1.6),
+                        ),
+                      },
+                    )
+                  : Text(
+                      termsAndConditions.trim(),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        height: 1.7,
+                        color: Colors.black87,
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

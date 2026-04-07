@@ -68,6 +68,7 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
   bool _isLoading = false;
   bool _isPickingImage = false;
   bool _isDeviceTypeLoading = false;
+  bool _preserveSelectedImagesOnDispose = false;
   List<DeviceTypeOption> _deviceTypes = [];
 
   static const int _addAddressDropdownValue = -1;
@@ -77,6 +78,16 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
 
   bool get _isFormValid {
     return _products.every((product) => product.isValid);
+  }
+
+  String? get _primaryMacAddress {
+    for (final product in _products) {
+      final macAddress = product.macAddressController.text.trim();
+      if (macAddress.isNotEmpty) {
+        return macAddress;
+      }
+    }
+    return null;
   }
 
   void _logApiCall(String label, String method, String url, {Object? payload}) {
@@ -91,8 +102,53 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_recoverLostImage());
       _fetchAddresses();
       _fetchDeviceTypes();
+    });
+  }
+
+  Future<void> _recoverLostImage() async {
+    final result = await ImageCaptureService.retrieveLostImage(
+      picker: _picker,
+      maxBytes: 4 * 1024 * 1024,
+    );
+    if (!mounted || result == null || result.cancelled) return;
+
+    if (result.file == null) {
+      _showSnackBar(result.message ?? 'Unable to restore captured image.');
+      return;
+    }
+
+    final targetProduct = _products.first;
+    if (targetProduct.selectedImages.length >= _maxImagesPerProduct) {
+      await ImageCaptureService.tryDelete(result.file);
+      _showSnackBar(
+        'Recovered image was skipped because the product already has the maximum number of images.',
+      );
+      return;
+    }
+
+    if (_totalImagesCount() >= _maxTotalImages) {
+      await ImageCaptureService.tryDelete(result.file);
+      _showSnackBar(
+        'Recovered image was skipped because the request already has the maximum number of images.',
+      );
+      return;
+    }
+
+    final int projectedBytes =
+        _currentImagesBytes(targetProduct) + ImageCaptureService.safeLength(result.file!);
+    if (projectedBytes > _maxImageBytesPerProduct) {
+      await ImageCaptureService.tryDelete(result.file);
+      _showSnackBar(
+        'Recovered image is too large. Please remove some images or use a smaller file.',
+      );
+      return;
+    }
+
+    setState(() {
+      targetProduct.selectedImages.add(result.file!);
     });
   }
 
@@ -230,9 +286,14 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
     unawaited(ImageCaptureService.tryDelete(removedImage));
   }
 
-  void _disposeProduct(ProductFormModel product) {
-    for (final image in product.selectedImages) {
-      unawaited(ImageCaptureService.tryDelete(image));
+  void _disposeProduct(
+    ProductFormModel product, {
+    bool deleteImages = true,
+  }) {
+    if (deleteImages) {
+      for (final image in product.selectedImages) {
+        unawaited(ImageCaptureService.tryDelete(image));
+      }
     }
     product.selectedImages.clear();
     product.dispose();
@@ -313,7 +374,7 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
           'purchase_date': p.purchaseDateController.text.trim(),
           'brand': p.brandController.text.trim(),
           'description': p.descriptionController.text.trim(),
-          'images': p.selectedImages,
+          'images': List<File>.from(p.selectedImages),
         };
       }).toList();
 
@@ -331,6 +392,7 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
         widget.serviceData['name'],
       ], fallback: 'Service Request');
 
+      _preserveSelectedImagesOnDispose = true;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -343,6 +405,7 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
               'service_type': serviceType,
               'amc_plan_id': serviceType == 'amc' ? amcPlanId : null,
               'customer_address_id': _selectedAddressId,
+              'mac_address': _primaryMacAddress,
               'products': productData,
             },
           ),
@@ -386,7 +449,10 @@ class _QuickServiceDetailsScreenState extends State<QuickServiceDetailsScreen> {
   @override
   void dispose() {
     for (var product in _products) {
-      _disposeProduct(product);
+      _disposeProduct(
+        product,
+        deleteImages: !_preserveSelectedImagesOnDispose,
+      );
     }
     super.dispose();
   }

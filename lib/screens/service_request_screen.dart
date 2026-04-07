@@ -78,6 +78,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   bool _isLoading = false;
   bool _isPickingImage = false;
   bool _isDeviceTypeLoading = false;
+  bool _preserveSelectedImagesOnDispose = false;
   List<DeviceTypeOption> _deviceTypes = [];
 
   static const int _addAddressDropdownValue = -1;
@@ -161,6 +162,16 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         supportType == 'on site';
   }
 
+  String? get _primaryMacAddress {
+    for (final product in _products) {
+      final macAddress = product.macAddressController.text.trim();
+      if (macAddress.isNotEmpty) {
+        return macAddress;
+      }
+    }
+    return null;
+  }
+
   Future<void> _submitServiceRequestDirectly({
     required int customerId,
     required int roleId,
@@ -175,6 +186,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       amcPlanId: _isAmcRequest ? _selectedAmcPlanId : null,
       amcType: _isAmcRequest ? _selectedAmcType : null,
       customerAddressId: _selectedAddressId,
+      macAddress: _primaryMacAddress,
     );
 
     if (!mounted) return;
@@ -211,6 +223,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      unawaited(_recoverLostImage());
       _fetchAddresses();
       _fetchDeviceTypes();
       if (!_isAmcRequest) {
@@ -236,6 +249,50 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
           _printApiLog(url, body, error);
         });
       }
+    });
+  }
+
+  Future<void> _recoverLostImage() async {
+    final result = await ImageCaptureService.retrieveLostImage(
+      picker: _picker,
+      maxBytes: 4 * 1024 * 1024,
+    );
+    if (!mounted || result == null || result.cancelled) return;
+
+    if (result.file == null) {
+      _showSnackBar(result.message ?? 'Unable to restore captured image.');
+      return;
+    }
+
+    final targetProduct = _products.first;
+    if (targetProduct.selectedImages.length >= _maxImagesPerProduct) {
+      await ImageCaptureService.tryDelete(result.file);
+      _showSnackBar(
+        'Recovered image was skipped because the product already has the maximum number of images.',
+      );
+      return;
+    }
+
+    if (_totalImagesCount() >= _maxTotalImages) {
+      await ImageCaptureService.tryDelete(result.file);
+      _showSnackBar(
+        'Recovered image was skipped because the request already has the maximum number of images.',
+      );
+      return;
+    }
+
+    final int projectedBytes =
+        _currentImagesBytes(targetProduct) + ImageCaptureService.safeLength(result.file!);
+    if (projectedBytes > _maxImageBytesPerProduct) {
+      await ImageCaptureService.tryDelete(result.file);
+      _showSnackBar(
+        'Recovered image is too large. Please remove some images or use a smaller file.',
+      );
+      return;
+    }
+
+    setState(() {
+      targetProduct.selectedImages.add(result.file!);
     });
   }
 
@@ -433,9 +490,14 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     }
   }
 
-  void _disposeProduct(ServiceProductFormModel product) {
-    for (final image in product.selectedImages) {
-      unawaited(ImageCaptureService.tryDelete(image));
+  void _disposeProduct(
+    ServiceProductFormModel product, {
+    bool deleteImages = true,
+  }) {
+    if (deleteImages) {
+      for (final image in product.selectedImages) {
+        unawaited(ImageCaptureService.tryDelete(image));
+      }
     }
     product.selectedImages.clear();
     product.dispose();
@@ -522,7 +584,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
           'purchase_date': p.purchaseDateController.text.trim(),
           'brand': p.brandController.text.trim(),
           'description': p.descriptionController.text.trim(),
-          'images': p.selectedImages,
+          'images': List<File>.from(p.selectedImages),
         };
       }).toList();
 
@@ -554,6 +616,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         serviceType,
       ], fallback: serviceType);
 
+      _preserveSelectedImagesOnDispose = true;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -567,6 +630,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
               'customer_address_id': _selectedAddressId,
               'amc_plan_id': _isAmcRequest ? _selectedAmcPlanId : null,
               'amc_type': _isAmcRequest ? _selectedAmcType : null,
+              'mac_address': _primaryMacAddress,
               'products': productData,
             },
           ),
@@ -586,7 +650,10 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   @override
   void dispose() {
     for (var product in _products) {
-      _disposeProduct(product);
+      _disposeProduct(
+        product,
+        deleteImages: !_preserveSelectedImagesOnDispose,
+      );
     }
     super.dispose();
   }

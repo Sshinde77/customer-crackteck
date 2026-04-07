@@ -12,6 +12,8 @@ class NavigationService {
   /// Global navigator key used by [MaterialApp].
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
+  static final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
 
   /// Navigate back to the authentication entry point while
   /// clearing the existing navigation stack.
@@ -26,6 +28,15 @@ class NavigationService {
       AppRoutes.login,
       (route) => false,
     );
+  }
+
+  static void showSnackBar(SnackBar snackBar) {
+    final messenger = scaffoldMessengerKey.currentState;
+    if (messenger == null) return;
+
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(snackBar);
   }
 }
 

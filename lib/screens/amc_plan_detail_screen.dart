@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_html/flutter_html.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../constants/app_colors.dart';
 import '../models/amc_plan_model.dart';
 import '../provider/amc_plan_provider.dart';
+import '../services/api_service.dart';
 import '../widgets/app_loading_screen.dart';
 import 'service_request_screen.dart';
 
@@ -23,12 +26,146 @@ class AmcPlanDetailScreen extends StatefulWidget {
 }
 
 class _AmcPlanDetailScreenState extends State<AmcPlanDetailScreen> {
+  static const String _siteBaseUrl = 'https://crackteck.co.in/';
+
   bool _hidePriceForOffline(AmcPlan? plan) {
     final supportType = plan?.supportType?.trim().toLowerCase() ?? '';
     return supportType == 'offline' ||
         supportType == 'off line' ||
         supportType == 'onsite' ||
         supportType == 'on site';
+  }
+
+  String _buildBrochureUrl(String? brochurePath) {
+    final trimmed = brochurePath?.trim() ?? '';
+    if (trimmed.isEmpty) return '';
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    final normalizedPath = trimmed.replaceAll('\\', '/').replaceFirst(
+      RegExp(r'^/+'),
+      '',
+    );
+    return '$_siteBaseUrl$normalizedPath';
+  }
+
+  Future<void> _downloadBrochure(String? brochurePath) async {
+    final brochureUrl = _buildBrochureUrl(brochurePath);
+    if (brochureUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Brochure is not available.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final uri = Uri.tryParse(brochureUrl);
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid brochure link.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!mounted) return;
+
+    if (!launched) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to open brochure.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _openTermsAndConditions(AmcPlan? plan) async {
+    final response = await ApiService.instance.getStaticTermsAndConditions(
+      useOnsiteTerms: _hidePriceForOffline(plan),
+    );
+    if (!mounted) return;
+
+    final terms = _extractTermsContent(response.data);
+    if (!response.success || terms.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            response.message ?? 'Terms & Conditions are not available.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _AmcTermsAndConditionsScreen(
+          title:
+              response.data?['title']?.toString().trim().isNotEmpty == true
+                  ? response.data!['title'].toString().trim()
+                  : 'Terms & Conditions',
+          planName: plan?.planName,
+          termsAndConditions: terms,
+        ),
+      ),
+    );
+  }
+
+  String _extractTermsContent(Map<String, dynamic>? data) {
+    final rawContent = data?['content'];
+    if (rawContent is String) {
+      return rawContent.trim();
+    }
+
+    if (rawContent is! List) {
+      return '';
+    }
+
+    final buffer = StringBuffer();
+    for (final item in rawContent) {
+      if (item is! Map) continue;
+
+      final map = item.map((key, value) => MapEntry(key.toString(), value));
+      final type = map['type']?.toString().trim().toLowerCase() ?? '';
+      final text = (map['text'] ?? map['content'] ?? map['value'] ?? '')
+          .toString()
+          .trim();
+      if (text.isEmpty) continue;
+
+      if (type == 'heading') {
+        final rawLevel = int.tryParse('${map['level'] ?? ''}') ?? 1;
+        final level = rawLevel.clamp(1, 4);
+        if (buffer.isNotEmpty) {
+          buffer.writeln();
+        }
+        buffer.write('<h$level>$text</h$level>');
+        continue;
+      }
+
+      if (type == 'paragraph') {
+        if (buffer.isNotEmpty) {
+          buffer.writeln();
+        }
+        buffer.write('<p>$text</p>');
+        continue;
+      }
+
+      if (buffer.isNotEmpty) {
+        buffer.writeln();
+        buffer.writeln();
+      }
+      buffer.write(text);
+    }
+
+    return buffer.toString().trim();
   }
 
   @override
@@ -643,12 +780,10 @@ class _AmcPlanDetailScreenState extends State<AmcPlanDetailScreen> {
         const SizedBox(height: 12),
         Row(
           children: [
-            if (plan?.brochure != null)
+            if ((plan?.brochure ?? '').trim().isNotEmpty)
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    // TODO: Download brochure
-                  },
+                  onPressed: () => _downloadBrochure(plan?.brochure),
                   icon: const Icon(Icons.download),
                   label: const Text('Brochure'),
                   style: OutlinedButton.styleFrom(
@@ -660,28 +795,392 @@ class _AmcPlanDetailScreenState extends State<AmcPlanDetailScreen> {
                   ),
                 ),
               ),
-            if (plan?.brochure != null && plan?.tandc != null)
+            if ((plan?.brochure ?? '').trim().isNotEmpty)
               const SizedBox(width: 12),
-            if (plan?.tandc != null)
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    // TODO: View terms and conditions
-                  },
-                  icon: const Icon(Icons.description),
-                  label: const Text('T&C'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: const BorderSide(color: AppColors.primary),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => _openTermsAndConditions(plan),
+                icon: const Icon(Icons.description),
+                label: const Text('T&C'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
               ),
+            ),
           ],
         ),
       ],
     );
   }
+}
+
+class _AmcTermsAndConditionsScreen extends StatelessWidget {
+  const _AmcTermsAndConditionsScreen({
+    required this.title,
+    required this.planName,
+    required this.termsAndConditions,
+  });
+
+  final String title;
+  final String? planName;
+  final String termsAndConditions;
+
+  bool _hasDisplayableHtml(String value) {
+    final normalized = value
+        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'<[^>]*>'), ' ')
+        .replaceAll('&nbsp;', ' ')
+        .trim();
+    return normalized.isNotEmpty;
+  }
+
+  bool _looksLikeHtml(String value) {
+    return RegExp(r'<[a-z][\s\S]*>', caseSensitive: false).hasMatch(value);
+  }
+
+  List<_TermsSection> _buildPlainTextSections(String value) {
+    final normalized = value
+        .replaceAll('\r\n', '\n')
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll(RegExp(r'[ \t]+\n'), '\n')
+        .trim();
+    if (normalized.isEmpty) return const [];
+
+    final blocks = normalized
+        .split(RegExp(r'\n\s*\n'))
+        .map((block) => block.trim())
+        .where((block) => block.isNotEmpty)
+        .toList();
+
+    if (blocks.isEmpty) return const [];
+
+    final sections = <_TermsSection>[];
+    var untitledParagraphs = <String>[];
+
+    for (final block in blocks) {
+      final lines = block
+          .split('\n')
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty)
+          .toList();
+      if (lines.isEmpty) continue;
+
+      final firstLine = lines.first;
+      final remainingLines = lines.skip(1).toList();
+      final hasBodyAfterFirstLine = remainingLines.isNotEmpty;
+      final headingLike = _looksLikeHeading(firstLine);
+
+      if (headingLike && hasBodyAfterFirstLine) {
+        if (untitledParagraphs.isNotEmpty) {
+          sections.add(
+            _TermsSection(
+              heading: null,
+              paragraphs: List<String>.from(untitledParagraphs),
+            ),
+          );
+          untitledParagraphs = <String>[];
+        }
+        sections.add(
+          _TermsSection(
+            heading: _cleanHeading(firstLine),
+            paragraphs: <String>[remainingLines.join(' ')],
+          ),
+        );
+        continue;
+      }
+
+      if (headingLike && !hasBodyAfterFirstLine) {
+        if (untitledParagraphs.isNotEmpty) {
+          sections.add(
+            _TermsSection(
+              heading: null,
+              paragraphs: List<String>.from(untitledParagraphs),
+            ),
+          );
+          untitledParagraphs = <String>[];
+        }
+        sections.add(
+          _TermsSection(
+            heading: _cleanHeading(firstLine),
+            paragraphs: const [],
+          ),
+        );
+        continue;
+      }
+
+      untitledParagraphs.add(lines.join(' '));
+    }
+
+    if (untitledParagraphs.isNotEmpty) {
+      sections.add(
+        _TermsSection(
+          heading: null,
+          paragraphs: untitledParagraphs,
+        ),
+      );
+    }
+
+    return sections;
+  }
+
+  bool _looksLikeHeading(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty || trimmed.length > 80) return false;
+    if (trimmed.endsWith('.') || trimmed.endsWith('!') || trimmed.endsWith('?')) {
+      return false;
+    }
+    final words = trimmed.split(RegExp(r'\s+'));
+    if (words.length > 10) return false;
+    final lower = trimmed.toLowerCase();
+    if (lower.startsWith('http://') || lower.startsWith('https://')) return false;
+    return true;
+  }
+
+  String _cleanHeading(String value) {
+    return value.trim().replaceFirst(RegExp(r'[:\-]\s*$'), '');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasHtml = _looksLikeHtml(termsAndConditions) &&
+        _hasDisplayableHtml(termsAndConditions);
+    final sections = hasHtml ? const <_TermsSection>[] : _buildPlainTextSections(termsAndConditions);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FA),
+      appBar: AppBar(
+        backgroundColor: AppColors.primary,
+        elevation: 0,
+        title: Text(title, style: const TextStyle(color: Colors.white)),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  if ((planName ?? '').trim().isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEAF7EE),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        planName!.trim(),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Text(
+                    'Please review the terms carefully before continuing.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.5,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: hasHtml
+                  ? Html(
+                      data: termsAndConditions,
+                      style: {
+                        'html': Style(
+                          margin: Margins.zero,
+                          padding: HtmlPaddings.zero,
+                          fontSize: FontSize(15),
+                          lineHeight: const LineHeight(1.6),
+                          color: Colors.black87,
+                        ),
+                        'body': Style(
+                          margin: Margins.zero,
+                          padding: HtmlPaddings.zero,
+                          fontSize: FontSize(15),
+                          lineHeight: const LineHeight(1.6),
+                          color: Colors.black87,
+                        ),
+                        'h1': Style(
+                          margin: Margins.only(bottom: 12),
+                          fontSize: FontSize(18),
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.black,
+                        ),
+                        'h2': Style(
+                          margin: Margins.only(top: 12, bottom: 10),
+                          fontSize: FontSize(20),
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                        'h3': Style(
+                          margin: Margins.only(top: 10, bottom: 8),
+                          fontSize: FontSize(18),
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                        'h4': Style(
+                          margin: Margins.only(top: 10, bottom: 8),
+                          fontSize: FontSize(16),
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                        'p': Style(
+                          margin: Margins.only(bottom: 14),
+                          fontSize: FontSize(15),
+                          lineHeight: const LineHeight(1.7),
+                          color: Colors.black87,
+                        ),
+                        'ul': Style(
+                          margin: Margins.only(bottom: 14, left: 18),
+                          padding: HtmlPaddings.zero,
+                        ),
+                        'ol': Style(
+                          margin: Margins.only(bottom: 14, left: 18),
+                          padding: HtmlPaddings.zero,
+                        ),
+                        'li': Style(
+                          margin: Margins.only(bottom: 8),
+                          fontSize: FontSize(15),
+                          lineHeight: const LineHeight(1.6),
+                        ),
+                        'strong': Style(fontWeight: FontWeight.w700),
+                        'br': Style(
+                          margin: Margins.zero,
+                          padding: HtmlPaddings.zero,
+                        ),
+                      },
+                    )
+                  : _TermsTextContent(sections: sections, fallbackText: termsAndConditions),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TermsTextContent extends StatelessWidget {
+  const _TermsTextContent({
+    required this.sections,
+    required this.fallbackText,
+  });
+
+  final List<_TermsSection> sections;
+  final String fallbackText;
+
+  @override
+  Widget build(BuildContext context) {
+    if (sections.isEmpty) {
+      return Text(
+        fallbackText.trim(),
+        style: const TextStyle(
+          fontSize: 15,
+          height: 1.7,
+          color: Colors.black87,
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: sections.map((section) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if ((section.heading ?? '').trim().isNotEmpty) ...[
+                Text(
+                  section.heading!.trim(),
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              ...section.paragraphs.map(
+                (paragraph) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    paragraph.trim(),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      height: 1.7,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _TermsSection {
+  const _TermsSection({
+    required this.heading,
+    required this.paragraphs,
+  });
+
+  final String? heading;
+  final List<String> paragraphs;
 }

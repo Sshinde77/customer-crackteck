@@ -1,16 +1,19 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 import '../constants/api_constants.dart';
 import '../constants/app_strings.dart';
+import '../constants/core/navigation_service.dart';
 import '../constants/core/secure_storage_service.dart';
 import '../models/address_model.dart';
 import '../models/api_response.dart';
 import '../models/product_model.dart';
 import '../models/quick_service_model.dart';
-import '../routes/app_routes.dart';
 import '../services/api_service.dart';
 import 'address_screen.dart';
+import 'dashboard_screen.dart';
 
 class PaymentScreen extends StatefulWidget {
   final ProductData? product;
@@ -46,6 +49,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   static const int _addAddressDropdownValue = -1;
   static const int _cashOnDeliveryIndex = 2;
   static const String _razorpayKeyId = 'rzp_test_STpRW3sZohBEmz';
+  static const String _razorpayCurrency = 'INR';
   int selectedIndex = -1;
   bool _isSubmitting = false;
   bool _isAddressLoading = false;
@@ -86,6 +90,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   @override
   void dispose() {
+    _cleanupPendingServiceImages();
     _razorpay.clear();
     super.dispose();
   }
@@ -93,7 +98,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   String _normalizeImageUrl(String raw) {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) return '';
-     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
       return trimmed;
     }
     if (trimmed.startsWith('/')) {
@@ -108,14 +113,129 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   void _printApiLog(dynamic url, dynamic body, dynamic response) {
-    print("API URL: $url");
-    print("Request Body: $body");
-    print("Response: $response");
+    debugPrint('API URL: $url');
+    debugPrint('Request Body: $body');
+    debugPrint('Response: $response');
   }
 
   void _printRazorpayLog(dynamic response, dynamic status) {
-    print("RAZORPAY RESPONSE: $response");
-    print("STATUS: $status");
+    debugPrint('RAZORPAY RESPONSE: $response');
+    debugPrint('STATUS: $status');
+  }
+
+  void _cleanupPendingServiceImages() {
+    final pending = widget.pendingServiceRequestData;
+    if (pending == null) return;
+
+    final rawProducts = pending['products'];
+    if (rawProducts is! List) return;
+
+    final seenPaths = <String>{};
+    for (final rawProduct in rawProducts) {
+      if (rawProduct is! Map) continue;
+
+      final rawImages = rawProduct['images'];
+      if (rawImages is! Iterable) continue;
+
+      for (final rawImage in rawImages) {
+        final File? file = rawImage is File
+            ? rawImage
+            : (() {
+                final path = rawImage?.toString().trim() ?? '';
+                if (path.isEmpty) return null;
+                return File(path);
+              })();
+        if (file == null) continue;
+
+        final normalizedPath = file.path.trim();
+        if (normalizedPath.isEmpty || !seenPaths.add(normalizedPath)) {
+          continue;
+        }
+
+        try {
+          if (file.existsSync()) {
+            file.deleteSync();
+          }
+        } catch (_) {
+          // Ignore temp file cleanup failures.
+        }
+      }
+    }
+  }
+
+  void _goToDashboard() {
+    final navigator = NavigationService.navigatorKey.currentState;
+    if (navigator == null) return;
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const DashboardScreen()),
+      (route) => false,
+    );
+  }
+
+  void _showGlobalSnackBar(
+    String message, {
+    Color backgroundColor = Colors.red,
+  }) {
+    NavigationService.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: backgroundColor,
+      ),
+    );
+  }
+
+  void _printRazorpayErrorLog(PaymentFailureResponse response) {
+    print('ERROR CODE: ${response.code}');
+    print('ERROR MESSAGE: ${response.message}');
+    print('ERROR DETAILS: ${response.error}');
+    debugPrint('ERROR CODE: ${response.code}');
+    debugPrint('ERROR MESSAGE: ${response.message}');
+    debugPrint('ERROR DETAILS: ${response.error}');
+    _printRazorpayLog({
+      'code': response.code,
+      'message': response.message,
+      'error': response.error,
+    }, 'payment_error');
+  }
+
+  void _openRazorpayAfterBuild(
+    Map<String, Object?> options, {
+    String? orderId,
+    required int amountInPaise,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+
+      print('ORDER ID: $orderId');
+      print('AMOUNT: $amountInPaise');
+      _printRazorpayLog({
+        'orderId': orderId,
+        'amount': amountInPaise,
+        'currency': options['currency'],
+        'title': _resolvedTitle,
+      }, 'checkout_open_requested');
+
+      try {
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        if (!mounted) return;
+        _razorpay.open(options);
+      } catch (error, stackTrace) {
+        _printRazorpayLog({
+          'error': error.toString(),
+          'stackTrace': stackTrace.toString(),
+          'orderId': orderId,
+          'amount': amountInPaise,
+        }, 'checkout_open_error');
+        if (!mounted) return;
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unable to open payment gateway: $error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    });
   }
 
   double? _tryParseAmount(String? raw) {
@@ -156,11 +276,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
       final title = summaryTitle.isNotEmpty
           ? summaryTitle
           : _extractStringByKeys(_serviceDetailData, const [
-              'service_name',
-              'name',
-              'title',
-            ]) ??
-              (widget.serviceTitle ?? '').trim();
+                  'service_name',
+                  'name',
+                  'title',
+                ]) ??
+                (widget.serviceTitle ?? '').trim();
       return title.isEmpty ? 'Service Request' : title;
     }
     final wp = widget.product?.warehouseProduct;
@@ -188,12 +308,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
       final description = (diagnosis != null && diagnosis.trim().isNotEmpty)
           ? diagnosis.trim()
           : _extractStringByKeys(_serviceDetailData, const [
-              'service_type',
-              'type',
-              'description',
-              'remarks',
-            ]) ??
-              (widget.serviceDescription ?? '').trim();
+                  'service_type',
+                  'type',
+                  'description',
+                  'remarks',
+                ]) ??
+                (widget.serviceDescription ?? '').trim();
       return description.isEmpty ? 'Service payment' : description;
     }
     return 'Product payment';
@@ -281,12 +401,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
     try {
       final roleId = await SecureStorageService.getRoleId();
-      final url = Uri.parse(ApiConstants.servicesList).replace(
-        queryParameters: {
-          'service_type': serviceType,
-          if (roleId != null && roleId > 0) 'role_id': roleId.toString(),
-        },
-      ).toString();
+      final url = Uri.parse(ApiConstants.servicesList)
+          .replace(
+            queryParameters: {
+              'service_type': serviceType,
+              if (roleId != null && roleId > 0) 'role_id': roleId.toString(),
+            },
+          )
+          .toString();
       final body = {
         'service_type': serviceType,
         'role_id': roleId,
@@ -418,6 +540,50 @@ class _PaymentScreenState extends State<PaymentScreen> {
     return null;
   }
 
+  Map<String, dynamic>? _asStringKeyedMap(dynamic value) {
+    if (value is! Map) return null;
+    return value.map((key, value) => MapEntry(key.toString(), value));
+  }
+
+  String? _readTrimmedString(dynamic value) {
+    if (value == null) return null;
+    final text = value.toString().trim();
+    return text.isEmpty ? null : text;
+  }
+
+  int? _resolveAmountInPaise() {
+    final total = _resolvedTotal;
+    if (total == null || total <= 0) return null;
+    return (total * 100).round();
+  }
+
+  String? _extractRazorpayEnvironment(
+    Map<String, dynamic>? razorpayPayload,
+    Map<String, dynamic>? responseData,
+  ) {
+    return _readTrimmedString(razorpayPayload?['environment']) ??
+        _readTrimmedString(razorpayPayload?['mode']) ??
+        _readTrimmedString(responseData?['environment']) ??
+        _readTrimmedString(responseData?['mode']);
+  }
+
+  bool _isRazorpayEnvironmentConsistent(String? backendEnvironment) {
+    final normalizedBackend = backendEnvironment?.toLowerCase();
+    final keyEnvironment = _razorpayKeyId.startsWith('rzp_test_')
+        ? 'test'
+        : _razorpayKeyId.startsWith('rzp_live_')
+        ? 'live'
+        : null;
+
+    if (normalizedBackend == null || keyEnvironment == null) return true;
+    if (keyEnvironment == 'test') {
+      return normalizedBackend.contains('test') ||
+          normalizedBackend.contains('sandbox');
+    }
+    return normalizedBackend.contains('live') ||
+        normalizedBackend.contains('prod');
+  }
+
   Future<void> _handleDone() async {
     if (_isSubmitting) return;
 
@@ -435,7 +601,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
       if (selectedIndex == _cashOnDeliveryIndex) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Cash on delivery is not available for service payments.'),
+            content: Text(
+              'Cash on delivery is not available for service payments.',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -454,11 +622,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         ),
       );
       if (!mounted) return;
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        AppRoutes.hometab,
-        (route) => false,
-      );
+      _goToDashboard();
       return;
     }
 
@@ -480,10 +644,27 @@ class _PaymentScreenState extends State<PaymentScreen> {
       int quantity,
       int customerId,
       int shippingAddressId,
-    }) purchaseContext,
+    })
+    purchaseContext,
   ) async {
     if (mounted && !_isSubmitting) {
       setState(() => _isSubmitting = true);
+    }
+
+    final amountInPaise = _resolveAmountInPaise();
+    if (amountInPaise == null || amountInPaise <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to start payment. Invalid order total.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      if (mounted && _isSubmitting) {
+        setState(() => _isSubmitting = false);
+      }
+      return;
     }
 
     var checkoutOpened = false;
@@ -526,11 +707,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
       _pendingBackendOrderId = backendOrderId;
 
-      final razorpayOrderResponse = await ApiService.instance.createRazorpayOrder(
-        orderId: backendOrderId,
-        userId: purchaseContext.customerId,
-        roleId: purchaseContext.roleId,
-      );
+      final razorpayOrderResponse = await ApiService.instance
+          .createRazorpayOrder(
+            orderId: backendOrderId,
+            userId: purchaseContext.customerId,
+            roleId: purchaseContext.roleId,
+          );
       _printRazorpayLog(
         razorpayOrderResponse.data,
         razorpayOrderResponse.success,
@@ -542,7 +724,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              razorpayOrderResponse.message ?? 'Failed to initialize Razorpay order',
+              razorpayOrderResponse.message ??
+                  'Failed to initialize Razorpay order',
             ),
             backgroundColor: Colors.red,
           ),
@@ -550,25 +733,64 @@ class _PaymentScreenState extends State<PaymentScreen> {
         return;
       }
 
-      final razorpayOrderId =
-          _extractStringByKeys(razorpayOrderResponse.data, const [
-            'razorpay_order_id',
-            'order_id',
-            'id',
-          ]);
-
-      if (razorpayOrderId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Razorpay order was created but no order id was returned.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
+      final razorpayPayload = _asStringKeyedMap(
+        razorpayOrderResponse.data?['razorpay'],
+      );
+      final razorpayOrderId = _readTrimmedString(razorpayPayload?['order_id']);
+      if (razorpayOrderId == null || razorpayOrderId.isEmpty) {
+        throw Exception('Invalid Razorpay order_id');
       }
 
+      final backendAmountInPaise = _asInt(razorpayPayload?['amount']);
+      if (backendAmountInPaise != null &&
+          backendAmountInPaise != amountInPaise) {
+        throw Exception(
+          'Amount mismatch between backend and frontend. '
+          'Backend: $backendAmountInPaise, Frontend: $amountInPaise',
+        );
+      }
+
+      final backendCurrency = _readTrimmedString(razorpayPayload?['currency']);
+      if (backendCurrency != null &&
+          backendCurrency.toUpperCase() != _razorpayCurrency) {
+        throw Exception('Invalid Razorpay currency: $backendCurrency');
+      }
+
+      final backendEnvironment = _extractRazorpayEnvironment(
+        razorpayPayload,
+        razorpayOrderResponse.data,
+      );
+      if (!_isRazorpayEnvironmentConsistent(backendEnvironment)) {
+        throw Exception(
+          'Razorpay environment mismatch. '
+          'Backend: $backendEnvironment, Key: $_razorpayKeyId',
+        );
+      }
+
+      print('ORDER ID: $razorpayOrderId');
+      print('AMOUNT: $amountInPaise');
       checkoutOpened = true;
-      await _openRazorpay(orderId: razorpayOrderId);
+      await _openRazorpay(
+        orderId: razorpayOrderId,
+        amountInPaise: amountInPaise,
+      );
+    } catch (error, stackTrace) {
+      _printRazorpayLog({
+        'error': error.toString(),
+        'stackTrace': stackTrace.toString(),
+      }, 'start_online_payment_error');
+      if (!mounted) return;
+      final message = error.toString().replaceFirst('Exception: ', '').trim();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            message.isEmpty
+                ? 'Unable to initialize Razorpay checkout.'
+                : message,
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       if (!checkoutOpened && mounted && _isSubmitting) {
         setState(() => _isSubmitting = false);
@@ -576,9 +798,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
-  Future<void> _openRazorpay({String? orderId}) async {
-    final total = _resolvedTotal;
-    if (total == null || total <= 0) {
+  Future<void> _openRazorpay({String? orderId, int? amountInPaise}) async {
+    final resolvedAmountInPaise = amountInPaise ?? _resolveAmountInPaise();
+    if (resolvedAmountInPaise == null || resolvedAmountInPaise <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Unable to start payment. Invalid order total.'),
@@ -586,6 +808,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
         ),
       );
       return;
+    }
+
+    final normalizedOrderId = orderId?.trim();
+    if (orderId != null &&
+        (normalizedOrderId == null || normalizedOrderId.isEmpty)) {
+      throw Exception('Invalid Razorpay order_id');
     }
 
     final userData = await SecureStorageService.getUserData();
@@ -603,7 +831,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
     final options = <String, Object?>{
       'key': _razorpayKeyId,
-      'amount': (total * 100).round(),
+      'amount': resolvedAmountInPaise,
+      'currency': _razorpayCurrency,
       'name': AppStrings.appName,
       'description': _resolvedDescription,
       'prefill': <String, String>{
@@ -612,7 +841,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
       },
       'notes': <String, String>{
         if (_isServicePayment)
-          'service_name': _resolvedTitle.isEmpty ? 'Service Request' : _resolvedTitle
+          'service_name': _resolvedTitle.isEmpty
+              ? 'Service Request'
+              : _resolvedTitle
         else
           'product_name': _resolvedTitle.isEmpty ? 'Product' : _resolvedTitle,
         if (widget.serviceRequestId != null)
@@ -621,36 +852,30 @@ class _PaymentScreenState extends State<PaymentScreen> {
       'external': <String, List<String>>{
         'wallets': <String>['paytm'],
       },
-      if (orderId != null && orderId.trim().isNotEmpty) 'order_id': orderId.trim(),
+      if (normalizedOrderId != null) 'order_id': normalizedOrderId,
     };
 
     setState(() => _isSubmitting = true);
-    try {
-      _razorpay.open(options);
-    } catch (error) {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Unable to open payment gateway: $error'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+    _openRazorpayAfterBuild(
+      options,
+      orderId: normalizedOrderId,
+      amountInPaise: resolvedAmountInPaise,
+    );
   }
 
-Future<
-      ({
-        int productId,
-        int roleId,
-        int quantity,
-        int customerId,
-        int shippingAddressId,
-      })?> _resolvePurchaseContext() async {
+  Future<
+    ({
+      int productId,
+      int roleId,
+      int quantity,
+      int customerId,
+      int shippingAddressId,
+    })?
+  >
+  _resolvePurchaseContext() async {
     if (_isAddressLoading) {
       ScaffoldMessenger.of(context).showSnackBar(
-         const SnackBar(
+        const SnackBar(
           content: Text('Please wait while addresses are loading.'),
         ),
       );
@@ -732,11 +957,7 @@ Future<
             backgroundColor: const Color(0xFF1F8B00),
           ),
         );
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          AppRoutes.hometab,
-          (route) => false,
-        );
+        _goToDashboard();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -750,17 +971,12 @@ Future<
     }
   }
 
-  Future<void> _handlePaymentSuccess(
-    PaymentSuccessResponse response,
-  ) async {
-    _printRazorpayLog(
-      {
-        'orderId': response.orderId,
-        'paymentId': response.paymentId,
-        'signature': response.signature,
-      },
-      'payment_success',
-    );
+  Future<void> _handlePaymentSuccess(PaymentSuccessResponse response) async {
+    _printRazorpayLog({
+      'orderId': response.orderId,
+      'paymentId': response.paymentId,
+      'signature': response.signature,
+    }, 'payment_success');
 
     final backendOrderId = _pendingBackendOrderId;
 
@@ -769,28 +985,16 @@ Future<
       if (!mounted) return;
       setState(() => _isSubmitting = false);
       if (submitResponse.success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              submitResponse.message ?? 'Payment successful and service request submitted',
-            ),
-            backgroundColor: const Color(0xFF1F8B00),
-          ),
+        _showGlobalSnackBar(
+          submitResponse.message ??
+              'Payment successful and service request submitted',
+          backgroundColor: const Color(0xFF1F8B00),
         );
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          AppRoutes.hometab,
-          (route) => false,
-        );
+        _goToDashboard();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              submitResponse.message ??
-                  'Payment succeeded but service request submission failed.',
-            ),
-            backgroundColor: Colors.red,
-          ),
+        _showGlobalSnackBar(
+          submitResponse.message ??
+              'Payment succeeded but service request submission failed.',
         );
       }
       return;
@@ -802,17 +1006,11 @@ Future<
     if (_isServicePayment && backendOrderId == null) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Payment successful'),
-          backgroundColor: Color(0xFF1F8B00),
-        ),
+      _showGlobalSnackBar(
+        'Payment successful',
+        backgroundColor: const Color(0xFF1F8B00),
       );
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        AppRoutes.hometab,
-        (route) => false,
-      );
+      _goToDashboard();
       return;
     }
 
@@ -825,7 +1023,9 @@ Future<
       setState(() => _isSubmitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Payment succeeded but verification payload is incomplete.'),
+          content: Text(
+            'Payment succeeded but verification payload is incomplete.',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -849,7 +1049,9 @@ Future<
     if (!verifyResponse.success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(verifyResponse.message ?? 'Payment verification failed.'),
+          content: Text(
+            verifyResponse.message ?? 'Payment verification failed.',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -857,20 +1059,15 @@ Future<
     }
 
     _pendingBackendOrderId = null;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(verifyResponse.message ?? 'Payment successful'),
-        backgroundColor: const Color(0xFF1F8B00),
-      ),
+    _showGlobalSnackBar(
+      verifyResponse.message ?? 'Payment successful',
+      backgroundColor: const Color(0xFF1F8B00),
     );
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      AppRoutes.hometab,
-      (route) => false,
-    );
+    _goToDashboard();
   }
 
   void _handlePaymentError(PaymentFailureResponse response) {
+    _printRazorpayErrorLog(response);
     if (!mounted) return;
     setState(() => _isSubmitting = false);
     final message = response.message?.trim();
@@ -919,10 +1116,60 @@ Future<
     return int.tryParse(value.toString().trim());
   }
 
+  String? _extractMacAddressFromPending(
+    Map<String, dynamic> pending,
+    List<Map<String, dynamic>> products,
+  ) {
+    final topLevelMacAddress = pending['mac_address']?.toString().trim() ?? '';
+    if (topLevelMacAddress.isNotEmpty) {
+      return topLevelMacAddress;
+    }
+
+    for (final product in products) {
+      final macAddress = product['mac_address']?.toString().trim() ?? '';
+      if (macAddress.isNotEmpty) {
+        return macAddress;
+      }
+    }
+
+    return null;
+  }
+
+  List<File> _coercePendingImages(dynamic rawImages) {
+    if (rawImages is! Iterable) return const [];
+
+    final files = <File>[];
+    for (final rawImage in rawImages) {
+      if (rawImage is File) {
+        files.add(rawImage);
+        continue;
+      }
+
+      final path = rawImage?.toString().trim() ?? '';
+      if (path.isNotEmpty) {
+        files.add(File(path));
+      }
+    }
+    return files;
+  }
+
+  List<Map<String, dynamic>> _normalizePendingProducts(dynamic rawProducts) {
+    if (rawProducts is! List) return const [];
+
+    return rawProducts.whereType<Map>().map((item) {
+      final product = Map<String, dynamic>.from(item);
+      product['images'] = _coercePendingImages(product['images']);
+      return product;
+    }).toList();
+  }
+
   Future<dynamic> _submitPendingServiceRequestAfterPayment() async {
     final pending = widget.pendingServiceRequestData;
     if (pending == null) {
-      return ApiResponse(success: false, message: 'Missing service request data.');
+      return ApiResponse(
+        success: false,
+        message: 'Missing service request data.',
+      );
     }
 
     final customerId = await SecureStorageService.getUserId();
@@ -934,14 +1181,8 @@ Future<
       );
     }
 
-    final products = (pending['products'] as List<dynamic>? ?? const [])
-        .map((item) => Map<String, dynamic>.from(item as Map))
-        .toList();
-    final body = {
-      'user_id': customerId,
-      'role_id': roleId,
-      ...pending,
-    };
+    final products = _normalizePendingProducts(pending['products']);
+    final body = {'user_id': customerId, 'role_id': roleId, ...pending};
     _printApiLog(ApiConstants.submitQuickService, body, 'Request started');
 
     final submitResponse = await ApiService.instance.submitQuickServiceRequest(
@@ -952,6 +1193,7 @@ Future<
       amcPlanId: _asInt(pending['amc_plan_id']),
       amcType: pending['amc_type']?.toString(),
       customerAddressId: _asInt(pending['customer_address_id']),
+      macAddress: _extractMacAddressFromPending(pending, products),
     );
 
     _printApiLog(ApiConstants.submitQuickService, body, submitResponse);
@@ -1002,14 +1244,16 @@ Future<
         });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(response.message ?? 'Failed to load addresses')),
+          SnackBar(
+            content: Text(response.message ?? 'Failed to load addresses'),
+          ),
         );
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load addresses: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load addresses: $e')));
     } finally {
       if (mounted) {
         setState(() {
@@ -1050,14 +1294,20 @@ Future<
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
-          children: const [
+          children: [
             SizedBox(
               height: 18,
               width: 18,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
             SizedBox(width: 12),
-            Text('Loading addresses...'),
+            Expanded(
+              child: Text(
+                'Loading addresses...',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
       );
@@ -1071,10 +1321,15 @@ Future<
           border: Border.all(color: Colors.black12),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Expanded(child: Text('No address found. Please add one.')),
-            const SizedBox(width: 12),
+            const Text(
+              'No address found. Please add one.',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: _isSubmitting ? null : _goToAddressScreen,
               icon: const Icon(Icons.add_location_alt_outlined),
@@ -1122,9 +1377,7 @@ Future<
           horizontal: 12,
           vertical: 14,
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
@@ -1134,6 +1387,7 @@ Future<
     final total = _resolvedTotal;
     return SafeArea(
       child: Scaffold(
+        resizeToAvoidBottomInset: true,
         backgroundColor: Colors.white,
 
         /// AppBar
@@ -1144,323 +1398,353 @@ Future<
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: () => Navigator.pop(context),
           ),
-          title: const Text(
-            'Payment',
-            style: TextStyle(color: Colors.white),
-          ),
+          title: const Text('Payment', style: TextStyle(color: Colors.white)),
         ),
 
         /// Body
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-
-              if (widget.product != null || _isServicePayment) ...[
-                Text(
-                  _isServicePayment ? 'Service Summary' : 'Order Summary',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.black12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        height: 64,
-                        width: 64,
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(10),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                24 + MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (widget.product != null || _isServicePayment) ...[
+                      Text(
+                        _isServicePayment ? 'Service Summary' : 'Order Summary',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                         ),
-                        child: _resolvedImageUrl.isEmpty
-                            ? Icon(
-                                _isServicePayment
-                                    ? Icons.miscellaneous_services_rounded
-                                    : Icons.image,
-                                color: Colors.grey,
-                                size: _isServicePayment ? 34 : 24,
-                              )
-                            : Image.network(
-                                _resolvedImageUrl,
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    const Icon(Icons.broken_image, color: Colors.grey),
-                              ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.black12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              _resolvedTitle.isEmpty
-                                  ? (_isServicePayment ? 'Service Request' : 'Product')
-                                  : _resolvedTitle,
-                              style: const TextStyle(fontWeight: FontWeight.w700),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+                            Container(
+                              height: 64,
+                              width: 64,
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: _resolvedImageUrl.isEmpty
+                                  ? Icon(
+                                      _isServicePayment
+                                          ? Icons.miscellaneous_services_rounded
+                                          : Icons.image,
+                                      color: Colors.grey,
+                                      size: _isServicePayment ? 34 : 24,
+                                    )
+                                  : Image.network(
+                                      _resolvedImageUrl,
+                                      fit: BoxFit.contain,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              const Icon(
+                                                Icons.broken_image,
+                                                color: Colors.grey,
+                                              ),
+                                    ),
                             ),
-                            const SizedBox(height: 6),
-                            if (_isServicePayment)
-                              Column(
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  if (_isServiceSummaryLoading) ...[
-                                    const SizedBox(height: 4),
-                                    const SizedBox(
-                                      height: 16,
-                                      width: 16,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    ),
-                                    const SizedBox(height: 8),
-                                  ],
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 5,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFEAF7EE),
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                    child: Text(
-                                      'Qty: $_resolvedServiceQuantity',
-                                      style: const TextStyle(
-                                        color: Color(0xFF1F8B00),
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
                                   Text(
-                                    _resolvedDescription,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade600,
+                                    _resolvedTitle.isEmpty
+                                        ? (_isServicePayment
+                                              ? 'Service Request'
+                                              : 'Product')
+                                        : _resolvedTitle,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
                                     ),
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                  if (_resolvedServiceUnitAmount != null) ...[
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      'Unit Price: \u20B9 ${_formatAmount(_resolvedServiceUnitAmount!)}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14,
-                                        color: Color(0xFF1F8B00),
-                                      ),
+                                  const SizedBox(height: 6),
+                                  if (_isServicePayment)
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if (_isServiceSummaryLoading) ...[
+                                          const SizedBox(height: 4),
+                                          const SizedBox(
+                                            height: 16,
+                                            width: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                        ],
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 5,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFEAF7EE),
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'Qty: $_resolvedServiceQuantity',
+                                            style: const TextStyle(
+                                              color: Color(0xFF1F8B00),
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          _resolvedDescription,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        if (_resolvedServiceUnitAmount !=
+                                            null) ...[
+                                          const SizedBox(height: 10),
+                                          Text(
+                                            'Unit Price: \u20B9 ${_formatAmount(_resolvedServiceUnitAmount!)}',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 14,
+                                              color: Color(0xFF1F8B00),
+                                            ),
+                                          ),
+                                        ],
+                                        if (total != null) ...[
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            'Total: \u20B9 ${_formatAmount(total)}',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 18,
+                                              color: Color(0xFF1F8B00),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    )
+                                  else
+                                    Wrap(
+                                      spacing: 12,
+                                      runSpacing: 4,
+                                      children: [
+                                        Text('Qty: ${widget.quantity}'),
+                                        if (_resolvedUnitPrice != null)
+                                          Text(
+                                            'Unit: \u20B9 ${_formatAmount(_resolvedUnitPrice!)}',
+                                          ),
+                                      ],
                                     ),
-                                  ],
-                                  if (total != null) ...[
+                                  if (!_isServicePayment && total != null) ...[
                                     const SizedBox(height: 6),
                                     Text(
                                       'Total: \u20B9 ${_formatAmount(total)}',
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w700,
-                                        fontSize: 18,
-                                        color: Color(0xFF1F8B00),
                                       ),
                                     ),
                                   ],
                                 ],
-                              )
-                            else
-                              Row(
-                                children: [
-                                  Text('Qty: ${widget.quantity}'),
-                                  const SizedBox(width: 12),
-                                  if (_resolvedUnitPrice != null)
-                                    Text('Unit: \u20B9 ${_formatAmount(_resolvedUnitPrice!)}'),
-                                ],
                               ),
-                            if (!_isServicePayment && total != null) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                'Total: \u20B9 ${_formatAmount(total)}',
-                                style: const TextStyle(fontWeight: FontWeight.w700),
-                              ),
-                            ],
+                            ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                if (!_isServicePayment) ...[
-                  const Text(
-                    'Delivery Address',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildAddressSection(),
-                  const SizedBox(height: 20),
-                ],
-              ],
-
-              /// Offers
-              const Text(
-                'Offers',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                decoration: InputDecoration(
-                  hintText: 'Enter Offer Code',
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 14,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              /// Online
-              const Text(
-                'Online',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.black12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-
-                    /// Razorpay
-                    _paymentTile(
-                      index: 0,
-                      leading: Container(
-                        height: 36,
-                        width: 36,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0C2D72),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Text(
-                          'RZP',
+                      const SizedBox(height: 20),
+                      if (!_isServicePayment) ...[
+                        const Text(
+                          'Delivery Address',
                           style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                      ),
-                      title: 'Razorpay',
-                      subtitle: 'Pay securely with Razorpay',
-                      amount: '₹ 2,500',
-                    ),
-
-                    const Divider(height: 1),
-
-                    if (false)
-                      _paymentTile(
-                      index: 1,
-                      icon: Icons.payment,
-                      title: 'PhonePe',
-                      amount: '₹ 2,500',
-                    ),
-
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              if (!_isServicePayment) ...[
-                const Text(
-                  'Cash On Delivery',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.black12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: _paymentTile(
-                    index: _cashOnDeliveryIndex,
-                    icon: Icons.local_shipping_outlined,
-                    title: 'Cash on Delivery',
-                    amount: '\u20B9 2,500',
-                    enabled: _isCashOnDeliveryAvailable,
-                    subtitle: _isCashOnDeliveryAvailable
-                        ? 'Pay when your order is delivered'
-                        : 'Available only for orders below \u20B9 2000',
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ] else
-                const SizedBox(height: 24),
-
-              /// Done Button
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1F8B00),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  onPressed: _isSubmitting ? null : _handleDone,
-                  child: _isSubmitting
-                      ? const SizedBox(
-                          height: 22,
-                          width: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Text(
-                          'Done',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white,
+                            fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+                        const SizedBox(height: 8),
+                        _buildAddressSection(),
+                        const SizedBox(height: 20),
+                      ],
+                    ],
+
+                    /*
+                    /// Offers
+                    const Text(
+                      'Offers',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Enter Offer Code',
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 14,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+                    */
+
+                    /// Online
+                    const Text(
+                      'Online',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.black12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          /// Razorpay
+                          _paymentTile(
+                            index: 0,
+                            leading: Container(
+                              height: 36,
+                              width: 36,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0C2D72),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Text(
+                                'RZP',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                            ),
+                            title: 'Razorpay',
+                            subtitle: 'Pay securely with Razorpay',
+                            amount: '₹ 2,500',
+                          ),
+
+                          const Divider(height: 1),
+
+                          if (false)
+                            _paymentTile(
+                              index: 1,
+                              icon: Icons.payment,
+                              title: 'PhonePe',
+                              amount: '₹ 2,500',
+                            ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    if (!_isServicePayment) ...[
+                      const Text(
+                        'Cash On Delivery',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.black12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: _paymentTile(
+                          index: _cashOnDeliveryIndex,
+                          icon: Icons.local_shipping_outlined,
+                          title: 'Cash on Delivery',
+                          amount: '\u20B9 2,500',
+                          enabled: _isCashOnDeliveryAvailable,
+                          subtitle: _isCashOnDeliveryAvailable
+                              ? 'Pay when your order is delivered'
+                              : 'Available only for orders below \u20B9 2000',
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ] else
+                      const SizedBox(height: 24),
+
+                    /// Done Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1F8B00),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: _isSubmitting ? null : _handleDone,
+                        child: _isSubmitting
+                            ? const SizedBox(
+                                height: 22,
+                                width: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                            : const Text(
+                                'Done',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -1477,33 +1761,47 @@ Future<
     String? subtitle,
   }) {
     final total = _resolvedTotal;
-    final String resolvedAmount =
-        total != null ? '\u20B9 ${_formatAmount(total)}' : amount;
+    final String resolvedAmount = total != null
+        ? '\u20B9 ${_formatAmount(total)}'
+        : amount;
     final Color? foregroundColor = enabled ? null : Colors.grey;
 
     return ListTile(
       enabled: enabled,
-      leading: leading ??
-          Icon(
-            icon ?? Icons.payment,
-            size: 28,
-            color: foregroundColor,
-          ),
-      title: Text(title, style: TextStyle(color: foregroundColor)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      minLeadingWidth: 36,
+      isThreeLine: subtitle != null,
+      leading:
+          leading ??
+          Icon(icon ?? Icons.payment, size: 28, color: foregroundColor),
+      title: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: foregroundColor),
+      ),
       subtitle: subtitle == null
           ? null
-          : Text(subtitle, style: TextStyle(color: foregroundColor)),
-      trailing: Row(
+          : Text(
+              subtitle,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: foregroundColor),
+            ),
+      trailing: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text(
             resolvedAmount,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontWeight: FontWeight.w600,
               color: foregroundColor,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(height: 4),
           Checkbox(
             value: selectedIndex == index,
             onChanged: enabled
